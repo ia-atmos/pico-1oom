@@ -1,3 +1,12 @@
+> **This repository is not 1oom.** It is a port of 1oom to the
+> [Atmos](https://github.com/ia-atmos/lang) language, **made with AI**, and it
+> is **not affiliated with the 1oom project**. 1oom prohibits AI-generated
+> code: nothing from this repository may be submitted to it (no pull request,
+> no issue, no patch). The port is a derivative work of 1oom and is distributed
+> under the same license, the GNU GPL version 2 (see [COPYING](COPYING)).
+> The text below is the readme of the original project, at the commit this
+> port starts from.
+
 This version of the game is no longer in development. Check out the vanilla branch to get an idea of ​​the latest engine version.
 
 1oom
