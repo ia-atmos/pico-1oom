@@ -21,9 +21,7 @@ a time.
 
 | # | Decision | Recommended |
 |---|----------|-------------|
-| 1 | The original project forbids code made by AI ("Direct use of AI-generated code is prohibited in 1oom", in its readme). Whether to go on in view of that rule | Go on, as another work in this fork, under the GPL-2, which allows it. Nothing made here goes back to the original project (no pull request, no issue, no patch), and the readme of this repository says at its top that it is a port to Atmos made with AI, not affiliated with 1oom |
-| 2 | The game needs the LBX files of Master of Orion v1.3, from an original copy (checksums in `doc/lbxmd5.txt`). They cannot be fetched and must never be committed. Nothing can be run or compared until the author provides them | The author provides them to the session, outside the repository, in a directory that `.gitignore` also covers; they are checked against `doc/lbxmd5.txt` |
-| 3 | Which version to port. The fork has only `master` (`42e9c0b`), whose readme says this version is no longer developed and points to a branch `vanilla` that the fork does not have | The `master` that is here: it is what the instructions measured, and it has the textual interface and `saveconv`, which make fidelity checkable. To confirm after a look at `vanilla` of the original, if the author wants it brought to the fork |
+| 2 | The LBX files of Master of Orion v1.3, from an original copy (checksums in `doc/lbxmd5.txt`). The author said "we will look for them" (2026-11-14). They are never committed (`*.lbx` is already in `.gitignore`). Nothing can be run or compared until they are in the session | The author provides them, outside the repository; they are checked against `doc/lbxmd5.txt` |
 
 After these, the questions of the instructions that the port must
 answer early, also the author's:
@@ -39,10 +37,17 @@ answer early, also the author's:
 
 Nothing may start before the author says so.
 
-- The notice at the top of `README.md` (item 1), once he confirms.
 - Build the original C with the hardware `nop` and the textual
   interface, as the oracle (needs item 2 to run).
 
 ## C. Reported or decided, and not acknowledged
 
 - Nothing yet.
+
+## Settled
+
+- 1 (2026-11-14): the port goes on. The license stays the GPL-2: the
+  port is a derivative work of 1oom, whose sources are GPL version 2
+  with no "or later", so no more permissive license is possible. The
+  readme has the notice at its top. Nothing goes back to the original.
+- 3 (2026-11-14): the version to port is `master` (`42e9c0b`).
