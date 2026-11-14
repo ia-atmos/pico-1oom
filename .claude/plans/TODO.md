@@ -37,8 +37,18 @@ answer early, also the author's:
 
 Nothing may start before the author says so.
 
-- Build the original C with the hardware `nop` and the textual
-  interface, as the oracle (needs item 2 to run).
+- The oracle of the logic is built (2026-11-14), in `build-native/`
+  (ignored by git): `autoreconf -fi`, then `../configure
+  --disable-uiclassic --disable-hwsdl2 --disable-hwsdl1
+  --disable-hwalleg4 --without-readline --without-samplerate`, then
+  `make`. It gives `1oom_cmdline` (hardware `nop`) and the tools,
+  with `1oom_saveconv`. Not run yet: it needs the LBX files (item 2).
+- The oracle of the interface of 1993 (`1oom_classic_*`) is not
+  built: it needs SDL 2 and its mixer, which the container does not
+  have.
+- With the LBX files: a first run from a fixed seed (`-new`), with
+  commands on the standard input, and its save converted to text, to
+  confirm that two runs give the same bytes.
 
 ## C. Reported or decided, and not acknowledged
 
