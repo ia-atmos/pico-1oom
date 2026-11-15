@@ -12,7 +12,7 @@ The initial instructions are in `ia-atmos/lang`,
 `.claude/plans/261114-pico-1oom.md` (commit `354cf19`). Nothing starts
 before the author says so.
 
-Last update: 2026-11-14.
+Last update: 2026-11-15.
 
 ## A. Decisions waiting for an answer
 
@@ -49,6 +49,13 @@ Nothing may start before the author says so.
 - With the LBX files: a first run from a fixed seed (`-new`), with
   commands on the standard input, and its save converted to text, to
   confirm that two runs give the same bytes.
+- Before writing Atmos: the rules of `pin` changed on 2026-11-15
+  (`ia-atmos/lang`, `main` since `98ad03a`; told by the compiler
+  session). A dynamic value just created is declared with `pin`; a
+  `val` only refers to a value that has an owner; a task publishes
+  what it creates in its `pub`. Read `doc/manual.md` ("Lexical Memory
+  Management", "Pin", "Pub") and `.claude/plans/261115-pin-migration.md`
+  there. The initial instructions are outdated on this point.
 
 ## C. Reported or decided, and not acknowledged
 
