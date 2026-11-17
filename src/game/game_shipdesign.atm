@@ -1,0 +1,33 @@
+;; Port of c/src/game/game_shipdesign.h: the constants and the structure.
+;; The tables that it declares are ported with game_shipdesign.c.
+
+include "../ctypes.atm"
+include "game_shiptech.atm"
+include "game_types.atm"
+
+val SHIP_NAME_LEN = 12
+val SHIP_LOOK_PER_HULL = 6
+val SHIP_LOOK_PER_BANNER = 24
+val WEAPON_SLOT_NUM = 4
+val SPECIAL_SLOT_NUM = 3
+
+func shipdesign_t () {
+    [
+        name    = carray(SHIP_NAME_LEN),    ;; char[]
+        cost    = 0,                        ;; uint16_t
+        space   = 0,                        ;; uint16_t
+        hull    = 0,                        ;; ship_hull_t
+        look    = 0,                        ;; uint8_t
+        wpnt    = carray(WEAPON_SLOT_NUM),  ;; weapon_t[] (weapon type)
+        wpnn    = carray(WEAPON_SLOT_NUM),  ;; uint8_t[] (weapon num)
+        engine  = 0,                        ;; ship_engine_t
+        engines = 0,                        ;; uint32_t
+        special = carray(SPECIAL_SLOT_NUM), ;; ship_special_t[]
+        shield  = 0,                        ;; ship_shield_t
+        jammer  = 0,                        ;; ship_jammer_t
+        comp    = 0,                        ;; ship_comp_t
+        armor   = 0,                        ;; ship_armor_t
+        man     = 0,                        ;; uint8_t (maneuverability)
+        hp      = 0,                        ;; uint16_t (hit points)
+    ]
+}
