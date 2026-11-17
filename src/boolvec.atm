@@ -1,0 +1,93 @@
+;; Port of c/src/boolvec.h. A bool vector is an array of bytes, one bit per
+;; flag, as in C: it is saved as it is.
+
+include "ctypes.atm"
+
+func BOOLVEC_DECLARE (fnum) {
+    carray((fnum + 7) // 8)
+}
+
+func BOOLVEC_CLEAR (v, fnum) {
+    loop i in #v {
+        set v@(i) = 0
+    }
+}
+
+func BOOLVEC_COPY (vd, vs, fnum) {
+    loop i in #vd {
+        set vd@(i) = vs@(i)
+    }
+}
+
+func BOOLVEC_COMP (v1, v2, fnum) {
+    val n = (fnum + 7) // 8
+    loop i in n {
+        if v1@(i) != v2@(i) {
+            return false
+        }
+    }
+    true
+}
+
+func BOOLVEC_SET0 (v, i) {
+    set v@(i // 8) = v@(i // 8) & (~(1 << (i & 7)) & 0xff)
+}
+
+func BOOLVEC_SET1 (v, i) {
+    set v@(i // 8) = v@(i // 8) | (1 << (i & 7))
+}
+
+func BOOLVEC_SET (v, i, b) {
+    if b {
+        BOOLVEC_SET1(v, i)
+    } else {
+        BOOLVEC_SET0(v, i)
+    }
+}
+
+func BOOLVEC_IS0 (v, i) {
+    (v@(i // 8) & (1 << (i & 7))) == 0
+}
+
+func BOOLVEC_IS1 (v, i) {
+    (v@(i // 8) & (1 << (i & 7))) != 0
+}
+
+;; As in C, only defined for up to 8 flags (`FIXME` there).
+func BOOLVEC_IS_CLEAR (v, fnum) {
+    if fnum <= 8 => (v@0 == 0) => false
+}
+
+func BOOLVEC_ONLY1 (v, fnum) {
+    if fnum <= 8 => ((v@0 != 0) && ((v@0 & (v@0 - 1)) == 0)) => false
+}
+
+func BOOLVEC_TBL_DECLARE (tnum, fnum) {
+    carray2(tnum, (fnum + 7) // 8)
+}
+
+func BOOLVEC_TBL_CLEAR (v, tnum, fnum) {
+    loop t in #v {
+        BOOLVEC_CLEAR(v@(t), fnum)
+    }
+}
+
+func BOOLVEC_TBL_COPY1 (vd, vs, tnum, fnum) {
+    BOOLVEC_COPY(vd@(tnum), vs, fnum)
+}
+
+func BOOLVEC_TBL_SET0 (v, tnum, i) {
+    BOOLVEC_SET0(v@(tnum), i)
+}
+
+func BOOLVEC_TBL_SET1 (v, tnum, i) {
+    BOOLVEC_SET1(v@(tnum), i)
+}
+
+func BOOLVEC_TBL_IS0 (v, tnum, i) {
+    BOOLVEC_IS0(v@(tnum), i)
+}
+
+func BOOLVEC_TBL_IS1 (v, tnum, i) {
+    BOOLVEC_IS1(v@(tnum), i)
+}
