@@ -36,8 +36,8 @@ answer early, also the author's:
 
 Nothing may start before the author says so.
 
-- The oracle of the logic is built (2026-11-14), in `build-native/`
-  (ignored by git): `autoreconf -fi`, then `../configure
+- The oracle of the logic is built (2026-11-14), in `c/build-native/`
+  (ignored by git), from `c/`: `autoreconf -fi`, then `../configure
   --disable-uiclassic --disable-hwsdl2 --disable-hwsdl1
   --disable-hwalleg4 --without-readline --without-samplerate`, then
   `make`. It gives `1oom_cmdline` (hardware `nop`) and the tools,
@@ -71,8 +71,13 @@ Nothing may start before the author says so.
   with no "or later", so no more permissive license is possible. The
   readme has the notice at its top. Nothing goes back to the original.
 - 2 (2026-11-17): the author sent the LBX files. The 33 of
-  `doc/lbxmd5.txt` match (two more, `reqd.lbx` and `snddrv.lbx`, are
+  `c/doc/lbxmd5.txt` match (two more, `reqd.lbx` and `snddrv.lbx`, are
   not used by 1oom). They are in `/home/user/moo-data`, outside the
   repository; the container is ephemeral, so a new one needs them again
   (the zip the author uploaded).
+- 2026-11-17, asked by the author: the original C moved to `c/`, the
+  same tree as `42e9c0b` (its readme as `c/README.md`). The root keeps
+  the notice in `README.md`, `COPYING`, a `.gitignore` for the LBX
+  files, and `.claude/`. The oracle rebuilt from `c/` writes the same
+  saves as before.
 - 3 (2026-11-14): the version to port is `master` (`42e9c0b`).
