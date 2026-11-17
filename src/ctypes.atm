@@ -43,7 +43,7 @@ func cint (b) {
 
 ;; An array of C of `n` numbers, all `v` (`0` by default), as `memset`.
 func carray (n, v) {
-    val x = v || 0
+    val x = if v == nil => 0 => v
     pin t = []
     loop i in n {
         set t@+ = x
