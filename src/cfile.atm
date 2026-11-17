@@ -10,7 +10,7 @@ func cfile_read (path) {
     }
     val s = io.read(f, :all)
     io.close(f)
-    pin bs = []
+    val bs = []
     loop i in #s {
         set bs@+ = string.byte(s, i)
     }
