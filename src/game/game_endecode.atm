@@ -1,0 +1,169 @@
+;; Port of c/src/game/game_endecode.h. The macros advance `pos` in C: here
+;; they return it. A decoder returns the value and the new position, which
+;; the caller converts to the C type of the field:
+;;
+;;      SG_1OOM_DE_U16(p->pop);         set p.pop, pos = SG_1OOM_DE_U16(buf, pos)
+;;                                      set p.pop = i16(p.pop)
+;;
+;; or in one step, with the conversion as an argument of the tables.
+
+include "../bits.atm"
+include "../ctypes.atm"
+
+;; A value that C stores in a byte: a `bool` is `0` or `1`.
+func sg_num (v) {
+    if v == true => 1 => (if v == false => 0 => v)
+}
+
+func SG_1OOM_EN_DUMMY (buf, pos, n) {
+    loop i in n {
+        set buf@(pos + i) = 0
+    }
+    pos + n
+}
+
+func SG_1OOM_DE_DUMMY (buf, pos, n) {
+    pos + n
+}
+
+func SG_1OOM_EN_U8 (buf, pos, v) {
+    set buf@(pos) = sg_num(v) & 0xff
+    pos + 1
+}
+
+func SG_1OOM_DE_U8 (buf, pos) {
+    return buf@(pos), pos + 1
+}
+
+func SG_1OOM_EN_U16 (buf, pos, v) {
+    SET_LE_16(buf, pos, sg_num(v))
+    pos + 2
+}
+
+func SG_1OOM_DE_U16 (buf, pos) {
+    return GET_LE_16(buf, pos), pos + 2
+}
+
+func SG_1OOM_EN_U32 (buf, pos, v) {
+    SET_LE_32(buf, pos, sg_num(v))
+    pos + 4
+}
+
+func SG_1OOM_DE_U32 (buf, pos) {
+    return GET_LE_32(buf, pos), pos + 4
+}
+
+func SG_1OOM_EN_BV (buf, pos, v, n) {
+    val l = (n + 7) // 8
+    loop i in l {
+        set buf@(pos + i) = v@(i)
+    }
+    pos + l
+}
+
+func SG_1OOM_DE_BV (buf, pos, v, n) {
+    val l = (n + 7) // 8
+    loop i in l {
+        set v@(i) = buf@(pos + i)
+    }
+    pos + l
+}
+
+;; `conv` is the conversion to the C type of the elements (none if absent).
+
+func sg_conv (conv, v) {
+    if conv => conv(v) => v
+}
+
+func SG_1OOM_EN_TBL_U8 (buf, pos, v, n) {
+    var p = pos
+    loop i in n {
+        set p = SG_1OOM_EN_U8(buf, p, v@(i))
+    }
+    p
+}
+
+func SG_1OOM_DE_TBL_U8 (buf, pos, v, n, conv) {
+    loop i in n {
+        set v@(i) = sg_conv(conv, buf@(pos + i))
+    }
+    pos + n
+}
+
+func SG_1OOM_EN_TBL_U16 (buf, pos, v, n) {
+    var p = pos
+    loop i in n {
+        set p = SG_1OOM_EN_U16(buf, p, v@(i))
+    }
+    p
+}
+
+func SG_1OOM_DE_TBL_U16 (buf, pos, v, n, conv) {
+    loop i in n {
+        set v@(i) = sg_conv(conv, GET_LE_16(buf, pos + (2 * i)))
+    }
+    pos + (2 * n)
+}
+
+func SG_1OOM_EN_TBL_U32 (buf, pos, v, n) {
+    var p = pos
+    loop i in n {
+        set p = SG_1OOM_EN_U32(buf, p, v@(i))
+    }
+    p
+}
+
+func SG_1OOM_DE_TBL_U32 (buf, pos, v, n, conv) {
+    loop i in n {
+        set v@(i) = sg_conv(conv, GET_LE_32(buf, pos + (4 * i)))
+    }
+    pos + (4 * n)
+}
+
+func SG_1OOM_EN_TBL_TBL_U8 (buf, pos, v, no, ni) {
+    var p = pos
+    loop o in no {
+        set p = SG_1OOM_EN_TBL_U8(buf, p, v@(o), ni)
+    }
+    p
+}
+
+func SG_1OOM_DE_TBL_TBL_U8 (buf, pos, v, no, ni, conv) {
+    var p = pos
+    loop o in no {
+        set p = SG_1OOM_DE_TBL_U8(buf, p, v@(o), ni, conv)
+    }
+    p
+}
+
+func SG_1OOM_EN_TBL_TBL_U16 (buf, pos, v, no, ni) {
+    var p = pos
+    loop o in no {
+        set p = SG_1OOM_EN_TBL_U16(buf, p, v@(o), ni)
+    }
+    p
+}
+
+func SG_1OOM_DE_TBL_TBL_U16 (buf, pos, v, no, ni, conv) {
+    var p = pos
+    loop o in no {
+        set p = SG_1OOM_DE_TBL_U16(buf, p, v@(o), ni, conv)
+    }
+    p
+}
+
+func SG_1OOM_EN_TBL_TBL_U32 (buf, pos, v, no, ni) {
+    var p = pos
+    loop o in no {
+        set p = SG_1OOM_EN_TBL_U32(buf, p, v@(o), ni)
+    }
+    p
+}
+
+func SG_1OOM_DE_TBL_TBL_U32 (buf, pos, v, no, ni, conv) {
+    var p = pos
+    loop o in no {
+        set p = SG_1OOM_DE_TBL_U32(buf, p, v@(o), ni, conv)
+    }
+    p
+}
