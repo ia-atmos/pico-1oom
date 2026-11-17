@@ -106,3 +106,7 @@ The author said to start (2026-11-17), in the order of item 5.
   `lbxedit`, `pbxmake`, `saveconv`, ...) stay only in `c/`, as help to
   the oracle; the three hardware backends are replaced by pico.
 - 3 (2026-11-14): the version to port is `master` (`42e9c0b`).
+- 2026-11-17, to the compiler session: `t@0.x` is lexed as the invalid
+  number `0.x` (write `t@(0).x`); suggested to list it among the
+  ambiguities of the manual, or to stop a number before `.letter` after
+  `@`. Not a blocker.
