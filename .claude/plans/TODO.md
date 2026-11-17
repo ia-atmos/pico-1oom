@@ -22,13 +22,6 @@ a time.
 | # | Decision | Recommended |
 |---|----------|-------------|
 
-After these, the questions of the instructions that the port must
-answer early, also the author's:
-
-| # | Decision | Recommended |
-|---|----------|-------------|
-| 7 | What is ported at all: the tools, the textual interface, and the three hardware backends are candidates to stay out; and which slice comes first | Not studied yet |
-
 ## B. Work known and not done
 
 Nothing may start before the author says so.
@@ -88,4 +81,8 @@ Nothing may start before the author says so.
   machine of the player, to PNG, WAV/OGG, and tables). The data tables
   of the LBX of the logic are decoded into Atmos tables from the start.
 - 5 (2026-11-17), as recommended: From the bottom, checked by the save at each step. (a) The save: Atmos reads a save written by the C into its tables and writes it back, byte by byte. (b) The data tables of the 5 LBX of the logic. (c) A new game from a seed: the save of turn 0 equal to the C. (d) The turn, one phase at a time (`game_turn_process` calls about 60 functions): a small test driver in C (not part of the port) loads a save, runs one phase, and saves; the Atmos does the same; the saves must be equal. (e) The AI. (f) The textual interface, the game played whole with no screen. (g) The interface of 1993 over pico
+- 7 (2026-11-17), as recommended: the logic, the textual interface,
+  and the interface of 1993 are ported. The tools (`lbxview`,
+  `lbxedit`, `pbxmake`, `saveconv`, ...) stay only in `c/`, as help to
+  the oracle; the three hardware backends are replaced by pico.
 - 3 (2026-11-14): the version to port is `master` (`42e9c0b`).
