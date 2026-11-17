@@ -15,6 +15,21 @@ fidelity: the port follows the C as it is, with the same results.
 - [`c/`](c/): the original C of 1oom, untouched, at the commit the port
   starts from (`42e9c0b`). It is the oracle of the port. Its readme is
   [`c/README.md`](c/README.md).
+- [`src/`](src/): the port, with the same files as `c/src/` (`game_save.c`
+  becomes `game_save.atm`), and a few of its own: `ctypes.atm` (the
+  conversions that C does when it stores a value) and `cfile.atm` (whole
+  files of bytes).
+- [`tst/`](tst/): the checks against the C.
+
+How the C becomes Atmos:
+
+- The state of the game (`struct game_s`) is a tree of Atmos tables, made by
+  `game_s()` in `src/game/game.atm`, with every field of C. A field keeps
+  the value that C would have: `set p.pop = i16(v)` where `p->pop` is an
+  `int16_t`. A `bool` is an Atmos boolean; an array of C is a vector from
+  index 0; a `char[]` is a vector of bytes, as saved.
+- A C test of an integer is written out: `if (x)` becomes `if x != 0`, since
+  `0` is true in Atmos.
 
 The game needs the LBX files of Master of Orion v1.3, from an original copy
 that one must own (checksums in [`c/doc/lbxmd5.txt`](c/doc/lbxmd5.txt)).
@@ -29,3 +44,7 @@ Building the oracle (the textual interface, with no screen):
         --disable-hwalleg4 --without-readline --without-samplerate
     make
     ./src/1oom_cmdline -data PATH_TO_LBX -new 300:0:0:12345
+
+Checking the port (needs the compiler of Atmos, `ia-atmos/lang`):
+
+    ATMOS=PATH_TO/atmos tst/save.sh SAVE...     # step 1, the save
