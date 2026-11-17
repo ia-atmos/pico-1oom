@@ -955,7 +955,7 @@ func game_save_open_check_header (filename, i, update_table, savename) {
         }
         set savename@(SAVE_NAME_LEN - 1) = 0
     }
-    pin rest = []
+    val rest = []
     loop k in (GAME_SAVE_HDR_SIZE, #bs - 1) {
         set rest@+ = bs@(k)
     }
