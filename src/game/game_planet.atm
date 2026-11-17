@@ -1,0 +1,141 @@
+;; Port of c/src/game/game_planet.h: the enums, the constants, and the
+;; structure.
+
+include "../boolvec.atm"
+include "../ctypes.atm"
+include "game_types.atm"
+
+;; planet_type_t
+val PLANET_TYPE_NOT_HABITABLE = 0
+val PLANET_TYPE_RADIATED = 1
+val PLANET_TYPE_TOXIC = 2
+val PLANET_TYPE_INFERNO = 3
+val PLANET_TYPE_DEAD = 4
+val PLANET_TYPE_TUNDRA = 5
+val PLANET_TYPE_BARREN = 6
+val PLANET_TYPE_MINIMAL = 7
+val PLANET_TYPE_DESERT = 8
+val PLANET_TYPE_STEPPE = 9
+val PLANET_TYPE_ARID = 10
+val PLANET_TYPE_OCEAN = 11
+val PLANET_TYPE_JUNGLE = 12
+val PLANET_TYPE_TERRAN = 13
+val PLANET_TYPE_NUM = 14
+
+;; planet_growth_t
+val PLANET_GROWTH_HOSTILE = 0
+val PLANET_GROWTH_NORMAL = 1
+val PLANET_GROWTH_FERTILE = 2
+val PLANET_GROWTH_GAIA = 3
+val PLANET_GROWTH_NUM = 4
+
+;; planet_special_t
+val PLANET_SPECIAL_ULTRA_POOR = 0
+val PLANET_SPECIAL_POOR = 1
+val PLANET_SPECIAL_NORMAL = 2
+val PLANET_SPECIAL_ARTIFACTS = 3
+val PLANET_SPECIAL_RICH = 4
+val PLANET_SPECIAL_ULTRA_RICH = 5
+val PLANET_SPECIAL_4XTECH = 6
+val PLANET_SPECIAL_NUM = 7
+
+;; planet_slider_i_t
+val PLANET_SLIDER_SHIP = 0
+val PLANET_SLIDER_DEF = 1
+val PLANET_SLIDER_IND = 2
+val PLANET_SLIDER_ECO = 3
+val PLANET_SLIDER_TECH = 4
+val PLANET_SLIDER_NUM = 5
+
+;; planet_unrest_t
+val PLANET_UNREST_NORMAL = 0
+val PLANET_UNREST_UNREST = 1
+val PLANET_UNREST_HMM2 = 2
+val PLANET_UNREST_REBELLION = 3
+val PLANET_UNREST_RESOLVED = 4
+
+;; star_type_t
+val STAR_TYPE_YELLOW = 0
+val STAR_TYPE_RED = 1
+val STAR_TYPE_GREEN = 2
+val STAR_TYPE_WHITE = 3
+val STAR_TYPE_BLUE = 4
+val STAR_TYPE_NEUTRON = 5
+val STAR_TYPE_NUM = 6
+
+;; planet_rocks_t
+val PLANET_ROCKS_NONE = 0
+val PLANET_ROCKS_SOME = 1
+val PLANET_ROCKS_MANY = 2
+
+;; planet_finished_t
+val FINISHED_FACT = 0
+val FINISHED_POPMAX = 1
+val FINISHED_SOILATMOS = 2
+val FINISHED_STARGATE = 3
+val FINISHED_SHIELD = 4
+val FINISHED_SHIP = 5
+val FINISHED_NUM = 6
+
+val PLANET_NAME_LEN = 12
+val PLANET_NONE = 255
+
+func planet_t () {
+    [
+        name             = carray(PLANET_NAME_LEN),     ;; char[]
+        x                = 0,       ;; uint16_t
+        y                = 0,       ;; uint16_t
+        star_type        = 0,       ;; star_type_t
+        look             = 0,       ;; uint8_t (0, 6)
+        frame            = 0,       ;; uint8_t (0..49)
+        rocks            = 0,       ;; planet_rocks_t
+        max_pop1         = 0,       ;; int16_t (base size)
+        max_pop2         = 0,       ;; int16_t (size adjusted by soil enrichment tech)
+        max_pop3         = 0,       ;; int16_t (maximum population)
+        type             = 0,       ;; planet_type_t
+        battlebg         = 0,       ;; uint8_t (0..4 ; 0 implies planet is in nebula)
+        infogfx          = 0,       ;; uint8_t (index to planets.lbx)
+        growth           = 0,       ;; planet_growth_t
+        special          = 0,       ;; planet_special_t
+        bc_to_ecoproj    = 0,       ;; int16_t
+        bc_to_ship       = 0,       ;; uint16_t
+        bc_to_factory    = 0,       ;; uint8_t
+        reserve          = 0,       ;; uint32_t
+        waste            = 0,       ;; int16_t
+        owner            = 0,       ;; player_id_t
+        prev_owner       = 0,       ;; player_id_t
+        claim            = 0,       ;; player_id_t
+        pop              = 0,       ;; int16_t
+        pop_prev         = 0,       ;; int16_t
+        factories        = 0,       ;; int16_t
+        prod_after_maint = 0,       ;; uint16_t
+        total_prod       = 0,       ;; uint16_t
+        slider           = carray(PLANET_SLIDER_NUM),   ;; int16_t[]
+        slider_lock      = carray(PLANET_SLIDER_NUM),   ;; uint16_t[]
+        buildship        = 0,       ;; uint8_t (0..NUM_SHIPDESIGNS-1 or BUILDSHIP_STARGATE)
+        reloc            = 0,       ;; uint8_t (planet i to relocate produced ships)
+        missile_bases    = 0,       ;; uint16_t
+        bc_to_base       = 0,       ;; uint16_t
+        bc_upgrade_base  = 0,       ;; uint16_t
+        have_stargate    = false,   ;; bool
+        shield           = 0,       ;; uint8_t (0, 10, 15, 20)
+        bc_to_shield     = 0,       ;; uint16_t
+        trans_num        = 0,       ;; uint16_t
+        trans_dest       = 0,       ;; uint8_t
+        pop_tenths       = 0,       ;; int8_t
+        explored         = BOOLVEC_DECLARE(PLAYER_NUM),
+        within_srange    = BOOLVEC_DECLARE(PLAYER_NUM), ;; scanner range covers planet
+        within_frange    = carray(PLAYER_NUM),  ;; uint8_t[] (0=no, 1=yes, 2=with reserve fuel)
+        pop_oper_fact    = 0,       ;; uint8_t
+        bc_to_refit      = 0,       ;; uint16_t
+        rebels           = 0,       ;; int16_t
+        unrest           = 0,       ;; planet_unrest_t
+        unrest_reported  = false,   ;; bool
+        unrefuel         = BOOLVEC_DECLARE(PLAYER_NUM),
+        finished         = BOOLVEC_DECLARE(FINISHED_NUM),
+        ;; remaining variables used only during game_turn_process
+        inbound          = carray(PLAYER_NUM),  ;; uint16_t[]
+        total_inbound    = carray(PLAYER_NUM),  ;; uint16_t[]
+        artifact_looter  = 0,       ;; player_id_t
+    ]
+}
