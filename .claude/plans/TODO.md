@@ -119,3 +119,6 @@ The author said to start (2026-11-17), in the order of item 5.
   more (`game_save_open_check_header`, given away by `return rest,
   version`) became `val`. `tst/save.sh` passes on the 109 saves. Reported
   to the compiler session.
+- 2026-11-17: the author declared the rules of `pin` stable until the
+  next round of decisions (`ia-atmos/lang` `1746969`). With the compiler
+  there, `tst/save.sh` still passes on the 109 saves.
