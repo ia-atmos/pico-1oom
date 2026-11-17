@@ -1,0 +1,373 @@
+;; Port of c/src/game/game.h: the state of the game.
+;;
+;; Each structure of C is a function that makes a table with all of its
+;; fields, as C after `memset(0)`. The comments give the C type of each
+;; field, which says how a value is converted when stored (see ctypes.atm).
+
+include "../boolvec.atm"
+include "../ctypes.atm"
+include "game_planet.atm"
+include "game_shipdesign.atm"
+include "game_shiptech.atm"
+include "game_types.atm"
+
+func fleet_enroute_t () {
+    [
+        owner   = 0,        ;; player_id_t
+        x       = 0,        ;; uint16_t
+        y       = 0,        ;; uint16_t
+        dest    = 0,        ;; uint8_t (planet index)
+        speed   = 0,        ;; uint8_t
+        retreat = false,    ;; bool
+        visible = BOOLVEC_DECLARE(PLAYER_NUM),
+        ships   = carray(NUM_SHIPDESIGNS),  ;; shipcount_t[]
+    ]
+}
+
+func transport_t () {
+    [
+        owner   = 0,        ;; player_id_t
+        x       = 0,        ;; uint16_t
+        y       = 0,        ;; uint16_t
+        dest    = 0,        ;; uint8_t (planet index)
+        speed   = 0,        ;; uint8_t
+        visible = BOOLVEC_DECLARE(PLAYER_NUM),
+        pop     = 0,        ;; uint16_t
+    ]
+}
+
+func fleet_orbit_t () {
+    [
+        visible = BOOLVEC_DECLARE(PLAYER_NUM),
+        ships   = carray(NUM_SHIPDESIGNS),  ;; shipcount_t[]
+    ]
+}
+
+func techdata_t () {
+    [
+        percent     = carray(TECH_FIELD_NUM),   ;; uint8_t[] (tech level %)
+        slider      = carray(TECH_FIELD_NUM),   ;; int16_t[] (%)
+        slider_lock = carray(TECH_FIELD_NUM),   ;; uint16_t[]
+        investment  = carray(TECH_FIELD_NUM),   ;; uint32_t[]
+        project     = carray(TECH_FIELD_NUM),   ;; uint8_t[]
+        cost        = carray(TECH_FIELD_NUM),   ;; uint32_t[]
+        completed   = carray(TECH_FIELD_NUM),   ;; uint16_t[] (number of completed projects)
+    ]
+}
+
+val TECH_TIER_NUM  = 10
+val TECH_PER_FIELD = 60
+val TECH_MAX_LEVEL = 100
+
+func shipresearch_t () {
+    [
+        design            = carrayf(NUM_SHIPDESIGNS, shipdesign_t),
+        researchlist      = carrayf(TECH_FIELD_NUM, \{ carray2(TECH_TIER_NUM, 3) }),  ;; uint8_t[][][]
+        researchcompleted = carray2(TECH_FIELD_NUM, TECH_PER_FIELD),    ;; uint8_t[][]
+        have_reserve_fuel = carray(NUM_SHIPDESIGNS, false),             ;; bool[]
+        year              = carray(NUM_SHIPDESIGNS),    ;; uint16_t[]
+        shipcount         = carray(NUM_SHIPDESIGNS),    ;; shipsum_t[]
+    ]
+}
+
+func empiretechorbit_t () {
+    [
+        race                    = 0,    ;; race_t
+        banner                  = 0,    ;; banner_t
+        trait1                  = 0,    ;; trait1_t
+        trait2                  = 0,    ;; trait2_t
+        ai_p3_countdown         = 0,    ;; int8_t
+        ai_p2_countdown         = 0,    ;; int8_t
+        contact                 = BOOLVEC_DECLARE(PLAYER_NUM),
+        contact_broken          = BOOLVEC_DECLARE(PLAYER_NUM),
+        relation1               = carray(PLAYER_NUM),   ;; int16_t[]
+        relation2               = carray(PLAYER_NUM),   ;; int16_t[]
+        diplo_type              = carray(PLAYER_NUM),   ;; uint8_t[]
+        diplo_val               = carray(PLAYER_NUM),   ;; int16_t[]
+        diplo_p1                = carray(PLAYER_NUM),   ;; uint16_t[]
+        diplo_p2                = carray(PLAYER_NUM),   ;; int16_t[]
+        trust                   = carray(PLAYER_NUM),   ;; int16_t[]
+        broken_treaty           = carray(PLAYER_NUM),   ;; treaty_t[]
+        blunder                 = carray(PLAYER_NUM),   ;; int16_t[]
+        tribute_field           = carray(PLAYER_NUM),   ;; tech_field_t[]
+        tribute_tech            = carray(PLAYER_NUM),   ;; uint8_t[]
+        mood_treaty             = carray(PLAYER_NUM),   ;; int16_t[]
+        mood_trade              = carray(PLAYER_NUM),   ;; int16_t[]
+        mood_tech               = carray(PLAYER_NUM),   ;; int16_t[]
+        mood_peace              = carray(PLAYER_NUM),   ;; int16_t[]
+        treaty                  = carray(PLAYER_NUM),   ;; treaty_t[]
+        trade_bc                = carray(PLAYER_NUM),   ;; uint16_t[]
+        trade_percent           = carray(PLAYER_NUM),   ;; int16_t[]
+        spymode_next            = carray(PLAYER_NUM),   ;; spymode_t[]
+        au_want_trade           = carray(PLAYER_NUM),   ;; uint16_t[]
+        au_want_field           = carray(PLAYER_NUM),   ;; tech_field_t[]
+        au_want_tech            = carray(PLAYER_NUM),   ;; uint8_t[]
+        au_tech_trade_num       = carray(PLAYER_NUM),   ;; uint8_t[]
+        au_tech_trade_field     = carray2(PLAYER_NUM, TECH_SPY_MAX),    ;; tech_field_t[][]
+        au_tech_trade_tech      = carray2(PLAYER_NUM, TECH_SPY_MAX),    ;; uint8_t[][]
+        offer_field             = carray(PLAYER_NUM),   ;; tech_field_t[]
+        offer_tech              = carray(PLAYER_NUM),   ;; uint8_t[] (tech_i)
+        offer_bc                = carray(PLAYER_NUM),   ;; uint16_t[]
+        au_ally_attacker        = carray(PLAYER_NUM),   ;; player_id_t[]
+        au_ask_break_treaty     = carray(PLAYER_NUM),   ;; player_id_t[]
+        attack_bounty           = carray(PLAYER_NUM),   ;; player_id_t[]
+        bounty_collect          = carray(PLAYER_NUM),   ;; player_id_t[]
+        attack_gift_field       = carray(PLAYER_NUM),   ;; tech_field_t[]
+        attack_gift_tech        = carray(PLAYER_NUM),   ;; uint8_t[]
+        attack_gift_bc          = carray(PLAYER_NUM),   ;; int16_t[]
+        hatred                  = carray(PLAYER_NUM),   ;; int16_t[]
+        have_met                = carray(PLAYER_NUM),   ;; uint16_t[] (0, 1, 2)
+        trade_established_bc    = carray(PLAYER_NUM),   ;; uint16_t[]
+        have_planet_shield      = 0,    ;; uint8_t (0, 5, 10, 15, 20)
+        planet_shield_cost      = 0,    ;; uint16_t
+        spying                  = carray(PLAYER_NUM),   ;; int16_t[] (tenths)
+        spyfund                 = carray(PLAYER_NUM),   ;; uint16_t[]
+        spymode                 = carray(PLAYER_NUM),   ;; spymode_t[]
+        security                = 0,    ;; int16_t (tenths)
+        spies                   = carray(PLAYER_NUM),   ;; uint16_t[]
+        total_trade_bc          = 0,    ;; int32_t
+        ship_maint_bc           = 0,    ;; uint32_t
+        bases_maint_bc          = 0,    ;; uint32_t
+        spying_maint_bc         = 0,    ;; uint16_t
+        percent_prod_total_to_actual = 0,   ;; uint16_t
+        total_maint_bc          = 0,    ;; int32_t
+        total_research_bc       = 0,    ;; uint32_t
+        total_production_bc     = 0,    ;; uint32_t
+        reserve_bc              = 0,    ;; uint32_t
+        tax                     = 0,    ;; int16_t
+        base_shield             = 0,    ;; uint8_t
+        base_comp               = 0,    ;; uint8_t
+        base_weapon             = 0,    ;; uint8_t
+        have_sub_space_int      = false,    ;; bool
+        antidote                = 0,    ;; uint8_t
+        have_colony_for         = 0,    ;; planet_type_t
+        have_eco_restoration_n  = 0,    ;; uint8_t (2, 3, 5, 10, 20)
+        have_terraform_n        = 0,    ;; uint8_t (0, 10, ... 120)
+        terraform_cost_per_inc  = 0,    ;; uint8_t (5..2)
+        have_adv_soil_enrich    = false,    ;; bool
+        have_atmos_terra        = false,    ;; bool
+        have_soil_enrich        = false,    ;; bool
+        inc_pop_cost            = 0,    ;; uint8_t (cost of adding 1 population)
+        scanner_range           = 0,    ;; uint8_t (3, 5, 7, 9)
+        have_ia_scanner         = false,    ;; bool
+        have_adv_scanner        = false,    ;; bool
+        have_hyperspace_comm    = false,    ;; bool
+        have_stargates          = false,    ;; bool
+        colonist_oper_factories = 0,    ;; uint8_t (2..)
+        factory_cost            = 0,    ;; uint8_t (10..2)
+        factory_adj_cost        = 0,    ;; uint8_t
+        ind_waste_scale         = 0,    ;; uint8_t (0, 2, ..10)
+        fuel_range              = 0,    ;; uint8_t (3..10, 30)
+        have_combat_transporter = false,    ;; bool
+        tech                    = techdata_t(),
+        have_engine             = 0,    ;; uint8_t (1..)
+        shipdesigns_num         = 0,    ;; uint8_t
+        orbit                   = carrayf(PLANETS_MAX, fleet_orbit_t),
+        spyreportfield          = carray2(PLAYER_NUM, TECH_FIELD_NUM),  ;; uint8_t[][]
+        spyreportyear           = carray(PLAYER_NUM),   ;; uint16_t[]
+        shipi_colony            = 0,    ;; int8_t
+        shipi_bomber            = 0,    ;; int8_t
+    ]
+}
+
+val NEWTECH_MAX = 15
+
+func monster_t () {
+    [
+        exists  = 0,    ;; uint8_t (0..3)
+        x       = 0,    ;; int16_t
+        y       = 0,    ;; int16_t
+        killer  = 0,    ;; player_id_t (MOO1: 0 or id+1)
+        dest    = 0,    ;; uint8_t
+        counter = 0,    ;; int8_t
+        nuked   = 0,    ;; int8_t (planets destroyed)
+    ]
+}
+
+func newtech_t () {
+    [
+        field       = 0,        ;; tech_field_t
+        tech        = 0,        ;; uint8_t
+        source      = 0,        ;; techsource_t
+        v06         = 0,        ;; int8_t
+        stolen_from = 0,        ;; player_id_t
+        frame       = false,    ;; bool
+        other1      = 0,        ;; player_id_t
+        other2      = 0,        ;; player_id_t
+    ]
+}
+
+func nexttech_t () {
+    [
+        num  = 0,                       ;; uint8_t
+        tech = carray(TECH_NEXT_MAX),   ;; uint8_t[]
+    ]
+}
+
+val NEWTECH_V06_ORION = PLANETS_MAX
+
+func newtechs_t () {
+    [
+        num  = 0,   ;; uint8_t
+        d    = carrayf(NEWTECH_MAX, newtech_t),
+        next = carrayf(TECH_FIELD_NUM, nexttech_t),
+    ]
+}
+
+val GAME_EVENT_TBL_NUM = 20
+val HELP_SHOWN_NUM = 16
+
+func gameevents_t () {
+    [
+        year                = 0,        ;; uint16_t
+        done                = BOOLVEC_DECLARE(GAME_EVENT_TBL_NUM),
+        diplo_msg_subtype   = 0,        ;; int8_t (-1..13)
+        have_plague         = 0,        ;; uint8_t (0..3)
+        plague_player       = 0,        ;; player_id_t
+        plague_planet_i     = 0,        ;; uint8_t
+        plague_val          = 0,        ;; int
+        have_quake          = false,    ;; bool
+        quake_player        = 0,        ;; player_id_t
+        quake_planet_i      = 0,        ;; uint8_t
+        have_nova           = 0,        ;; uint8_t (0..3)
+        nova_player         = 0,        ;; player_id_t
+        nova_planet_i       = 0,        ;; uint8_t
+        nova_years          = 0,        ;; int8_t
+        nova_val            = 0,        ;; int
+        have_accident       = 0,        ;; uint8_t (0..2)
+        accident_player     = 0,        ;; player_id_t
+        accident_planet_i   = 0,        ;; uint8_t
+        have_assassin       = false,    ;; bool
+        assassin_player     = 0,        ;; player_id_t
+        assassin_player2    = 0,        ;; player_id_t
+        have_virus          = false,    ;; bool
+        virus_player        = 0,        ;; player_id_t
+        virus_field         = 0,        ;; tech_field_t
+        have_comet          = 0,        ;; uint8_t (0..3)
+        comet_player        = 0,        ;; player_id_t
+        comet_planet_i      = 0,        ;; uint8_t
+        comet_years         = 0,        ;; uint8_t
+        comet_hp            = 0,        ;; uint16_t
+        comet_dmg           = 0,        ;; uint16_t
+        have_pirates        = 0,        ;; uint8_t (0..3)
+        pirates_planet_i    = 0,        ;; uint8_t
+        pirates_hp          = 0,        ;; uint16_t
+        have_derelict       = false,    ;; bool
+        derelict_player     = 0,        ;; player_id_t
+        crystal             = monster_t(),
+        amoeba              = monster_t(),
+        have_enviro         = false,    ;; bool
+        enviro_planet_i     = 0,        ;; uint8_t
+        have_rich           = false,    ;; bool
+        rich_planet_i       = 0,        ;; uint8_t
+        have_support        = false,    ;; bool
+        support_player      = 0,        ;; player_id_t
+        have_poor           = false,    ;; bool
+        poor_planet_i       = 0,        ;; uint8_t
+        have_orion_conquer  = 0,        ;; uint8_t (0, pi+1)
+        planet_orion_i      = 0,        ;; uint8_t
+        have_guardian       = false,    ;; bool
+        home                = carray(PLAYER_NUM),   ;; uint8_t[] (home planet index or PLANET_NONE if dead)
+        report_stars        = 0,        ;; uint8_t
+        coup                = BOOLVEC_DECLARE(PLAYER_NUM),
+        newtech             = carrayf(PLAYER_NUM, newtechs_t),
+        new_ships           = carray2(PLAYER_NUM, NUM_SHIPDESIGNS), ;; shipsum_t[][]
+        spies_caught        = carray2(PLAYER_NUM, PLAYER_NUM),  ;; uint16_t[][] [catcher][spy]
+        spied_num           = carray2(PLAYER_NUM, PLAYER_NUM),  ;; uint16_t[][] [victim][spy]
+        spied_spy           = carray2(PLAYER_NUM, PLAYER_NUM),  ;; int16_t[][] [victim][spy]
+        stolen_field        = carray2(PLAYER_NUM, PLAYER_NUM),  ;; tech_field_t[][] [victim][spy]
+        stolen_tech         = carray2(PLAYER_NUM, PLAYER_NUM),  ;; uint8_t[][] [victim][spy]
+        stolen_spy          = carray2(PLAYER_NUM, PLAYER_NUM),  ;; player_id_t[][] [victim][spy]
+        sabotage_is_bases   = carrayf(PLAYER_NUM, \{ carray(PLAYER_NUM, false) }),  ;; bool[][] [victim][spy]
+        sabotage_planet     = carray2(PLAYER_NUM, PLAYER_NUM),  ;; uint8_t[][] [victim][spy]
+        sabotage_num        = carray2(PLAYER_NUM, PLAYER_NUM),  ;; uint16_t[][] [victim][spy]
+        sabotage_spy        = carray2(PLAYER_NUM, PLAYER_NUM),  ;; player_id_t[][] [victim][spy]
+        ceasefire           = carray2(PLAYER_NUM, PLAYER_NUM),  ;; int16_t[][] [human][ai]
+        help_shown          = BOOLVEC_TBL_DECLARE(PLAYER_NUM, HELP_SHOWN_NUM),
+        build_finished_num  = carray(PLAYER_NUM),   ;; uint16_t[]
+        voted               = carray(PLAYER_NUM),   ;; player_id_t[]
+        best_ecorestore     = carray(PLAYER_NUM),   ;; uint8_t[]
+        best_wastereduce    = carray(PLAYER_NUM),   ;; uint8_t[]
+        best_roboctrl       = carray(PLAYER_NUM),   ;; uint8_t[]
+        best_terraform      = carray(PLAYER_NUM),   ;; uint8_t[]
+    ]
+}
+
+func seen_t () {
+    [
+        owner     = 0,  ;; player_id_t
+        pop       = 0,  ;; uint16_t
+        bases     = 0,  ;; uint16_t
+        factories = 0,  ;; uint16_t
+    ]
+}
+
+val EMPEROR_NAME_LEN = 15
+val NEBULA_MAX = 4
+val YEAR_BASE = 2299
+
+func game_s () {
+    [
+        enroute_num     = 0,    ;; uint16_t
+        transport_num   = 0,    ;; uint16_t
+        year            = 0,    ;; uint16_t (init to 1)
+        players         = 0,    ;; uint8_t
+        ai_id           = 0,    ;; uint8_t
+        is_ai           = BOOLVEC_DECLARE(PLAYER_NUM),
+        active_player   = 0,    ;; player_id_t
+        difficulty      = 0,    ;; difficulty_t
+        galaxy_size     = 0,    ;; galaxy_size_t
+        galaxy_w        = 0,    ;; uint8_t (6 8 a c)
+        galaxy_h        = 0,    ;; uint8_t (4 6 7 9)
+        galaxy_stars    = 0,    ;; uint8_t (w*h)
+        galaxy_maxx     = 0,    ;; uint16_t
+        galaxy_maxy     = 0,    ;; uint16_t
+        seed            = 0,    ;; uint32_t (current random seed)
+        galaxy_seed     = 0,    ;; uint32_t (seed of generated galaxy)
+        end             = 0,    ;; game_end_type_t
+        winner          = 0,    ;; player_id_t
+        guardian_killer = 0,    ;; player_id_t
+        election_held   = false,    ;; bool
+        refuse          = BOOLVEC_DECLARE(PLAYER_NUM),
+        planet_focus_i  = carray(PLAYER_NUM),   ;; uint8_t[]
+        nebula_num      = 0,    ;; uint8_t (0..4)
+        nebula_type     = carray(NEBULA_MAX),   ;; uint8_t[] (0..9)
+        nebula_x        = carray(NEBULA_MAX),   ;; uint16_t[]
+        nebula_y        = carray(NEBULA_MAX),   ;; uint16_t[]
+        nebula_x0       = carray2(NEBULA_MAX, 4),   ;; uint16_t[][]
+        nebula_x1       = carray2(NEBULA_MAX, 4),   ;; uint16_t[][]
+        nebula_y0       = carray2(NEBULA_MAX, 4),   ;; uint16_t[][]
+        nebula_y1       = carray2(NEBULA_MAX, 4),   ;; uint16_t[][]
+        planet          = carrayf(PLANETS_MAX, planet_t),
+        enroute         = carrayf(FLEET_ENROUTE_MAX, fleet_enroute_t),
+        transport       = carrayf(TRANSPORT_MAX, transport_t),
+        eto             = carrayf(PLAYER_NUM, empiretechorbit_t),
+        srd             = carrayf(PLAYER_NUM, shipresearch_t),
+        evn             = gameevents_t(),
+        emperor_names   = carray2(PLAYER_NUM, EMPEROR_NAME_LEN),    ;; char[][]
+        seen            = carrayf(PLAYER_NUM, \{ carrayf(PLANETS_MAX, seen_t) }),
+        current_design  = carrayf(PLAYER_NUM, shipdesign_t),
+        gaux            = nil,  ;; struct game_aux_s *
+    ]
+}
+
+;; The inline functions of game.h.
+
+func IS_PLAYER (g, i) {
+    (i >= 0) && (i < g.players)
+}
+
+func IS_HUMAN (g, i) {
+    ;; In MOO1, instead of IS_HUMAN, the index is checked for equality to zero,
+    ;; which in turn implicitly guarantees that the index is less than g->players.
+    ;; The IS_PLAYER check eliminates the potential for memory corruption.
+    IS_PLAYER(g, i) && BOOLVEC_IS0(g.is_ai, i)
+}
+
+func IS_ALIVE (g, i) {
+    g.evn.home@(i) != PLANET_NONE
+}
+
+func IS_AI (g, i) {
+    BOOLVEC_IS1(g.is_ai, i)
+}
