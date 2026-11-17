@@ -27,7 +27,6 @@ answer early, also the author's:
 
 | # | Decision | Recommended |
 |---|----------|-------------|
-| 4 | Where the state lives: `struct game_s` stays in C, reached by accessors, or becomes Atmos tables, with the save rewritten | Not studied yet |
 | 5 | The order of the port: from the top down (the turn and the flow of screens first, calling the C below), since C cannot call Atmos | Not studied yet |
 | 6 | What goes over pico: the buffer of 320x200 shown as one image per frame, or the drawing redone with the operations of pico | Not studied yet |
 | 7 | What is ported at all: the tools, the textual interface, and the three hardware backends are candidates to stay out; and which slice comes first | Not studied yet |
@@ -80,4 +79,8 @@ Nothing may start before the author says so.
   the notice in `README.md`, `COPYING`, a `.gitignore` for the LBX
   files, and `.claude/`. The oracle rebuilt from `c/` writes the same
   saves as before.
+- 4 (2026-11-17): everything is ported to Atmos, the state included:
+  `struct game_s` becomes Atmos tables, and the save is rewritten. So
+  the port cannot keep the rest in C module by module through the
+  state; how to go in steps is part of item 5.
 - 3 (2026-11-14): the version to port is `master` (`42e9c0b`).
