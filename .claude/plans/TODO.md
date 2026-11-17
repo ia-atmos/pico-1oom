@@ -21,7 +21,6 @@ a time.
 
 | # | Decision | Recommended |
 |---|----------|-------------|
-| 2 | The LBX files of Master of Orion v1.3, from an original copy (checksums in `doc/lbxmd5.txt`). The author said "we will look for them" (2026-11-14). They are never committed (`*.lbx` is already in `.gitignore`). Nothing can be run or compared until they are in the session | The author provides them, outside the repository; they are checked against `doc/lbxmd5.txt` |
 
 After these, the questions of the instructions that the port must
 answer early, also the author's:
@@ -46,9 +45,10 @@ Nothing may start before the author says so.
 - The oracle of the interface of 1993 (`1oom_classic_*`) is not
   built: it needs SDL 2 and its mixer, which the container does not
   have.
-- With the LBX files: a first run from a fixed seed (`-new`), with
-  commands on the standard input, and its save converted to text, to
-  confirm that two runs give the same bytes.
+- The oracle of the logic runs, and is deterministic (2026-11-17): from
+  `-new 300:0:0:12345`, five turns by `n` on the standard input, two runs
+  write the same saves byte by byte (`1oom_save_2300.bin` to `2304`,
+  and slots 7 to 9), and `1oom_saveconv -o t` turns them into text.
 - Before writing Atmos: the rules of `pin` changed twice (2026-11-15
   and 2026-11-17, `main` of `ia-atmos/lang`; told by the compiler
   session). As of 2026-11-17: `val` and `var` may hold a fresh value
@@ -70,4 +70,9 @@ Nothing may start before the author says so.
   port is a derivative work of 1oom, whose sources are GPL version 2
   with no "or later", so no more permissive license is possible. The
   readme has the notice at its top. Nothing goes back to the original.
+- 2 (2026-11-17): the author sent the LBX files. The 33 of
+  `doc/lbxmd5.txt` match (two more, `reqd.lbx` and `snddrv.lbx`, are
+  not used by 1oom). They are in `/home/user/moo-data`, outside the
+  repository; the container is ephemeral, so a new one needs them again
+  (the zip the author uploaded).
 - 3 (2026-11-14): the version to port is `master` (`42e9c0b`).
