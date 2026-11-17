@@ -1,0 +1,445 @@
+;; The state of the game as text, to compare field by field with the C:
+;;
+;;      atmos tst/save-text.atm IN OUT
+;;      1oom_saveconv -o t IN OUT
+;;
+;; A port of savetype_en_text of c/src/saveconv.c (the tool stays in C):
+;; the same lines, in the same order, with the values as C prints them.
+
+include "../src/game/game_save.atm"
+
+pin out = []
+
+;; The prefix of the lines: a stack of names, as text_dump_prefix_s.
+pin tp = []
+
+func text_dump_prefix_add (str, sep) {
+    set tp@+ = str ++ sep
+}
+
+func text_dump_prefix_add_tbl (str, sep, index) {
+    text_dump_prefix_add(string.format("%s[%i]", str, index), sep)
+}
+
+func text_dump_prefix_del () {
+    vector.remove(tp)
+}
+
+func OUTADD (s) {
+    set out@+ = s
+}
+
+func OUTPRE () {
+    OUTADD(vector.join(tp, ""))
+}
+
+;; `%i` of C: the value as an `int`, and a `bool` as `0` or `1`.
+func ci (v) {
+    i32(sg_num(v))
+}
+
+;; `%s` of an array of `char`: up to the first zero.
+func cs (bs) {
+    pin cs = []
+    loop _,b in bs {
+        if b == 0 {
+            break
+        }
+        set cs@+ = string.char(b)
+    }
+    vector.join(cs, "")
+}
+
+func OUTLINEI (name, v) {
+    OUTPRE()
+    OUTADD(string.format("%s = %i\n", name, ci(v)))
+}
+
+func OUTLINEX (name, v) {
+    OUTPRE()
+    OUTADD(string.format("%s = 0x%x\n", name, v))
+}
+
+func OUTLINES (name, v) {
+    OUTPRE()
+    OUTADD(string.format("%s = \"%s\"\n", name, if type(v) == "string" => v => cs(v)))
+}
+
+func savetype_en_bv (bv, len) {
+    pin cs = []
+    loop i in len {
+        vector.insert(cs, 0, if BOOLVEC_IS1(bv, i) => "1" => "0")
+    }
+    "0b" ++ vector.join(cs, "")
+}
+
+func OUTLINEBV (name, v, num) {
+    OUTPRE()
+    OUTADD(string.format("%s = %s\n", name, savetype_en_bv(v, num)))
+}
+
+func OUTTBL (name, num, v) {
+    OUTADD(string.format("%s[] = { ", name))
+    loop i in num {
+        OUTADD(string.format("%i", ci(v@(i))))
+        if i != (num - 1) {
+            OUTADD(", ")
+        }
+    }
+    OUTADD(" }")
+}
+
+func OUTLINETBL (name, num, v) {
+    OUTPRE()
+    OUTTBL(name, num, v)
+    OUTADD("\n")
+}
+
+func OUTLINETBLNON0 (name, num, v) {
+    loop j in num {
+        if v@(j) != 0 {
+            OUTLINETBL(name, num, v)
+            break
+        }
+    }
+}
+
+func savetype_en_text_sd (sd) {
+    OUTLINES("name", sd.name)
+    OUTLINEI("cost", sd.cost)
+    OUTLINEI("space", sd.space)
+    OUTLINEI("hull", sd.hull)
+    OUTLINEI("look", sd.look)
+    OUTLINETBL("wpnt", WEAPON_SLOT_NUM, sd.wpnt)
+    OUTLINETBL("wpnn", WEAPON_SLOT_NUM, sd.wpnn)
+    OUTLINEI("engine", sd.engine)
+    OUTLINEI("engines", sd.engines)
+    OUTLINETBL("special", SPECIAL_SLOT_NUM, sd.special)
+    OUTLINEI("shield", sd.shield)
+    OUTLINEI("jammer", sd.jammer)
+    OUTLINEI("comp", sd.comp)
+    OUTLINEI("armor", sd.armor)
+    OUTLINEI("man", sd.man)
+    OUTLINEI("hp", sd.hp)
+}
+
+func savetype_en_text_monster (m) {
+    OUTLINEI("exists", m.exists)
+    OUTLINEI("x", m.x)
+    OUTLINEI("y", m.y)
+    OUTLINEI("killer", m.killer)
+    OUTLINEI("dest", m.dest)
+    OUTLINEI("counter", m.counter)
+    OUTLINEI("nuked", m.nuked)
+}
+
+func savetype_en_text (g, savename) {
+    OUTLINES("savename", savename)
+    text_dump_prefix_add("g", "->")
+    OUTLINEI("players", g.players)
+    OUTLINEBV("is_ai", g.is_ai, g.players)
+    OUTLINEBV("refuse", g.refuse, g.players)
+    OUTLINEI("ai_id", g.ai_id)
+    OUTLINEI("active_player", g.active_player)
+    OUTLINEI("difficulty", g.difficulty)
+    OUTLINEI("galaxy_size", g.galaxy_size)
+    OUTLINEI("galaxy_w", g.galaxy_w)
+    OUTLINEI("galaxy_h", g.galaxy_h)
+    OUTLINEI("galaxy_stars", g.galaxy_stars)
+    OUTLINEI("galaxy_maxx", g.galaxy_maxx)
+    OUTLINEI("galaxy_maxy", g.galaxy_maxy)
+    OUTLINEX("galaxy_seed", g.galaxy_seed)
+    OUTLINEX("seed", g.seed)
+    OUTLINEI("year", g.year)
+    OUTLINEI("enroute_num", g.enroute_num)
+    OUTLINEI("transport_num", g.transport_num)
+    OUTLINEI("end", g.end)
+    OUTLINEI("winner", g.winner)
+    OUTLINEI("election_held", g.election_held)
+    OUTLINEI("nebula_num", g.nebula_num)
+    if g.nebula_num != 0 {
+        OUTLINETBL("nebula_type", g.nebula_num, g.nebula_type)
+        OUTLINETBL("nebula_x", g.nebula_num, g.nebula_x)
+        OUTLINETBL("nebula_y", g.nebula_num, g.nebula_y)
+        loop i in g.nebula_num {
+            text_dump_prefix_add_tbl("nebula_x0", "", i)
+            OUTLINETBL("", 4, g.nebula_x0@(i))
+            text_dump_prefix_del()
+            text_dump_prefix_add_tbl("nebula_x1", "", i)
+            OUTLINETBL("", 4, g.nebula_x1@(i))
+            text_dump_prefix_del()
+            text_dump_prefix_add_tbl("nebula_y0", "", i)
+            OUTLINETBL("", 4, g.nebula_y0@(i))
+            text_dump_prefix_del()
+            text_dump_prefix_add_tbl("nebula_y1", "", i)
+            OUTLINETBL("", 4, g.nebula_y1@(i))
+            text_dump_prefix_del()
+        }
+    }
+    loop i in g.players {
+        OUTPRE()
+        OUTADD(string.format("emperor_names[%i] = \"%s\"\n", i, cs(g.emperor_names@(i))))
+    }
+    OUTLINETBL("planet_focus_i", g.players, g.planet_focus_i)
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        text_dump_prefix_add_tbl("planet", ".", i)
+        OUTLINES("name", p.name)
+        OUTLINEI("x", p.x)
+        OUTLINEI("y", p.y)
+        OUTLINEI("star_type", p.star_type)
+        OUTLINEI("look", p.look)
+        OUTLINEI("frame", p.frame)
+        OUTLINEI("rocks", p.rocks)
+        OUTLINEI("max_pop1", p.max_pop1)
+        OUTLINEI("max_pop2", p.max_pop2)
+        OUTLINEI("max_pop3", p.max_pop3)
+        OUTLINEI("type", p.type)
+        OUTLINEI("battlebg", p.battlebg)
+        OUTLINEI("infogfx", p.infogfx)
+        OUTLINEI("growth", p.growth)
+        OUTLINEI("special", p.special)
+        OUTLINEI("owner", p.owner)
+        OUTLINEI("prev_owner", p.prev_owner)
+        OUTLINEI("claim", p.claim)
+        OUTLINEI("waste", p.waste)
+        OUTLINEBV("explored", p.explored, g.players)
+        OUTLINEBV("unrefuel", p.unrefuel, g.players)
+        OUTLINEI("bc_to_ecoproj", p.bc_to_ecoproj)
+        OUTLINEI("bc_to_ship", p.bc_to_ship)
+        OUTLINEI("bc_to_factory", p.bc_to_factory)
+        OUTLINEI("reserve", p.reserve)
+        OUTLINEI("pop", p.pop)
+        OUTLINEI("pop_prev", p.pop_prev)
+        OUTLINEI("factories", p.factories)
+        OUTLINETBL("slider", PLANET_SLIDER_NUM, p.slider)
+        OUTLINETBL("slider_lock", PLANET_SLIDER_NUM, p.slider_lock)
+        OUTLINEI("buildship", p.buildship)
+        OUTLINEI("reloc", p.reloc)
+        OUTLINEI("missile_bases", p.missile_bases)
+        OUTLINEI("bc_to_base", p.bc_to_base)
+        OUTLINEI("bc_upgrade_base", p.bc_upgrade_base)
+        OUTLINEI("have_stargate", p.have_stargate)
+        OUTLINEI("shield", p.shield)
+        OUTLINEI("bc_to_shield", p.bc_to_shield)
+        OUTLINEI("trans_num", p.trans_num)
+        OUTLINEI("trans_dest", p.trans_dest)
+        OUTLINEI("pop_tenths", p.pop_tenths)
+        OUTLINEI("pop_oper_fact", p.pop_oper_fact)
+        OUTLINEI("bc_to_refit", p.bc_to_refit)
+        OUTLINEI("rebels", p.rebels)
+        OUTLINEI("unrest", p.unrest)
+        OUTLINEI("unrest_reported", p.unrest_reported)
+        OUTLINEBV("finished", p.finished, FINISHED_NUM)
+        text_dump_prefix_del()
+    }
+    loop j in g.players {
+        loop i in g.galaxy_stars {
+            val s = g.seen@(j)@(i)
+            OUTPRE()
+            OUTADD(string.format("seen[%i][%i] = { .owner = %i, .pop = %i, .bases = %i, .factories = %i }\n", j, i, s.owner, s.pop, s.bases, s.factories))
+        }
+    }
+    loop i in g.enroute_num {
+        val r = g.enroute@(i)
+        OUTPRE()
+        OUTADD("enroute")
+        OUTADD(string.format("[%i] = { .owner = %i, .x = %i, .y = %i, .dest = %i, .speed = %i, ", i, r.owner, r.x, r.y, r.dest, r.speed))
+        OUTADD(string.format(".ships[] = { %i, %i, %i, %i, %i, %i } }\n", r.ships@0, r.ships@1, r.ships@2, r.ships@3, r.ships@4, r.ships@5))
+    }
+    loop i in g.transport_num {
+        val r = g.transport@(i)
+        OUTPRE()
+        OUTADD("transport")
+        OUTADD(string.format("[%i] = { .owner = %i, .x = %i, .y = %i, .dest = %i, .speed = %i, ", i, r.owner, r.x, r.y, r.dest, r.speed))
+        OUTADD(string.format(".pop = %i }\n", r.pop))
+    }
+    loop pl in g.players {
+        val e = g.eto@(pl)
+        text_dump_prefix_add_tbl("eto", ".", pl)
+        OUTLINEI("race", e.race)
+        OUTLINEI("banner", e.banner)
+        OUTLINEI("trait1", e.trait1)
+        OUTLINEI("trait2", e.trait2)
+        OUTLINEI("ai_p3_countdown", e.ai_p3_countdown)
+        OUTLINEI("ai_p2_countdown", e.ai_p2_countdown)
+        OUTLINEBV("contact", e.contact, g.players)
+        OUTLINEBV("contact_broken", e.contact_broken, g.players)
+        OUTLINETBL("relation1", g.players, e.relation1)
+        OUTLINETBL("relation2", g.players, e.relation2)
+        OUTLINETBL("diplo_type", g.players, e.diplo_type)
+        OUTLINETBL("diplo_val", g.players, e.diplo_val)
+        OUTLINETBL("diplo_p1", g.players, e.diplo_p1)
+        OUTLINETBL("diplo_p2", g.players, e.diplo_p2)
+        OUTLINETBL("trust", g.players, e.trust)
+        OUTLINETBL("broken_treaty", g.players, e.broken_treaty)
+        OUTLINETBL("blunder", g.players, e.blunder)
+        OUTLINETBL("tribute_field", g.players, e.tribute_field)
+        OUTLINETBL("tribute_tech", g.players, e.tribute_tech)
+        OUTLINETBL("mood_treaty", g.players, e.mood_treaty)
+        OUTLINETBL("mood_trade", g.players, e.mood_trade)
+        OUTLINETBL("mood_tech", g.players, e.mood_tech)
+        OUTLINETBL("mood_peace", g.players, e.mood_peace)
+        OUTLINETBL("treaty", g.players, e.treaty)
+        OUTLINETBL("trade_bc", g.players, e.trade_bc)
+        OUTLINETBL("trade_percent", g.players, e.trade_percent)
+        OUTLINETBL("spymode_next", g.players, e.spymode_next)
+        OUTLINETBL("offer_field", g.players, e.offer_field)
+        OUTLINETBL("offer_tech", g.players, e.offer_tech)
+        OUTLINETBL("offer_bc", g.players, e.offer_bc)
+        OUTLINETBL("attack_bounty", g.players, e.attack_bounty)
+        OUTLINETBL("bounty_collect", g.players, e.bounty_collect)
+        OUTLINETBL("attack_gift_field", g.players, e.attack_gift_field)
+        OUTLINETBL("attack_gift_tech", g.players, e.attack_gift_tech)
+        OUTLINETBL("attack_gift_bc", g.players, e.attack_gift_bc)
+        OUTLINETBL("hatred", g.players, e.hatred)
+        OUTLINETBL("have_met", g.players, e.have_met)
+        OUTLINETBL("trade_established_bc", g.players, e.trade_established_bc)
+        OUTLINETBL("spying", g.players, e.spying)
+        OUTLINETBL("spyfund", g.players, e.spyfund)
+        OUTLINETBL("spymode", g.players, e.spymode)
+        OUTLINEI("security", e.security)
+        OUTLINETBL("spies", g.players, e.spies)
+        OUTLINEI("reserve_bc", e.reserve_bc)
+        OUTLINEI("tax", e.tax)
+        OUTLINEI("base_shield", e.base_shield)
+        OUTLINEI("base_comp", e.base_comp)
+        OUTLINEI("base_weapon", e.base_weapon)
+        OUTLINEI("colonist_oper_factories", e.colonist_oper_factories)
+        OUTLINETBL("tech.percent", TECH_FIELD_NUM, e.tech.percent)
+        OUTLINETBL("tech.slider", TECH_FIELD_NUM, e.tech.slider)
+        OUTLINETBL("tech.slider_lock", TECH_FIELD_NUM, e.tech.slider_lock)
+        OUTLINETBL("tech.investment", TECH_FIELD_NUM, e.tech.investment)
+        OUTLINETBL("tech.project", TECH_FIELD_NUM, e.tech.project)
+        OUTLINETBL("tech.cost", TECH_FIELD_NUM, e.tech.cost)
+        OUTLINETBL("tech.completed", TECH_FIELD_NUM, e.tech.completed)
+        OUTLINEI("shipdesigns_num", e.shipdesigns_num)
+        loop i in g.galaxy_stars {
+            text_dump_prefix_add_tbl("orbit", ".", i)
+            OUTLINETBLNON0("ships", e.shipdesigns_num, e.orbit@(i).ships)
+            text_dump_prefix_del()
+        }
+        loop i in g.players {
+            if i != pl {
+                text_dump_prefix_add_tbl("spyreportfield", "", i)
+                OUTLINETBL("", TECH_FIELD_NUM, e.spyreportfield@(i))
+                text_dump_prefix_del()
+            }
+        }
+        OUTLINETBL("spyreportyear", g.players, e.spyreportyear)
+        OUTLINEI("shipi_colony", e.shipi_colony)
+        OUTLINEI("shipi_bomber", e.shipi_bomber)
+        text_dump_prefix_del()
+    }
+    loop pl in g.players {
+        val srd = g.srd@(pl)
+        val e = g.eto@(pl)
+        text_dump_prefix_add_tbl("srd", ".", pl)
+        loop i in g.eto@(pl).shipdesigns_num {
+            text_dump_prefix_add_tbl("design", ".", i)
+            savetype_en_text_sd(srd.design@(i))
+            text_dump_prefix_del()
+        }
+        loop f in TECH_FIELD_NUM {
+            text_dump_prefix_add_tbl("researchlist", "", f)
+            loop t in TECH_TIER_NUM {
+                text_dump_prefix_add_tbl("", "", t)
+                OUTLINETBL("", 3, srd.researchlist@(f)@(t))
+                text_dump_prefix_del()
+            }
+            text_dump_prefix_del()
+        }
+        loop f in TECH_FIELD_NUM {
+            text_dump_prefix_add_tbl("researchcompleted", "", f)
+            OUTLINETBL("", e.tech.completed@(f), srd.researchcompleted@(f))
+            text_dump_prefix_del()
+        }
+        OUTLINETBL("year", e.shipdesigns_num, srd.year)
+        text_dump_prefix_del()
+    }
+    loop pl in g.players {
+        if IS_HUMAN(g, pl) {
+            text_dump_prefix_add_tbl("current_design", ".", pl)
+            savetype_en_text_sd(g.current_design@(pl))
+            text_dump_prefix_del()
+        }
+    }
+    do {
+        val ev = g.evn
+        text_dump_prefix_add("evn", ".")
+        OUTLINEI("year", ev.year)
+        OUTLINEBV("done", ev.done, GAME_EVENT_TBL_NUM)
+        OUTLINEI("diplo_msg_subtype", ev.diplo_msg_subtype)
+        OUTLINEI("have_plague", ev.have_plague)
+        OUTLINEI("plague_player", ev.plague_player)
+        OUTLINEI("plague_planet_i", ev.plague_planet_i)
+        OUTLINEI("plague_val", ev.plague_val)
+        OUTLINEI("have_nova", ev.have_nova)
+        OUTLINEI("nova_player", ev.nova_player)
+        OUTLINEI("nova_planet_i", ev.nova_planet_i)
+        OUTLINEI("nova_years", ev.nova_years)
+        OUTLINEI("nova_val", ev.nova_val)
+        OUTLINEI("have_accident", ev.have_accident)
+        OUTLINEI("accident_planet_i", ev.accident_planet_i)
+        OUTLINEI("have_comet", ev.have_comet)
+        OUTLINEI("comet_player", ev.comet_player)
+        OUTLINEI("comet_planet_i", ev.comet_planet_i)
+        OUTLINEI("comet_years", ev.comet_years)
+        OUTLINEI("comet_hp", ev.comet_hp)
+        OUTLINEI("comet_dmg", ev.comet_dmg)
+        OUTLINEI("have_pirates", ev.have_pirates)
+        OUTLINEI("pirates_planet_i", ev.pirates_planet_i)
+        OUTLINEI("pirates_hp", ev.pirates_hp)
+        text_dump_prefix_add("crystal", ".")
+        savetype_en_text_monster(ev.crystal)
+        text_dump_prefix_del()
+        text_dump_prefix_add("amoeba", ".")
+        savetype_en_text_monster(ev.amoeba)
+        text_dump_prefix_del()
+        OUTLINEI("planet_orion_i", ev.planet_orion_i)
+        OUTLINEI("have_guardian", ev.have_guardian)
+        OUTLINETBL("home", g.players, ev.home)
+        OUTLINEI("report_stars", ev.report_stars)
+        loop pl in g.players {
+            text_dump_prefix_add_tbl("new_ships", "", pl)
+            OUTLINETBL("", NUM_SHIPDESIGNS, ev.new_ships@(pl))
+            text_dump_prefix_del()
+        }
+        loop pl in g.players {
+            text_dump_prefix_add_tbl("spies_caught", "", pl)
+            OUTLINETBL("", g.players, ev.spies_caught@(pl))
+            text_dump_prefix_del()
+        }
+        loop pl in g.players {
+            text_dump_prefix_add_tbl("ceasefire", "", pl)
+            OUTLINETBL("", g.players, ev.ceasefire@(pl))
+            text_dump_prefix_del()
+        }
+        loop pl in g.players {
+            if IS_HUMAN(g, pl) {
+                text_dump_prefix_add_tbl("help_shown", "", pl)
+                OUTLINEBV("", ev.help_shown@(pl), HELP_SHOWN_NUM)
+                text_dump_prefix_del()
+            }
+        }
+        OUTLINETBL("build_finished_num", g.players, ev.build_finished_num)
+        OUTLINETBL("voted", g.players, ev.voted)
+        OUTLINETBL("best_ecorestore", g.players, ev.best_ecorestore)
+        OUTLINETBL("best_wastereduce", g.players, ev.best_wastereduce)
+        OUTLINETBL("best_roboctrl", g.players, ev.best_roboctrl)
+        OUTLINETBL("best_terraform", g.players, ev.best_terraform)
+        text_dump_prefix_del()
+    }
+    text_dump_prefix_del()
+}
+
+val fin, fout = ...
+pin g = game_s()
+pin savename = carray(SAVE_NAME_LEN)
+if game_save_do_load_do(fin, g, -1, savename) != 0 {
+    os.exit(1)
+}
+savetype_en_text(g, savename)
+pin f = io.open(fout, "w")
+io.write(f, vector.join(out, ""))
+io.close(f)
