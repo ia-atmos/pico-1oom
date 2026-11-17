@@ -109,4 +109,6 @@ The author said to start (2026-11-17), in the order of item 5.
 - 2026-11-17, to the compiler session: `t@0.x` is lexed as the invalid
   number `0.x` (write `t@(0).x`); suggested to list it among the
   ambiguities of the manual, or to stop a number before `.letter` after
-  `@`. Not a blocker.
+  `@`. Not a blocker. The compiler session answered: it is now in the
+  table of ambiguities, and the change of the lexer is item 65 of the
+  compiler, waiting for the author. Until then, `t@(0).x`.
