@@ -1,0 +1,70 @@
+;; The conversions that C does by itself when it stores a value, and the
+;; arrays of C. Not a module of 1oom: the port's stand-in for the types of C.
+;;
+;; A number stored in a field of a C type is converted as C converts it, by
+;; the function of that type: `set p.pop = i16(v)` is `p->pop = v` with
+;; `int16_t pop`. A C `bool` is an Atmos boolean (`cbool`), and `cint` turns
+;; it back into `0` or `1` where C uses it as a number.
+
+func u8 (v) {
+    v & 0xff
+}
+
+func i8 (v) {
+    val x = v & 0xff
+    if x >= 0x80 => x - 0x100 => x
+}
+
+func u16 (v) {
+    v & 0xffff
+}
+
+func i16 (v) {
+    val x = v & 0xffff
+    if x >= 0x8000 => x - 0x10000 => x
+}
+
+func u32 (v) {
+    v & 0xffffffff
+}
+
+func i32 (v) {
+    val x = v & 0xffffffff
+    if x >= 0x80000000 => x - 0x100000000 => x
+}
+
+func cbool (v) {
+    (v != 0) && (v != false)
+}
+
+func cint (b) {
+    if b => 1 => 0
+}
+
+;; An array of C of `n` numbers, all `v` (`0` by default), as `memset`.
+func carray (n, v) {
+    val x = v || 0
+    pin t = []
+    loop i in n {
+        set t@+ = x
+    }
+    t
+}
+
+;; An array of C of `n` arrays of `m` numbers, all `0`.
+func carray2 (n, m) {
+    pin t = []
+    loop i in n {
+        set t@+ = carray(m)
+    }
+    t
+}
+
+;; An array of C of `n` structures, each one made by `f()`.
+func carrayf (n, f) {
+    pin t = []
+    loop i in n {
+        set t@+ = f()
+    }
+    t
+}
