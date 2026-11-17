@@ -24,17 +24,17 @@ a time.
 
 ## B. Work known and not done
 
-Nothing may start before the author says so.
+The author said to start (2026-11-17), in the order of item 5.
 
 - The oracle of the logic is built (2026-11-14), in `c/build-native/`
   (ignored by git), from `c/`: `autoreconf -fi`, then `../configure
   --disable-uiclassic --disable-hwsdl2 --disable-hwsdl1
   --disable-hwalleg4 --without-readline --without-samplerate`, then
   `make`. It gives `1oom_cmdline` (hardware `nop`) and the tools,
-  with `1oom_saveconv`. Not run yet: it needs the LBX files (item 2).
-- The oracle of the interface of 1993 (`1oom_classic_*`) is not
-  built: it needs SDL 2 and its mixer, which the container does not
-  have.
+  with `1oom_saveconv`.
+- The oracle of the interface of 1993 (`1oom_classic_sdl2`) builds once
+  `libsdl2-dev` and `libsdl2-mixer-dev` are installed with `apt-get`
+  (not in the container by default, and lost with it).
 - The oracle of the logic runs, and is deterministic (2026-11-17): from
   `-new 300:0:0:12345`, five turns by `n` on the standard input, two runs
   write the same saves byte by byte (`1oom_save_2300.bin` to `2304`,
@@ -69,7 +69,10 @@ Nothing may start before the author says so.
 
 ## C. Reported or decided, and not acknowledged
 
-- Nothing yet.
+- 2026-11-17: step 1 (the save) done, and how the C becomes Atmos (in
+  `README.md`): the state is a tree of tables with every field of C,
+  each value kept as C keeps it (`i16`, `u8`, ...), `bool` as booleans,
+  `char[]` as vectors of bytes, `if (x)` as `if x != 0`.
 
 ## Settled
 
