@@ -1,0 +1,79 @@
+;; Port of c/src/log.c.
+;;
+;; The hardware writes the messages: `hw_log_*` are here until the hardware
+;; of pico is ported, as `hw/nop` does it (to the standard output: Atmos has
+;; no standard error).
+
+var log_fd = nil
+
+func hw_log_message (msg) {
+    io.write(msg)
+}
+
+func hw_log_warning (msg) {
+    io.write(msg)
+}
+
+func hw_log_error (msg) {
+    io.write(msg)
+}
+
+func log_file_write (msg) {
+    io.write(log_fd, msg)
+}
+
+func log_file_open (filename) {
+    if filename && (filename != "") {
+        set log_fd = io.open(filename, "w")
+        if !log_fd {
+            log_error("Log: opening %s failed!\n", filename)
+            return -1
+        }
+    }
+    0
+}
+
+func log_file_close () {
+    if log_fd {
+        io.close(log_fd)
+        set log_fd = nil
+    }
+}
+
+func log_message_direct (msg) {
+    if log_fd {
+        log_file_write(msg)
+    }
+    hw_log_message(msg)
+}
+
+func log_warning_direct (msg) {
+    if log_fd {
+        log_file_write(msg)
+    }
+    hw_log_warning(msg)
+}
+
+func log_error_direct (msg) {
+    if log_fd {
+        log_file_write(msg)
+    }
+    hw_log_error(msg)
+}
+
+func log_message (format, ...) {
+    log_message_direct(string.format(format, ...))
+}
+
+func log_warning (format, ...) {
+    log_warning_direct("warning: " ++ string.format(format, ...))
+}
+
+func log_error (format, ...) {
+    log_error_direct("error: " ++ string.format(format, ...))
+}
+
+func log_fatal_and_die (format, ...) {
+    log_error_direct("FATAL: " ++ string.format(format, ...))
+    os.exit(1)
+}
