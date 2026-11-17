@@ -1,0 +1,26 @@
+;; Port of c/src/bits.h, the portable (little-endian) macros. A buffer is a
+;; vector of bytes, and a pointer into it is the buffer and a position.
+
+func SET_LE_16 (buf, pos, v) {
+    set buf@(pos)   = v & 0xff
+    set buf@(pos+1) = (v >> 8) & 0xff
+}
+
+func GET_LE_16 (buf, pos) {
+    buf@(pos) | (buf@(pos+1) << 8)
+}
+
+func SET_LE_32 (buf, pos, v) {
+    set buf@(pos)   = v & 0xff
+    set buf@(pos+1) = (v >> 8) & 0xff
+    set buf@(pos+2) = (v >> 16) & 0xff
+    set buf@(pos+3) = (v >> 24) & 0xff
+}
+
+func GET_LE_32 (buf, pos) {
+    GET_LE_16(buf, pos) | (GET_LE_16(buf, pos + 2) << 16)
+}
+
+func GET_LE_24 (buf, pos) {
+    GET_LE_16(buf, pos) | (buf@(pos+2) << 16)
+}
