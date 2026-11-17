@@ -50,6 +50,23 @@ Nothing may start before the author says so.
   Read the manual ("Pin") and `.claude/plans/261115-pin.md` there. The
   initial instructions are outdated on this point.
 
+- The port, in the order of item 5:
+  1. The save: **done** (2026-11-17). `tst/save.sh` on 109 saves of 5
+     games (2 to 6 players, all galaxy sizes, up to 27 turns, with
+     nebulas, fleets, and transports): each is written back byte by byte,
+     and its values are the same as the C, field by field (the text of
+     `1oom_saveconv -o t`). Not covered yet: the slot names and paths of
+     the saves (`game_save_get_slot_fname`, which needs `os`).
+  2. The data tables of the 5 LBX of the logic: next.
+- Headers ported only in part: `game_shiptech.h` (the enums; its tables
+  come with `game_shiptech.c`) and `game_shipdesign.h` (its tables come
+  with `game_shipdesign.c`).
+- `log.atm` writes the errors to the standard output (Atmos has no
+  standard error), and holds `hw_log_*` until the hardware of pico.
+- Three commits of 2026-11-17 (`0d492fe`, `90e0bd7`, `7c8e0d7`) have the
+  trailer in the title line (a missing blank line). History is not
+  rewritten.
+
 ## C. Reported or decided, and not acknowledged
 
 - Nothing yet.
