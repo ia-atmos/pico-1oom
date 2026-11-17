@@ -1,0 +1,25 @@
+;; Step 1 of the port: the save.
+;;
+;;      atmos tst/save-roundtrip.atm IN OUT
+;;
+;; Loads the save IN into the state of the game, and saves it to OUT, with
+;; the name of IN. OUT must be the same as what the C writes from IN.
+
+include "../src/game/game_save.atm"
+
+val fin, fout = ...
+pin g = game_s()
+pin savename = carray(SAVE_NAME_LEN)
+if game_save_do_load_do(fin, g, -1, savename) != 0 {
+    os.exit(1)
+}
+pin cs = []
+loop _,b in savename {
+    if b == 0 {
+        break
+    }
+    set cs@+ = string.char(b)
+}
+if game_save_do_save_do(fout, vector.join(cs, ""), g, -1, GAME_SAVE_VERSION) != 0 {
+    os.exit(1)
+}
