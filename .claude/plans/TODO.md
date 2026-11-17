@@ -112,3 +112,10 @@ The author said to start (2026-11-17), in the order of item 5.
   `@`. Not a blocker. The compiler session answered: it is now in the
   table of ambiguities, and the change of the lexer is item 65 of the
   compiler, waiting for the author. Until then, `t@(0).x`.
+- 2026-11-17, rules of `pin` changed a third time (`ia-atmos/lang`
+  `5da4b8e`, `.claude/plans/261117-pin-migration-2.md`): a pinned value
+  no longer leaves its block. Migrated: the four places the compiler
+  session found (`carray`, `carray2`, `carrayf`, `cfile_read`) and one
+  more (`game_save_open_check_header`, given away by `return rest,
+  version`) became `val`. `tst/save.sh` passes on the 109 saves. Reported
+  to the compiler session.
