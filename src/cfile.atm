@@ -1,0 +1,35 @@
+;; The files of C that the port needs, over `io`. Not a module of 1oom: the
+;; port's stand-in for `fopen`, `fread`, and `fwrite` of whole files.
+;; A file's contents are a vector of bytes.
+
+;; The bytes of a file, or `nil` if it cannot be read (as `fopen` failing).
+func cfile_read (path) {
+    pin f = io.open(path, "rb")
+    if f == nil {
+        return nil
+    }
+    val s = io.read(f, :all)
+    io.close(f)
+    pin bs = []
+    loop i in #s {
+        set bs@+ = string.byte(s, i)
+    }
+    bs
+}
+
+;; Writes the vectors of bytes in sequence; `false` if it cannot.
+func cfile_write (path, ...) {
+    pin f = io.open(path, "wb")
+    if f == nil {
+        return false
+    }
+    loop _,bs in [...] {
+        pin cs = []
+        loop _,b in bs {
+            set cs@+ = string.char(b)
+        }
+        io.write(f, vector.join(cs, ""))
+    }
+    io.close(f)
+    true
+}
