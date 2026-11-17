@@ -1,0 +1,981 @@
+;; Port of c/src/game/game_save.c and game_save.h.
+;;
+;; NOTE!
+;;  If the save format changes, increase GAME_SAVE_VERSION and implement a
+;;  converter in 1oom_saveconv. The format is not to be changed without a
+;;  very good reason.
+;;
+;; The buffer of the save is a vector of bytes, and a file is read and
+;; written whole (cfile.atm).
+
+include "../cfile.atm"
+include "../ctypes.atm"
+include "../log.atm"
+include "game.atm"
+include "game_endecode.atm"
+include "game_nebula.atm"
+
+val NUM_SAVES = 6
+val NUM_ALL_SAVES = NUM_SAVES + 1 + 1 + 1   ;; continue game, undo, init
+val SAVE_NAME_LEN = 20
+
+;; ---------------------------------------------------------------------------
+
+val GAME_SAVE_HDR_SIZE = 64
+val GAME_SAVE_MAGIC = "1oomSAVE"
+val GAME_SAVE_END = 0x646e450a      ;; dnE\n
+val GAME_SAVE_OFFS_VERSION = 8
+val GAME_SAVE_OFFS_NAME = 16
+
+val GAME_SAVE_VERSION = 0
+
+;; ---------------------------------------------------------------------------
+
+pin game_save_tbl_have_save = carray(NUM_ALL_SAVES, false)
+pin game_save_tbl_name = carray2(NUM_ALL_SAVES, SAVE_NAME_LEN)
+
+;; ---------------------------------------------------------------------------
+
+;; A decoded value converted to the C type of its field, and the position.
+func sg_de (conv, v, pos) {
+    return conv(v), pos
+}
+
+;; HACK: Nebula types are not stored in the save file format, but can be
+;; inferred from the bounding boxes.
+func game_save_nebula_match (x, y, x0, y0, x1, y1, nebula_data) {
+    loop i in 4 {
+        if x0@(i) != (x + nebula_data@0@(i)) {
+            return false
+        }
+        if y0@(i) != (y + nebula_data@1@(i)) {
+            return false
+        }
+        if x1@(i) != (x + nebula_data@2@(i)) {
+            return false
+        }
+        if y1@(i) != (y + nebula_data@3@(i)) {
+            return false
+        }
+    }
+    true
+}
+
+func game_save_infer_nebula_type (g, index) {
+    val x  = g.nebula_x@(index)
+    val y  = g.nebula_y@(index)
+    val x0 = g.nebula_x0@(index)
+    val y0 = g.nebula_y0@(index)
+    val x1 = g.nebula_x1@(index)
+    val y1 = g.nebula_y1@(index)
+    loop t in NEBULA_TYPE_NUM {
+        if game_save_nebula_match(x, y, x0, y0, x1, y1, tbl_nebula_data@(t)) {
+            return t
+        }
+    }
+    -1
+}
+
+func game_save_encode_planet (buf, pos, p, pnum, version) {
+    var q = pos
+    set q = SG_1OOM_EN_TBL_U8(buf, q, p.name, PLANET_NAME_LEN)
+    set q = SG_1OOM_EN_U16(buf, q, p.x)
+    set q = SG_1OOM_EN_U16(buf, q, p.y)
+    set q = SG_1OOM_EN_U8(buf, q, p.star_type)
+    set q = SG_1OOM_EN_U8(buf, q, p.look)
+    set q = SG_1OOM_EN_U8(buf, q, p.frame)
+    set q = SG_1OOM_EN_U8(buf, q, p.rocks)
+    set q = SG_1OOM_EN_U16(buf, q, p.max_pop1)
+    set q = SG_1OOM_EN_U16(buf, q, p.max_pop2)
+    set q = SG_1OOM_EN_U16(buf, q, p.max_pop3)
+    set q = SG_1OOM_EN_U8(buf, q, p.type)
+    set q = SG_1OOM_EN_U8(buf, q, p.battlebg)
+    set q = SG_1OOM_EN_U8(buf, q, p.infogfx)
+    set q = SG_1OOM_EN_U8(buf, q, p.growth)
+    set q = SG_1OOM_EN_U8(buf, q, p.special)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_to_ecoproj)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_to_ship)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_to_factory)
+    set q = SG_1OOM_EN_U32(buf, q, p.reserve)
+    set q = SG_1OOM_EN_U16(buf, q, p.waste)
+    set q = SG_1OOM_EN_U8(buf, q, p.owner)
+    set q = SG_1OOM_EN_U8(buf, q, p.prev_owner)
+    set q = SG_1OOM_EN_U8(buf, q, p.claim)
+    set q = SG_1OOM_EN_U16(buf, q, p.pop)
+    set q = SG_1OOM_EN_U16(buf, q, p.pop_prev)
+    set q = SG_1OOM_EN_U16(buf, q, p.factories)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, p.slider, PLANET_SLIDER_NUM)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, p.slider_lock, PLANET_SLIDER_NUM)
+    set q = SG_1OOM_EN_U8(buf, q, p.buildship)
+    set q = SG_1OOM_EN_U8(buf, q, p.reloc)
+    set q = SG_1OOM_EN_U16(buf, q, p.missile_bases)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_to_base)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_upgrade_base)
+    set q = SG_1OOM_EN_U8(buf, q, p.have_stargate)
+    set q = SG_1OOM_EN_U8(buf, q, p.shield)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_to_shield)
+    set q = SG_1OOM_EN_U16(buf, q, p.trans_num)
+    set q = SG_1OOM_EN_U8(buf, q, p.trans_dest)
+    set q = SG_1OOM_EN_U8(buf, q, p.pop_tenths)
+    set q = SG_1OOM_EN_BV(buf, q, p.explored, PLAYER_NUM)
+    set q = SG_1OOM_EN_BV(buf, q, p.unrefuel, PLAYER_NUM)
+    set q = SG_1OOM_EN_DUMMY(buf, q, 4)
+    set q = SG_1OOM_EN_U8(buf, q, p.pop_oper_fact)
+    set q = SG_1OOM_EN_U16(buf, q, p.bc_to_refit)
+    set q = SG_1OOM_EN_U16(buf, q, p.rebels)
+    set q = SG_1OOM_EN_U8(buf, q, p.unrest)
+    set q = SG_1OOM_EN_U8(buf, q, p.unrest_reported)
+    set q = SG_1OOM_EN_BV(buf, q, p.finished, FINISHED_NUM)
+    set q = SG_1OOM_EN_DUMMY(buf, q, 5)
+    q
+}
+
+func game_save_decode_planet (buf, pos, p, pnum, version) {
+    var q = pos
+    set q = SG_1OOM_DE_TBL_U8(buf, q, p.name, PLANET_NAME_LEN)
+    set p.x, q = SG_1OOM_DE_U16(buf, q)
+    set p.y, q = SG_1OOM_DE_U16(buf, q)
+    set p.star_type, q = SG_1OOM_DE_U8(buf, q)
+    set p.look, q = SG_1OOM_DE_U8(buf, q)
+    set p.frame, q = SG_1OOM_DE_U8(buf, q)
+    set p.rocks, q = SG_1OOM_DE_U8(buf, q)
+    set p.max_pop1, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.max_pop2, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.max_pop3, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.type, q = SG_1OOM_DE_U8(buf, q)
+    set p.battlebg, q = SG_1OOM_DE_U8(buf, q)
+    set p.infogfx, q = SG_1OOM_DE_U8(buf, q)
+    set p.growth, q = SG_1OOM_DE_U8(buf, q)
+    set p.special, q = SG_1OOM_DE_U8(buf, q)
+    set p.bc_to_ecoproj, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.bc_to_ship, q = SG_1OOM_DE_U16(buf, q)
+    set p.bc_to_factory, q = sg_de(u8, SG_1OOM_DE_U16(buf, q))
+    set p.reserve, q = SG_1OOM_DE_U32(buf, q)
+    set p.waste, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.owner, q = SG_1OOM_DE_U8(buf, q)
+    set p.prev_owner, q = SG_1OOM_DE_U8(buf, q)
+    set p.claim, q = SG_1OOM_DE_U8(buf, q)
+    set p.pop, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.pop_prev, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.factories, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set q = SG_1OOM_DE_TBL_U16(buf, q, p.slider, PLANET_SLIDER_NUM, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, p.slider_lock, PLANET_SLIDER_NUM)
+    set p.buildship, q = SG_1OOM_DE_U8(buf, q)
+    set p.reloc, q = SG_1OOM_DE_U8(buf, q)
+    set p.missile_bases, q = SG_1OOM_DE_U16(buf, q)
+    set p.bc_to_base, q = SG_1OOM_DE_U16(buf, q)
+    set p.bc_upgrade_base, q = SG_1OOM_DE_U16(buf, q)
+    set p.have_stargate, q = sg_de(cbool, SG_1OOM_DE_U8(buf, q))
+    set p.shield, q = SG_1OOM_DE_U8(buf, q)
+    set p.bc_to_shield, q = SG_1OOM_DE_U16(buf, q)
+    set p.trans_num, q = SG_1OOM_DE_U16(buf, q)
+    set p.trans_dest, q = SG_1OOM_DE_U8(buf, q)
+    set p.pop_tenths, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set q = SG_1OOM_DE_BV(buf, q, p.explored, PLAYER_NUM)
+    set q = SG_1OOM_DE_BV(buf, q, p.unrefuel, PLAYER_NUM)
+    set q = SG_1OOM_DE_DUMMY(buf, q, 4)
+    set p.pop_oper_fact, q = SG_1OOM_DE_U8(buf, q)
+    set p.bc_to_refit, q = SG_1OOM_DE_U16(buf, q)
+    set p.rebels, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set p.unrest, q = SG_1OOM_DE_U8(buf, q)
+    set p.unrest_reported, q = sg_de(cbool, SG_1OOM_DE_U8(buf, q))
+    set q = SG_1OOM_DE_BV(buf, q, p.finished, FINISHED_NUM)
+    set q = SG_1OOM_DE_DUMMY(buf, q, 5)
+    q
+}
+
+func game_save_encode_enroute (buf, pos, r) {
+    var q = pos
+    set q = SG_1OOM_EN_U8(buf, q, r.owner)
+    set q = SG_1OOM_EN_U16(buf, q, r.x)
+    set q = SG_1OOM_EN_U16(buf, q, r.y)
+    set q = SG_1OOM_EN_U8(buf, q, r.dest)
+    do {
+        var v = r.speed
+        if r.retreat {
+            set v = u8(v | 0x80)
+        }
+        set q = SG_1OOM_EN_U8(buf, q, v)
+    }
+    set q = SG_1OOM_EN_TBL_U16(buf, q, r.ships, NUM_SHIPDESIGNS)
+    q
+}
+
+func game_save_decode_enroute (buf, pos, r) {
+    var q = pos
+    set r.owner, q = SG_1OOM_DE_U8(buf, q)
+    set r.x, q = SG_1OOM_DE_U16(buf, q)
+    set r.y, q = SG_1OOM_DE_U16(buf, q)
+    set r.dest, q = SG_1OOM_DE_U8(buf, q)
+    do {
+        var v
+        set v, q = SG_1OOM_DE_U8(buf, q)
+        set r.speed = v & 0x7f
+        set r.retreat = ((v & 0x80) != 0)
+    }
+    set q = SG_1OOM_DE_TBL_U16(buf, q, r.ships, NUM_SHIPDESIGNS)
+    q
+}
+
+func game_save_encode_transport (buf, pos, r) {
+    var q = pos
+    set q = SG_1OOM_EN_U8(buf, q, r.owner)
+    set q = SG_1OOM_EN_U16(buf, q, r.x)
+    set q = SG_1OOM_EN_U16(buf, q, r.y)
+    set q = SG_1OOM_EN_U8(buf, q, r.dest)
+    set q = SG_1OOM_EN_U8(buf, q, r.speed)
+    set q = SG_1OOM_EN_U16(buf, q, r.pop)
+    q
+}
+
+func game_save_decode_transport (buf, pos, r) {
+    var q = pos
+    set r.owner, q = SG_1OOM_DE_U8(buf, q)
+    set r.x, q = SG_1OOM_DE_U16(buf, q)
+    set r.y, q = SG_1OOM_DE_U16(buf, q)
+    set r.dest, q = SG_1OOM_DE_U8(buf, q)
+    set r.speed, q = SG_1OOM_DE_U8(buf, q)
+    set r.pop, q = SG_1OOM_DE_U16(buf, q)
+    q
+}
+
+func game_save_encode_orbits (buf, pos, o, planets) {
+    var q = pos
+    loop i in planets {
+        var any_ships = false
+        loop j in NUM_SHIPDESIGNS {
+            if o@(i).ships@(j) != 0 {
+                set any_ships = true
+                break
+            }
+        }
+        if any_ships {
+            set q = SG_1OOM_EN_U8(buf, q, i)
+            set q = SG_1OOM_EN_TBL_U16(buf, q, o@(i).ships, NUM_SHIPDESIGNS)
+        }
+    }
+    set q = SG_1OOM_EN_U8(buf, q, PLANET_NONE)
+    q
+}
+
+func game_save_decode_orbits (buf, pos, o, planets) {
+    var q = pos
+    loop loops in (0, planets) {
+        var i
+        set i, q = SG_1OOM_DE_U8(buf, q)
+        if i == PLANET_NONE {
+            return q
+        } else {
+            if i >= planets {
+                log_error("Save: decode orbit planet %i >= %i max\n", i, planets)
+                return -1
+            }
+        }
+        set q = SG_1OOM_DE_TBL_U16(buf, q, o@(i).ships, NUM_SHIPDESIGNS)
+    }
+    log_error("Save: decode orbit terminator missing\n")
+    -1
+}
+
+func game_save_encode_eto (buf, pos, e, pnum, planets, version) {
+    var q = pos
+    set q = SG_1OOM_EN_U8(buf, q, e.race)
+    set q = SG_1OOM_EN_U8(buf, q, e.banner)
+    set q = SG_1OOM_EN_U8(buf, q, e.trait1)
+    set q = SG_1OOM_EN_U8(buf, q, e.trait2)
+    set q = SG_1OOM_EN_U8(buf, q, e.ai_p3_countdown)
+    set q = SG_1OOM_EN_U8(buf, q, e.ai_p2_countdown)
+    set q = SG_1OOM_EN_BV(buf, q, e.contact, PLAYER_NUM)
+    set q = SG_1OOM_EN_BV(buf, q, e.contact_broken, PLAYER_NUM)
+    set q = SG_1OOM_EN_DUMMY(buf, q, 4)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.relation1, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.relation2, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.diplo_type, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.diplo_val, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.diplo_p1, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.diplo_p2, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.trust, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.broken_treaty, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.blunder, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.tribute_field, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.tribute_tech, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.mood_treaty, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.mood_trade, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.mood_tech, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.mood_peace, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.treaty, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.trade_bc, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.trade_percent, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.spymode_next, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.offer_field, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.offer_tech, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.offer_bc, pnum)
+    do {
+        ;; HACK Fit 5 tables into 2 while not breaking old versions.
+        pin tbl = carray(PLAYER_NUM)
+        ;; Old attack_bounty. The attack_gift_* are irrelevant if
+        ;; attack_bounty is PLAYER_NONE.
+        loop i in pnum {
+            var v
+            ifs {
+                e.attack_gift_bc@(i) != 0 => {
+                    set v = u16(e.attack_gift_bc@(i))  ;; multiple of 50, always even
+                }
+                e.attack_gift_tech@(i) != 0 => {
+                    set v = u16((e.attack_gift_tech@(i) << 8) | (e.attack_gift_field@(i) << 1) | 1)
+                }
+                else => {
+                    set v = 0
+                }
+            }
+            set tbl@(i) = v
+        }
+        set q = SG_1OOM_EN_TBL_U16(buf, q, tbl, pnum)
+        ;; Old bounty_collect.
+        ;; attack_bounty[0] is never 0, and thus tbl[0] is never PLAYER_NONE
+        ;; (but typically (PLAYER_NONE << 8) | PLAYER_NONE).
+        ;; bounty_collect[0] is always PLAYER_NONE.
+        ;; Old code reading this to bounty_collect will get != PLAYER_NONE and
+        ;; reset attack_bounty on next turn.
+        loop i in pnum {
+            set tbl@(i) = u16((e.attack_bounty@(i) << 8) | e.bounty_collect@(i))
+        }
+        set q = SG_1OOM_EN_TBL_U16(buf, q, tbl, pnum)
+    }
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.hatred, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.have_met, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.trade_established_bc, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.spying, pnum)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.spyfund, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.spymode, pnum)
+    set q = SG_1OOM_EN_U16(buf, q, e.security)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.spies, pnum)
+    set q = SG_1OOM_EN_U32(buf, q, e.reserve_bc)
+    set q = SG_1OOM_EN_U16(buf, q, e.tax)
+    set q = SG_1OOM_EN_U8(buf, q, e.base_shield)
+    set q = SG_1OOM_EN_U8(buf, q, e.base_comp)
+    set q = SG_1OOM_EN_U8(buf, q, e.base_weapon)
+    set q = SG_1OOM_EN_U8(buf, q, e.colonist_oper_factories)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.tech.percent, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.tech.slider, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.tech.slider_lock, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U32(buf, q, e.tech.investment, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, e.tech.project, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U32(buf, q, e.tech.cost, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.tech.completed, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_U8(buf, q, e.shipdesigns_num)
+    set q = game_save_encode_orbits(buf, q, e.orbit, planets)
+    set q = SG_1OOM_EN_TBL_TBL_U8(buf, q, e.spyreportfield, pnum, TECH_FIELD_NUM)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, e.spyreportyear, pnum)
+    set q = SG_1OOM_EN_U8(buf, q, e.shipi_colony)
+    set q = SG_1OOM_EN_U8(buf, q, e.shipi_bomber)
+    q
+}
+
+func game_save_decode_eto (buf, pos, e, pnum, planets, version) {
+    var q = pos
+    set e.race, q = SG_1OOM_DE_U8(buf, q)
+    set e.banner, q = SG_1OOM_DE_U8(buf, q)
+    set e.trait1, q = SG_1OOM_DE_U8(buf, q)
+    set e.trait2, q = SG_1OOM_DE_U8(buf, q)
+    set e.ai_p3_countdown, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set e.ai_p2_countdown, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set q = SG_1OOM_DE_BV(buf, q, e.contact, PLAYER_NUM)
+    set q = SG_1OOM_DE_BV(buf, q, e.contact_broken, PLAYER_NUM)
+    set q = SG_1OOM_DE_DUMMY(buf, q, 4)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.relation1, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.relation2, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.diplo_type, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.diplo_val, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.diplo_p1, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.diplo_p2, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.trust, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.broken_treaty, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.blunder, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.tribute_field, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.tribute_tech, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.mood_treaty, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.mood_trade, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.mood_tech, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.mood_peace, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.treaty, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.trade_bc, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.trade_percent, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.spymode_next, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.offer_field, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.offer_tech, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.offer_bc, pnum)
+    do {
+        pin ab = carray(PLAYER_NUM)
+        pin bc = carray(PLAYER_NUM)
+        set q = SG_1OOM_DE_TBL_U16(buf, q, ab, pnum)
+        set q = SG_1OOM_DE_TBL_U16(buf, q, bc, pnum)
+        if bc@0 != PLAYER_NONE {
+            ;; New save, demangle the data.
+            loop i in pnum {
+                var v
+                set v = bc@(i)
+                set e.attack_bounty@(i) = (v >> 8) & 0xf
+                set e.bounty_collect@(i) = v & 0xf
+                set v = ab@(i)
+                if (v & 1) != 0 {
+                    set e.attack_gift_tech@(i) = (v >> 8) & 0xff
+                    set e.attack_gift_field@(i) = (v >> 1) & 0xf
+                } else {
+                    set e.attack_gift_bc@(i) = i16(v)
+                }
+            }
+        } else {
+            ;; Old save, simply copy the tables.
+            loop i in pnum {
+                set e.attack_bounty@(i) = ab@(i)
+                set e.bounty_collect@(i) = bc@(i)
+            }
+        }
+    }
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.hatred, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.have_met, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.trade_established_bc, pnum)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.spying, pnum, i16)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.spyfund, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.spymode, pnum)
+    set e.security, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.spies, pnum)
+    set e.reserve_bc, q = SG_1OOM_DE_U32(buf, q)
+    set e.tax, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set e.base_shield, q = SG_1OOM_DE_U8(buf, q)
+    set e.base_comp, q = SG_1OOM_DE_U8(buf, q)
+    set e.base_weapon, q = SG_1OOM_DE_U8(buf, q)
+    set e.colonist_oper_factories, q = SG_1OOM_DE_U8(buf, q)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.tech.percent, TECH_FIELD_NUM)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.tech.slider, TECH_FIELD_NUM, i16)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.tech.slider_lock, TECH_FIELD_NUM)
+    set q = SG_1OOM_DE_TBL_U32(buf, q, e.tech.investment, TECH_FIELD_NUM)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, e.tech.project, TECH_FIELD_NUM)
+    set q = SG_1OOM_DE_TBL_U32(buf, q, e.tech.cost, TECH_FIELD_NUM)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.tech.completed, TECH_FIELD_NUM)
+    set e.shipdesigns_num, q = SG_1OOM_DE_U8(buf, q)
+    if e.shipdesigns_num > NUM_SHIPDESIGNS {
+        log_error("Save: decode invalid number of ship designs %i\n", e.shipdesigns_num)
+        return -1
+    }
+    set q = game_save_decode_orbits(buf, q, e.orbit, planets)
+    if q < 0 {
+        return -1
+    }
+    set q = SG_1OOM_DE_TBL_TBL_U8(buf, q, e.spyreportfield, pnum, TECH_FIELD_NUM)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, e.spyreportyear, pnum)
+    set e.shipi_colony, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set e.shipi_bomber, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    q
+}
+
+func game_save_encode_sd (buf, pos, sd) {
+    var q = pos
+    set q = SG_1OOM_EN_TBL_U8(buf, q, sd.name, SHIP_NAME_LEN)
+    set q = SG_1OOM_EN_U16(buf, q, sd.cost)
+    set q = SG_1OOM_EN_U16(buf, q, sd.space)
+    set q = SG_1OOM_EN_U8(buf, q, sd.hull)
+    set q = SG_1OOM_EN_U8(buf, q, sd.look)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, sd.wpnt, WEAPON_SLOT_NUM)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, sd.wpnn, WEAPON_SLOT_NUM)
+    set q = SG_1OOM_EN_U8(buf, q, sd.engine)
+    set q = SG_1OOM_EN_U32(buf, q, sd.engines)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, sd.special, SPECIAL_SLOT_NUM)
+    set q = SG_1OOM_EN_U8(buf, q, sd.shield)
+    set q = SG_1OOM_EN_U8(buf, q, sd.jammer)
+    set q = SG_1OOM_EN_U8(buf, q, sd.comp)
+    set q = SG_1OOM_EN_U8(buf, q, sd.armor)
+    set q = SG_1OOM_EN_U8(buf, q, sd.man)
+    set q = SG_1OOM_EN_U16(buf, q, sd.hp)
+    q
+}
+
+func game_save_decode_sd (buf, pos, sd) {
+    var q = pos
+    set q = SG_1OOM_DE_TBL_U8(buf, q, sd.name, SHIP_NAME_LEN)
+    set sd.cost, q = SG_1OOM_DE_U16(buf, q)
+    set sd.space, q = SG_1OOM_DE_U16(buf, q)
+    set sd.hull, q = SG_1OOM_DE_U8(buf, q)
+    set sd.look, q = SG_1OOM_DE_U8(buf, q)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, sd.wpnt, WEAPON_SLOT_NUM)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, sd.wpnn, WEAPON_SLOT_NUM)
+    set sd.engine, q = SG_1OOM_DE_U8(buf, q)
+    set sd.engines, q = SG_1OOM_DE_U32(buf, q)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, sd.special, SPECIAL_SLOT_NUM)
+    set sd.shield, q = SG_1OOM_DE_U8(buf, q)
+    set sd.jammer, q = SG_1OOM_DE_U8(buf, q)
+    set sd.comp, q = SG_1OOM_DE_U8(buf, q)
+    set sd.armor, q = SG_1OOM_DE_U8(buf, q)
+    set sd.man, q = SG_1OOM_DE_U8(buf, q)
+    set sd.hp, q = SG_1OOM_DE_U16(buf, q)
+    q
+}
+
+func game_save_encode_srd (buf, pos, srd, sdnum, version) {
+    var q = pos
+    loop i in sdnum {
+        set q = game_save_encode_sd(buf, q, srd.design@(i))
+    }
+    loop f in TECH_FIELD_NUM {
+        set q = SG_1OOM_EN_TBL_TBL_U8(buf, q, srd.researchlist@(f), TECH_TIER_NUM, 3)
+    }
+    set q = SG_1OOM_EN_TBL_TBL_U8(buf, q, srd.researchcompleted, TECH_FIELD_NUM, TECH_PER_FIELD)
+    set q = SG_1OOM_EN_DUMMY(buf, q, NUM_SHIPDESIGNS)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, srd.year, NUM_SHIPDESIGNS)
+    set q = SG_1OOM_EN_DUMMY(buf, q, NUM_SHIPDESIGNS * 4)
+    q
+}
+
+func game_save_decode_srd (buf, pos, srd, sdnum, version) {
+    var q = pos
+    loop i in sdnum {
+        set q = game_save_decode_sd(buf, q, srd.design@(i))
+    }
+    loop f in TECH_FIELD_NUM {
+        set q = SG_1OOM_DE_TBL_TBL_U8(buf, q, srd.researchlist@(f), TECH_TIER_NUM, 3)
+    }
+    set q = SG_1OOM_DE_TBL_TBL_U8(buf, q, srd.researchcompleted, TECH_FIELD_NUM, TECH_PER_FIELD)
+    set q = SG_1OOM_DE_DUMMY(buf, q, NUM_SHIPDESIGNS)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, srd.year, NUM_SHIPDESIGNS)
+    set q = SG_1OOM_DE_DUMMY(buf, q, NUM_SHIPDESIGNS * 4)
+    q
+}
+
+func game_save_encode_monster (buf, pos, m) {
+    var q = pos
+    set q = SG_1OOM_EN_U8(buf, q, m.exists)
+    set q = SG_1OOM_EN_U16(buf, q, m.x)
+    set q = SG_1OOM_EN_U16(buf, q, m.y)
+    set q = SG_1OOM_EN_U8(buf, q, m.killer)
+    set q = SG_1OOM_EN_U8(buf, q, m.dest)
+    set q = SG_1OOM_EN_U8(buf, q, m.counter)
+    set q = SG_1OOM_EN_U8(buf, q, m.nuked)
+    q
+}
+
+func game_save_decode_monster (buf, pos, m) {
+    var q = pos
+    set m.exists, q = SG_1OOM_DE_U8(buf, q)
+    set m.x, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set m.y, q = sg_de(i16, SG_1OOM_DE_U16(buf, q))
+    set m.killer, q = SG_1OOM_DE_U8(buf, q)
+    set m.dest, q = SG_1OOM_DE_U8(buf, q)
+    set m.counter, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set m.nuked, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    q
+}
+
+func game_save_encode_evn (buf, pos, ev, pnum, version) {
+    var q = pos
+    set q = SG_1OOM_EN_U16(buf, q, ev.year)
+    set q = SG_1OOM_EN_BV(buf, q, ev.done, GAME_EVENT_TBL_NUM)
+    set q = SG_1OOM_EN_U8(buf, q, ev.diplo_msg_subtype)
+    set q = SG_1OOM_EN_DUMMY(buf, q, 16)
+    set q = SG_1OOM_EN_U8(buf, q, ev.have_plague)
+    set q = SG_1OOM_EN_U8(buf, q, ev.plague_player)
+    set q = SG_1OOM_EN_U8(buf, q, ev.plague_planet_i)
+    set q = SG_1OOM_EN_U32(buf, q, ev.plague_val)
+    set q = SG_1OOM_EN_U8(buf, q, ev.have_nova)
+    set q = SG_1OOM_EN_U8(buf, q, ev.nova_player)
+    set q = SG_1OOM_EN_U8(buf, q, ev.nova_planet_i)
+    set q = SG_1OOM_EN_U8(buf, q, ev.nova_years)
+    set q = SG_1OOM_EN_U32(buf, q, ev.nova_val)
+    set q = SG_1OOM_EN_U8(buf, q, ev.have_accident)
+    set q = SG_1OOM_EN_U8(buf, q, ev.accident_planet_i)
+    set q = SG_1OOM_EN_U8(buf, q, ev.have_comet)
+    set q = SG_1OOM_EN_U8(buf, q, ev.comet_player)
+    set q = SG_1OOM_EN_U8(buf, q, ev.comet_planet_i)
+    set q = SG_1OOM_EN_U8(buf, q, ev.comet_years)
+    set q = SG_1OOM_EN_U16(buf, q, ev.comet_hp)
+    set q = SG_1OOM_EN_U16(buf, q, ev.comet_dmg)
+    set q = SG_1OOM_EN_U8(buf, q, ev.have_pirates)
+    set q = SG_1OOM_EN_U8(buf, q, ev.pirates_planet_i)
+    set q = SG_1OOM_EN_U16(buf, q, ev.pirates_hp)
+    set q = game_save_encode_monster(buf, q, ev.crystal)
+    set q = game_save_encode_monster(buf, q, ev.amoeba)
+    set q = SG_1OOM_EN_U8(buf, q, ev.planet_orion_i)
+    set q = SG_1OOM_EN_U8(buf, q, ev.have_guardian)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, ev.home, pnum)
+    set q = SG_1OOM_EN_U8(buf, q, ev.report_stars)
+    set q = SG_1OOM_EN_TBL_TBL_U32(buf, q, ev.new_ships, pnum, NUM_SHIPDESIGNS)
+    set q = SG_1OOM_EN_TBL_TBL_U16(buf, q, ev.spies_caught, pnum, pnum)
+    set q = SG_1OOM_EN_TBL_TBL_U16(buf, q, ev.ceasefire, pnum, pnum)
+    loop i in pnum {
+        set q = SG_1OOM_EN_BV(buf, q, ev.help_shown@(i), HELP_SHOWN_NUM)
+        set q = SG_1OOM_EN_DUMMY(buf, q, 14)
+    }
+    set q = SG_1OOM_EN_TBL_U16(buf, q, ev.build_finished_num, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, ev.voted, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, ev.best_ecorestore, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, ev.best_wastereduce, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, ev.best_roboctrl, pnum)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, ev.best_terraform, pnum)
+    q
+}
+
+func game_save_decode_evn (buf, pos, ev, pnum, version) {
+    var q = pos
+    set ev.year, q = SG_1OOM_DE_U16(buf, q)
+    set q = SG_1OOM_DE_BV(buf, q, ev.done, GAME_EVENT_TBL_NUM)
+    set ev.diplo_msg_subtype, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set q = SG_1OOM_DE_DUMMY(buf, q, 16)
+    set ev.have_plague, q = SG_1OOM_DE_U8(buf, q)
+    set ev.plague_player, q = SG_1OOM_DE_U8(buf, q)
+    set ev.plague_planet_i, q = SG_1OOM_DE_U8(buf, q)
+    set ev.plague_val, q = sg_de(i32, SG_1OOM_DE_U32(buf, q))
+    set ev.have_nova, q = SG_1OOM_DE_U8(buf, q)
+    set ev.nova_player, q = SG_1OOM_DE_U8(buf, q)
+    set ev.nova_planet_i, q = SG_1OOM_DE_U8(buf, q)
+    set ev.nova_years, q = sg_de(i8, SG_1OOM_DE_U8(buf, q))
+    set ev.nova_val, q = sg_de(i32, SG_1OOM_DE_U32(buf, q))
+    set ev.have_accident, q = SG_1OOM_DE_U8(buf, q)
+    set ev.accident_planet_i, q = SG_1OOM_DE_U8(buf, q)
+    set ev.have_comet, q = SG_1OOM_DE_U8(buf, q)
+    set ev.comet_player, q = SG_1OOM_DE_U8(buf, q)
+    set ev.comet_planet_i, q = SG_1OOM_DE_U8(buf, q)
+    set ev.comet_years, q = SG_1OOM_DE_U8(buf, q)
+    set ev.comet_hp, q = SG_1OOM_DE_U16(buf, q)
+    set ev.comet_dmg, q = SG_1OOM_DE_U16(buf, q)
+    set ev.have_pirates, q = SG_1OOM_DE_U8(buf, q)
+    set ev.pirates_planet_i, q = SG_1OOM_DE_U8(buf, q)
+    set ev.pirates_hp, q = SG_1OOM_DE_U16(buf, q)
+    set q = game_save_decode_monster(buf, q, ev.crystal)
+    set q = game_save_decode_monster(buf, q, ev.amoeba)
+    set ev.planet_orion_i, q = SG_1OOM_DE_U8(buf, q)
+    set ev.have_guardian, q = sg_de(cbool, SG_1OOM_DE_U8(buf, q))
+    set q = SG_1OOM_DE_TBL_U8(buf, q, ev.home, pnum)
+    set ev.report_stars, q = SG_1OOM_DE_U8(buf, q)
+    set q = SG_1OOM_DE_TBL_TBL_U32(buf, q, ev.new_ships, pnum, NUM_SHIPDESIGNS)
+    set q = SG_1OOM_DE_TBL_TBL_U16(buf, q, ev.spies_caught, pnum, pnum)
+    set q = SG_1OOM_DE_TBL_TBL_U16(buf, q, ev.ceasefire, pnum, pnum, i16)
+    loop i in pnum {
+        set q = SG_1OOM_DE_BV(buf, q, ev.help_shown@(i), HELP_SHOWN_NUM)
+        set q = SG_1OOM_DE_DUMMY(buf, q, 14)
+    }
+    set q = SG_1OOM_DE_TBL_U16(buf, q, ev.build_finished_num, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, ev.voted, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, ev.best_ecorestore, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, ev.best_wastereduce, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, ev.best_roboctrl, pnum)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, ev.best_terraform, pnum)
+    q
+}
+
+func game_save_encode (buf, g, version) {
+    var q = 0
+    set q = SG_1OOM_EN_U8(buf, q, g.players)
+    set q = SG_1OOM_EN_BV(buf, q, g.is_ai, PLAYER_NUM)
+    set q = SG_1OOM_EN_BV(buf, q, g.refuse, PLAYER_NUM)
+    set q = SG_1OOM_EN_U8(buf, q, g.ai_id)
+    set q = SG_1OOM_EN_DUMMY(buf, q, 3)
+    set q = SG_1OOM_EN_U8(buf, q, g.active_player)
+    set q = SG_1OOM_EN_U8(buf, q, g.difficulty)
+    set q = SG_1OOM_EN_U8(buf, q, g.galaxy_size)
+    set q = SG_1OOM_EN_U8(buf, q, g.galaxy_w)
+    set q = SG_1OOM_EN_U8(buf, q, g.galaxy_h)
+    set q = SG_1OOM_EN_U8(buf, q, g.galaxy_stars)
+    set q = SG_1OOM_EN_U16(buf, q, g.galaxy_maxx)
+    set q = SG_1OOM_EN_U16(buf, q, g.galaxy_maxy)
+    set q = SG_1OOM_EN_U32(buf, q, g.galaxy_seed)
+    set q = SG_1OOM_EN_U32(buf, q, g.seed)
+    set q = SG_1OOM_EN_U16(buf, q, g.year)
+    set q = SG_1OOM_EN_U16(buf, q, g.enroute_num)
+    set q = SG_1OOM_EN_U16(buf, q, g.transport_num)
+    set q = SG_1OOM_EN_U8(buf, q, g.end)
+    set q = SG_1OOM_EN_U8(buf, q, g.winner)
+    set q = SG_1OOM_EN_U8(buf, q, g.election_held)
+    set q = SG_1OOM_EN_U8(buf, q, g.nebula_num)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, g.nebula_x, g.nebula_num)
+    set q = SG_1OOM_EN_TBL_U16(buf, q, g.nebula_y, g.nebula_num)
+    set q = SG_1OOM_EN_TBL_TBL_U16(buf, q, g.nebula_x0, g.nebula_num, 4)
+    set q = SG_1OOM_EN_TBL_TBL_U16(buf, q, g.nebula_x1, g.nebula_num, 4)
+    set q = SG_1OOM_EN_TBL_TBL_U16(buf, q, g.nebula_y0, g.nebula_num, 4)
+    set q = SG_1OOM_EN_TBL_TBL_U16(buf, q, g.nebula_y1, g.nebula_num, 4)
+    set q = SG_1OOM_EN_TBL_TBL_U8(buf, q, g.emperor_names, g.players, EMPEROR_NAME_LEN)
+    set q = SG_1OOM_EN_TBL_U8(buf, q, g.planet_focus_i, g.players)
+    loop i in g.galaxy_stars {
+        set q = game_save_encode_planet(buf, q, g.planet@(i), g.players, version)
+    }
+    loop j in g.players {
+        loop i in g.galaxy_stars {
+            val s = g.seen@(j)@(i)
+            set q = SG_1OOM_EN_U8(buf, q, s.owner)
+            set q = SG_1OOM_EN_U16(buf, q, s.pop)
+            set q = SG_1OOM_EN_U16(buf, q, s.bases)
+            set q = SG_1OOM_EN_U16(buf, q, s.factories)
+        }
+    }
+    loop i in g.enroute_num {
+        set q = game_save_encode_enroute(buf, q, g.enroute@(i))
+    }
+    loop i in g.transport_num {
+        set q = game_save_encode_transport(buf, q, g.transport@(i))
+    }
+    loop i in g.players {
+        set q = game_save_encode_eto(buf, q, g.eto@(i), g.players, g.galaxy_stars, version)
+    }
+    loop i in g.players {
+        set q = game_save_encode_srd(buf, q, g.srd@(i), g.eto@(i).shipdesigns_num, version)
+    }
+    loop i in g.players {
+        set q = game_save_encode_sd(buf, q, g.current_design@(i))
+    }
+    set q = game_save_encode_evn(buf, q, g.evn, g.players, version)
+    set q = SG_1OOM_EN_U32(buf, q, GAME_SAVE_END)
+    q
+}
+
+func game_save_decode (buf, buflen, g, version) {
+    var q = 0
+    if buflen < 512 {
+        log_error("Save: decode expected len > %i, got %i\n", 512, buflen)
+        return -1
+    }
+    do {
+        val ga = g.gaux
+        loop k,v in game_s() {
+            set g@(k) = v
+        }
+        set g.gaux = ga
+    }
+    set g.players, q = SG_1OOM_DE_U8(buf, q)
+    if (g.players < 2) || (g.players > 6) {
+        log_error("Save: decode invalid number of players %i\n", g.players)
+        return -1
+    }
+    set q = SG_1OOM_DE_BV(buf, q, g.is_ai, PLAYER_NUM)
+    set q = SG_1OOM_DE_BV(buf, q, g.refuse, PLAYER_NUM)
+    set g.ai_id, q = SG_1OOM_DE_U8(buf, q)
+    set q = SG_1OOM_DE_DUMMY(buf, q, 3)
+    set g.active_player, q = SG_1OOM_DE_U8(buf, q)
+    set g.difficulty, q = SG_1OOM_DE_U8(buf, q)
+    if (g.difficulty < 0) || (g.difficulty >= DIFFICULTY_NUM) {
+        log_error("Save: decode invalid difficulty value %i\n", g.difficulty)
+        return -1
+    }
+    set g.galaxy_size, q = SG_1OOM_DE_U8(buf, q)
+    set g.galaxy_w, q = SG_1OOM_DE_U8(buf, q)
+    set g.galaxy_h, q = SG_1OOM_DE_U8(buf, q)
+    set g.galaxy_stars, q = SG_1OOM_DE_U8(buf, q)
+    if g.galaxy_stars > PLANETS_MAX {
+        log_error("Save: decode invalid number of stars %i\n", g.galaxy_stars)
+        return -1
+    }
+    set g.galaxy_maxx, q = SG_1OOM_DE_U16(buf, q)
+    set g.galaxy_maxy, q = SG_1OOM_DE_U16(buf, q)
+    set g.galaxy_seed, q = SG_1OOM_DE_U32(buf, q)
+    set g.seed, q = SG_1OOM_DE_U32(buf, q)
+    set g.year, q = SG_1OOM_DE_U16(buf, q)
+    set g.enroute_num, q = SG_1OOM_DE_U16(buf, q)
+    if g.enroute_num > FLEET_ENROUTE_MAX {
+        log_error("Save: decode invalid number of fleets %i\n", g.enroute_num)
+        return -1
+    }
+    set g.transport_num, q = SG_1OOM_DE_U16(buf, q)
+    if g.transport_num > TRANSPORT_MAX {
+        log_error("Save: decode invalid number of transports %i\n", g.transport_num)
+        return -1
+    }
+    set g.end, q = SG_1OOM_DE_U8(buf, q)
+    set g.winner, q = SG_1OOM_DE_U8(buf, q)
+    set g.election_held, q = sg_de(cbool, SG_1OOM_DE_U8(buf, q))
+    set g.nebula_num, q = SG_1OOM_DE_U8(buf, q)
+    if g.nebula_num > NEBULA_MAX {
+        log_error("Save: decode invalid number of nebula %i\n", g.nebula_num)
+        return -1
+    }
+    set q = SG_1OOM_DE_TBL_U16(buf, q, g.nebula_x, g.nebula_num)
+    set q = SG_1OOM_DE_TBL_U16(buf, q, g.nebula_y, g.nebula_num)
+    set q = SG_1OOM_DE_TBL_TBL_U16(buf, q, g.nebula_x0, g.nebula_num, 4)
+    set q = SG_1OOM_DE_TBL_TBL_U16(buf, q, g.nebula_x1, g.nebula_num, 4)
+    set q = SG_1OOM_DE_TBL_TBL_U16(buf, q, g.nebula_y0, g.nebula_num, 4)
+    set q = SG_1OOM_DE_TBL_TBL_U16(buf, q, g.nebula_y1, g.nebula_num, 4)
+    loop i in g.nebula_num {
+        ;; nebula_type is uint8_t: -1 becomes 255 there, and the test below
+        ;; is never true in C. Kept as C has it.
+        set g.nebula_type@(i) = u8(game_save_infer_nebula_type(g, i))
+        if g.nebula_type@(i) < 0 {
+            log_error("Save: unknown nebula type for nebula %i\n", i)
+            return -1
+        }
+    }
+
+    set q = SG_1OOM_DE_TBL_TBL_U8(buf, q, g.emperor_names, g.players, EMPEROR_NAME_LEN)
+    set q = SG_1OOM_DE_TBL_U8(buf, q, g.planet_focus_i, g.players)
+    loop i in g.galaxy_stars {
+        set q = game_save_decode_planet(buf, q, g.planet@(i), g.players, version)
+    }
+    loop j in g.players {
+        loop i in g.galaxy_stars {
+            val s = g.seen@(j)@(i)
+            set s.owner, q = SG_1OOM_DE_U8(buf, q)
+            set s.pop, q = SG_1OOM_DE_U16(buf, q)
+            set s.bases, q = SG_1OOM_DE_U16(buf, q)
+            set s.factories, q = SG_1OOM_DE_U16(buf, q)
+        }
+    }
+    loop i in g.enroute_num {
+        set q = game_save_decode_enroute(buf, q, g.enroute@(i))
+    }
+    loop i in g.transport_num {
+        set q = game_save_decode_transport(buf, q, g.transport@(i))
+    }
+    loop i in g.players {
+        set q = game_save_decode_eto(buf, q, g.eto@(i), g.players, g.galaxy_stars, version)
+        if q < 0 {
+            return -1
+        }
+    }
+    loop i in g.players {
+        set q = game_save_decode_srd(buf, q, g.srd@(i), g.eto@(i).shipdesigns_num, version)
+    }
+    loop i in g.players {
+        set q = game_save_decode_sd(buf, q, g.current_design@(i))
+    }
+    set q = game_save_decode_evn(buf, q, g.evn, g.players, version)
+    do {
+        var v
+        if (q + 4) > buflen {
+            ;; C reads past the data here, into the rest of its buffer
+            ;; (zeros), and only then compares the position.
+            set v = 0
+            set q = q + 4
+        } else {
+            set v, q = SG_1OOM_DE_U32(buf, q)
+        }
+        if q > buflen {
+            log_error("Save: decode read len %i > got %i\n", q, buflen)
+            return -1
+        }
+        if v != GAME_SAVE_END {
+            log_error("Save: invalid end mark 0x%08x != 0x%08x at %i!\n", v, GAME_SAVE_END, q)
+            return -1
+        }
+    }
+    if q < buflen {
+        log_warning("Save: decode read len %i < got %i (left %i)\n", q, buflen, buflen - q)
+    }
+    ;; generate g->refuse if needed
+    if (g.end == GAME_END_FINAL_WAR) && BOOLVEC_IS_CLEAR(g.refuse, PLAYER_NUM) {
+        loop i in g.players {
+            if IS_HUMAN(g, i) && IS_ALIVE(g, i) {
+                BOOLVEC_SET1(g.refuse, i)
+            }
+        }
+    }
+    set g.guardian_killer = PLAYER_NONE
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
+;; `strncpy`: the bytes of the string, and zeros after it, up to `n`.
+func sg_strncpy (buf, pos, s, n) {
+    loop i in n {
+        set buf@(pos + i) = if i < #s => string.byte(s, i) => 0
+    }
+}
+
+func game_save_make_header (buf, savename, version) {
+    loop i in GAME_SAVE_HDR_SIZE {
+        set buf@(i) = 0
+    }
+    loop i in 8 {
+        set buf@(i) = string.byte(GAME_SAVE_MAGIC, i)
+    }
+    SET_LE_32(buf, GAME_SAVE_OFFS_VERSION, version)
+    sg_strncpy(buf, GAME_SAVE_OFFS_NAME, savename, SAVE_NAME_LEN)
+}
+
+func game_save_do_save_do (filename, savename, g, savei, version) {
+    pin savebuf = []
+    val len = game_save_encode(savebuf, g, version)
+    if len <= 0 {
+        return -1
+    }
+    pin hdr = []
+    game_save_make_header(hdr, savename, version)
+    if (savei >= 0) && (savei < (NUM_SAVES + 1)) {
+        set game_save_tbl_have_save@(savei) = false
+        set game_save_tbl_name@(savei)@0 = 0
+    }
+    if !cfile_write(filename, hdr, savebuf) {
+        log_error("Save: failed to save '%s'\n", filename)
+        os.remove(filename)
+        return -1
+    }
+    if (savei >= 0) && (savei < (NUM_SAVES + 1)) {
+        set game_save_tbl_have_save@(savei) = true
+        loop i in SAVE_NAME_LEN {
+            set game_save_tbl_name@(savei)@(i) = hdr@(GAME_SAVE_OFFS_NAME + i)
+        }
+    }
+    log_message("Save: save '%s' '%s'\n", filename, savename)
+    0
+}
+
+;; The bytes of the file after its header, and its version; or nil.
+;; In C, it returns the open file, to read the rest: here, the rest is read.
+func game_save_open_check_header (filename, i, update_table, savename) {
+    var upd = update_table
+    if (i < 0) || (i >= NUM_ALL_SAVES) {
+        set upd = false
+    }
+    if upd {
+        set game_save_tbl_have_save@(i) = false
+        set game_save_tbl_name@(i)@0 = 0
+    }
+    if savename {
+        set savename@0 = 0
+    }
+    val bs = cfile_read(filename)
+    if (bs == nil) || (#bs < GAME_SAVE_HDR_SIZE) {
+        return nil
+    }
+    loop k in 8 {
+        if bs@(k) != string.byte(GAME_SAVE_MAGIC, k) {
+            return nil
+        }
+    }
+    val version = GET_LE_32(bs, GAME_SAVE_OFFS_VERSION)
+    if version > GAME_SAVE_VERSION {
+        return nil
+    }
+    if upd {
+        set game_save_tbl_have_save@(i) = true
+        loop k in SAVE_NAME_LEN {
+            set game_save_tbl_name@(i)@(k) = bs@(GAME_SAVE_OFFS_NAME + k)
+        }
+        set game_save_tbl_name@(i)@(SAVE_NAME_LEN - 1) = 0
+    }
+    if savename {
+        loop k in SAVE_NAME_LEN {
+            set savename@(k) = bs@(GAME_SAVE_OFFS_NAME + k)
+        }
+        set savename@(SAVE_NAME_LEN - 1) = 0
+    }
+    pin rest = []
+    loop k in (GAME_SAVE_HDR_SIZE, #bs - 1) {
+        set rest@+ = bs@(k)
+    }
+    return rest, version
+}
+
+func game_save_do_load_do (filename, g, savei, savename) {
+    var res = -1
+    val savebuf, version = game_save_open_check_header(filename, savei, true, savename)
+    ifs {
+        (savebuf == nil) || (#savebuf == 0) => {
+            log_error("Save: failed to load '%s'\n", filename)
+        }
+        game_save_decode(savebuf, #savebuf, g, version) != 0 => {
+            log_error("Save: invalid data on load '%s'\n", filename)
+        }
+        else => {
+            log_message("Save: load '%s'\n", filename)
+            set res = 0
+        }
+    }
+    res
+}
