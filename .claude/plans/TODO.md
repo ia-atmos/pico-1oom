@@ -122,3 +122,7 @@ The author said to start (2026-11-17), in the order of item 5.
 - 2026-11-17: the author declared the rules of `pin` stable until the
   next round of decisions (`ia-atmos/lang` `1746969`). With the compiler
   there, `tst/save.sh` still passes on the 109 saves.
+- 2026-11-18: by the author's decision, findings about `pin` go to the
+  session `atmos-pin` (session_011eECogSDhkVfyt7qme5DLh), with a small
+  program; everything else of the compiler still goes to `atmos-lang`
+  (formerly `ceu-atmos`, session_011eECogKVQ7ZzmWCoMST2wK).
