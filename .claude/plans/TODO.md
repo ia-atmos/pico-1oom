@@ -126,3 +126,6 @@ The author said to start (2026-11-17), in the order of item 5.
   session `atmos-pin` (session_011eECogSDhkVfyt7qme5DLh), with a small
   program; everything else of the compiler still goes to `atmos-lang`
   (formerly `ceu-atmos`, session_011eECogKVQ7ZzmWCoMST2wK).
+- 2026-11-18: compiler at `ia-atmos/lang` `7480111` (cycles of unpinned
+  values broken at the end of their block; emit of pinned values checked
+  by depth). `tst/save.sh` still passes on the 109 saves.
