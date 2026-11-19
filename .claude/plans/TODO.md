@@ -13,7 +13,7 @@ settled before the rule keep their old numbers (1 to 7, see "Settled").
 The initial instructions are in `ia-atmos/lang`,
 `.claude/plans/261114-pico-1oom.md` (commit `354cf19`).
 
-Last update: 2026-11-18
+Last update: 2026-11-19
 
 ## Index
 
@@ -125,3 +125,8 @@ Other sessions:
   2026-11-17), then were declared stable (`1746969`). The port was
   migrated once: five `pin` given away by their block became `val`.
   Later changes (`7480111`, `8c9453c`) needed nothing.
+- 2026-11-19: the author declared the rules of `pin` stable
+  (atmos-pin#9), as in `ia-atmos/lang` `8361f88` (manual: "Lexical Memory
+  Management", "Pin", "Set"; summary in `.claude/plans/TODO-pin.md`,
+  "Stable (2026-11-19)"). The port passed its tests with that compiler
+  before the merge (atmos-lang#81): nothing to migrate.
