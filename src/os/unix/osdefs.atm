@@ -1,0 +1,5 @@
+;; Port of c/src/os/unix/osdefs.h.
+
+val FSDEV_PATH_MAX = 2048
+val FSDEV_DIR_SEP_STR = "/"
+val FSDEV_EXT_SEP_STR = "."
