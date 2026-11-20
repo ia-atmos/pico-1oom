@@ -1,0 +1,269 @@
+;; Port of c/src/game/game_aux.c and game_aux.h: the data of the game that
+;; is not saved (the tables of the LBX files, the distances of the stars).
+;;
+;; C keeps pointers into the LBX files for the tables it only reads
+;; (`research.d0`, `research.names`, `research.descr`, `diplomat.msg`,
+;; `eventmsg`): here each is a vector with the bytes from that pointer to
+;; the end of its item, so that `p[i]` is `p@(i)`.
+
+include "../bits.atm"
+include "../boolvec.atm"
+include "../ctypes.atm"
+include "../lbx.atm"
+include "../log.atm"
+include "../os/unix/osdefs.atm"
+include "../util_math.atm"
+include "game.atm"
+include "game_planet.atm"
+
+val NUM_SHIPLOOKS = 0x93
+
+val DIPLOMAT_D0_NUM = 0x51
+val DIPLOMAT_MSG_NUM = 1215
+val DIPLOMAT_MSG_LEN = 0xc8
+
+;; `DIPLOMAT_MSG_PTR`: the position in `diplomat.msg`.
+func DIPLOMAT_MSG_PTR (ga, r, t) {
+    ((t * 15) + r) * DIPLOMAT_MSG_LEN
+}
+
+;; `DIPLOMAT_MSG_GFX(p)` and `DIPLOMAT_MSG_MUS(p)`, `p` as a position.
+func DIPLOMAT_MSG_GFX (ga, p) {
+    ga.diplomat.msg@(p + 0xc4)
+}
+
+func DIPLOMAT_MSG_MUS (ga, p) {
+    ga.diplomat.msg@(p + 0xc6)
+}
+
+val RESEARCH_DESCR_LEN = 0xc3
+
+val EVENTMSG_TYPE_NUM = 22
+val EVENTMSG_SUB_NUM = 7
+val EVENTMSG_NUM = EVENTMSG_TYPE_NUM * EVENTMSG_SUB_NUM
+val EVENTMSG_LEN = 0xc8
+
+;; `EVENTMSG_PTR`: the position in `eventmsg`.
+func EVENTMSG_PTR (ga, t, s) {
+    (((t - 1) * 7) + s) * EVENTMSG_LEN
+}
+
+;; Storage for repeated movement in local multiplayer
+func game_move_aux_s () {
+    [
+        enroute   = carrayf(FLEET_ENROUTE_MAX, fleet_enroute_t),
+        transport = carrayf(TRANSPORT_MAX, transport_t),
+        crystal   = monster_t(),
+        amoeba    = monster_t(),
+    ]
+}
+
+func firing_s () {
+    [
+        d0       = carray(12),  ;; uint8_t[] (uint16_t in lbx)
+        target_x = 0,           ;; uint8_t
+        target_y = 0,           ;; uint8_t
+    ]
+}
+
+;; Aux game data, not stored in saves.
+func game_aux_s () {
+    [
+        research = [
+            d0    = nil,    ;; const uint8_t * [TECH_FIELD_NUM * 50 * 6]
+            names = nil,    ;; const char * (tech names, "foo\0bar\0" etc)
+            descr = nil,    ;; const char * [TECH_FIELD_NUM * 50 * RESEARCH_DESCR_LEN]
+        ],
+        diplomat = [
+            d0  = carray(DIPLOMAT_D0_NUM),  ;; uint8_t[] (uint16_t in lbx)
+            msg = nil,                      ;; const char *
+        ],
+        firing                = carrayf(NUM_SHIPLOOKS, firing_s),
+        eventmsg              = nil,        ;; const char *
+        star_dist             = carray2(PLANETS_MAX, PLANETS_MAX),  ;; uint8_t[][]
+        move_temp             = nil,        ;; struct game_move_aux_s *
+        human_killer          = 0,          ;; player_id_t (used for funeral ending)
+        local_players         = 0,          ;; int
+        flag_cheat_galaxy     = false,
+        flag_cheat_elections  = false,
+        flag_cheat_events     = false,
+        flag_cheat_spy_hint   = false,
+        flag_cheat_stars      = false,
+        flag_cheat_tech_hint  = false,
+        flag_cheat_news       = false,
+        initialized           = false,
+        savenamebuflen        = 0,          ;; int
+        savebuflen            = 0,          ;; int
+        savenamebuf           = nil,        ;; char * (not used by the port)
+        savebuf               = nil,        ;; uint8_t * (not used by the port)
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+;; The bytes of an item (`p`, `offs`, `len`), from `from` to its end (see
+;; the top).
+func game_aux_tail (p, offs, len, from) {
+    val t = []
+    loop k in (from, len - 1) {
+        set t@+ = p@(offs + k)
+    }
+    t
+}
+
+func init_star_dist (gaux, g) {
+    val stars = g.galaxy_stars
+    loop i in stars {
+        set gaux.star_dist@(i)@(i) = 0
+        loop j in (i + 1, stars - 1) {
+            val dist = u8(util_math_dist_steps(g.planet@(i).x, g.planet@(i).y, g.planet@(j).x, g.planet@(j).y))
+            set gaux.star_dist@(i)@(j) = dist
+            set gaux.star_dist@(j)@(i) = dist
+        }
+    }
+}
+
+func check_lbx_t5 (t, offs, lbxname, want_num, want_size) {
+    val num = GET_LE_16(t, offs)
+    val size = GET_LE_16(t, offs + 2)
+    if num != want_num {
+        log_fatal_and_die("%s.lbx: expected %i entries, got %i!\n", lbxname, want_num, num)
+    }
+    if size != want_size {
+        log_fatal_and_die("%s.lbx: expected size %i, got %i!\n", lbxname, want_size, size)
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_aux_init (gaux, g) {
+    loop k,v in game_s() {
+        set g@(k) = v
+    }
+    set g.gaux = gaux
+
+    do {
+        val t, offs, len = lbxfile_item_get_with_len(LBXFILE_RESEARCH, 0)
+        set gaux.research.d0 = game_aux_tail(t, offs, len, 4)
+    }
+    do {
+        val t, offs, len = lbxfile_item_get_with_len(LBXFILE_RESEARCH, 1)
+        set gaux.research.names = game_aux_tail(t, offs, len, 4)
+    }
+    do {
+        val t, offs, len = lbxfile_item_get_with_len(LBXFILE_RESEARCH, 2)
+        set gaux.research.descr = game_aux_tail(t, offs, len, 4)
+    }
+    ;; TODO check num/size
+
+    do {
+        val t, offs, len = lbxfile_item_get_with_len(LBXFILE_DIPLOMAT, 1)
+        check_lbx_t5(t, offs, "diplomat", DIPLOMAT_MSG_NUM, DIPLOMAT_MSG_LEN)
+        set gaux.diplomat.msg = game_aux_tail(t, offs, len, 4)
+    }
+
+    do {
+        val data, offs = lbxfile_item_get(LBXFILE_DIPLOMAT, 0)
+        check_lbx_t5(data, offs, "diplomat", DIPLOMAT_D0_NUM, 2)
+        var t = offs + 4
+        loop i in DIPLOMAT_D0_NUM {
+            set gaux.diplomat.d0@(i) = u8(GET_LE_16(data, t))  ;; all values < 0x10
+            set t = t + 2
+        }
+        lbxfile_item_release(LBXFILE_DIPLOMAT, data, offs)
+    }
+
+    do {
+        val data, offs = lbxfile_item_get(LBXFILE_FIRING, 0)
+        check_lbx_t5(data, offs, "firing", NUM_SHIPLOOKS, 0x1c)
+        var t = offs + 4
+        loop j in NUM_SHIPLOOKS {
+            loop i in 12 {
+                set gaux.firing@(j).d0@(i) = u8(GET_LE_16(data, t))    ;; all values < 0x20
+                set t = t + 2
+            }
+            set gaux.firing@(j).target_x = u8(GET_LE_16(data, t))  ;; all values < 0x20
+            set t = t + 2
+            set gaux.firing@(j).target_y = u8(GET_LE_16(data, t))  ;; all values < 0x20
+            set t = t + 2
+        }
+        lbxfile_item_release(LBXFILE_FIRING, data, offs)
+    }
+
+    do {
+        val t, offs, len = lbxfile_item_get_with_len(LBXFILE_EVENTMSG, 0)
+        check_lbx_t5(t, offs, "eventmsg", EVENTMSG_NUM, EVENTMSG_LEN)
+        set gaux.eventmsg = game_aux_tail(t, offs, len, 4)
+    }
+
+    set gaux.move_temp = nil
+    set gaux.savenamebuflen = FSDEV_PATH_MAX
+    set gaux.savebuflen = 0
+    set gaux.flag_cheat_galaxy = false
+    set gaux.flag_cheat_elections = false
+    set gaux.flag_cheat_events = false
+    set gaux.flag_cheat_spy_hint = false
+    set gaux.flag_cheat_stars = false
+    set gaux.flag_cheat_tech_hint = false
+    set gaux.flag_cheat_news = false
+    set gaux.initialized = true
+    0
+}
+
+func game_aux_shutdown (gaux) {
+    if gaux.initialized {
+        lbxfile_item_release_file(LBXFILE_RESEARCH)
+        lbxfile_item_release_file(LBXFILE_EVENTMSG)
+        lbxfile_item_release_file(LBXFILE_DIPLOMAT)
+        set gaux.move_temp = nil
+    }
+}
+
+func game_aux_get_firing_param_x (gaux, look, a2, dir) {
+    val f = gaux.firing@(look).d0
+    if !dir {
+        ifs {
+            a2 == 1 => f@2
+            a2 == 2 => f@4
+            else    => f@0      ;; a2 == 3
+        }
+    } else {
+        ifs {
+            a2 == 1 => f@8
+            a2 == 2 => f@10
+            else    => f@6      ;; a2 == 3
+        }
+    }
+}
+
+func game_aux_get_firing_param_y (gaux, look, a2, dir) {
+    val f = gaux.firing@(look).d0
+    if !dir {
+        ifs {
+            a2 == 1 => f@3
+            a2 == 2 => f@5
+            else    => f@1      ;; a2 == 3
+        }
+    } else {
+        ifs {
+            a2 == 1 => f@9
+            a2 == 2 => f@11
+            else    => f@7      ;; a2 == 3
+        }
+    }
+}
+
+func game_aux_start (gaux, g) {
+    var n = 0
+    set g.gaux = gaux
+    init_star_dist(gaux, g)
+    loop i in g.players {
+        if BOOLVEC_IS0(g.is_ai, i) {
+            set n = n + 1
+        }
+    }
+    set gaux.local_players = n
+    if (n > 1) && !gaux.move_temp {
+        set gaux.move_temp = game_move_aux_s()
+    }
+}
