@@ -1,0 +1,33 @@
+;; The slots of the saves, in a user directory written by the C:
+;;
+;;      atmos tst/save-slots.atm USERDIR OUTDIR
+;;
+;; Finds the saves of USERDIR as the C does (the table of slots), loads the
+;; slot 7 (continue game), and saves it to OUTDIR as the yearly save and as
+;; the slot 2. The data of the three files must be the same.
+
+include "../src/game/game_save.atm"
+
+val udir, odir = ...
+os_set_path_user(udir)
+game_save_check_saves()
+loop i in NUM_ALL_SAVES {
+    print(i, game_save_tbl_have_save@(i))
+}
+pin g = game_s()
+assert(game_save_do_load_i(6, g) == 0)
+os_set_path_user(odir)
+assert(game_save_do_save_year(nil, g) == 0)
+assert(game_save_do_save_i(1, "slot two", g) == 0)
+os_set_path_user(udir)
+val c7 = cfile_read(game_save_get_slot_fname(6))
+os_set_path_user(odir)
+val y = cfile_read(game_save_get_year_fname(g.year + YEAR_BASE))
+val s2 = cfile_read(game_save_get_slot_fname(1))
+assert(#c7 == #y)
+assert(#c7 == #s2)
+loop i in (GAME_SAVE_HDR_SIZE, #c7 - 1) {
+    assert(c7@(i) == y@(i))
+    assert(c7@(i) == s2@(i))
+}
+print("ok", game_save_get_year_fname(g.year + YEAR_BASE))
