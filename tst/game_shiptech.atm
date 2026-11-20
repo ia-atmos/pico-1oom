@@ -1,0 +1,134 @@
+;; game_shiptech.atm of the port: every field of its tables, as
+;; tst/c/game_shiptech.c prints them. Generated with it.
+
+include "../src/game/game_shiptech.atm"
+
+pin out = []
+
+loop i in #tbl_shiptech_weap {
+    val e = tbl_shiptech_weap@(i)
+    set out@+ = string.format("tbl_shiptech_weap[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_weap[%i].extratextptr = %s\n", i, e.extratextptr())
+    set out@+ = string.format("tbl_shiptech_weap[%i].damagemin = %i\n", i, if e.damagemin == true => 1 => (if e.damagemin == false => 0 => e.damagemin))
+    set out@+ = string.format("tbl_shiptech_weap[%i].damagemax = %i\n", i, if e.damagemax == true => 1 => (if e.damagemax == false => 0 => e.damagemax))
+    set out@+ = string.format("tbl_shiptech_weap[%i].range = %i\n", i, if e.range == true => 1 => (if e.range == false => 0 => e.range))
+    set out@+ = string.format("tbl_shiptech_weap[%i].extraacc = %i\n", i, if e.extraacc == true => 1 => (if e.extraacc == false => 0 => e.extraacc))
+    set out@+ = string.format("tbl_shiptech_weap[%i].halveshield = %i\n", i, if e.halveshield == true => 1 => (if e.halveshield == false => 0 => e.halveshield))
+    set out@+ = string.format("tbl_shiptech_weap[%i].is_bomb = %i\n", i, if e.is_bomb == true => 1 => (if e.is_bomb == false => 0 => e.is_bomb))
+    set out@+ = string.format("tbl_shiptech_weap[%i].damagefade = %i\n", i, if e.damagefade == true => 1 => (if e.damagefade == false => 0 => e.damagefade))
+    set out@+ = string.format("tbl_shiptech_weap[%i].misstype = %i\n", i, if e.misstype == true => 1 => (if e.misstype == false => 0 => e.misstype))
+    set out@+ = string.format("tbl_shiptech_weap[%i].damagemul = %i\n", i, if e.damagemul == true => 1 => (if e.damagemul == false => 0 => e.damagemul))
+    set out@+ = string.format("tbl_shiptech_weap[%i].numfire = %i\n", i, if e.numfire == true => 1 => (if e.numfire == false => 0 => e.numfire))
+    set out@+ = string.format("tbl_shiptech_weap[%i].numshots = %i\n", i, if e.numshots == true => 1 => (if e.numshots == false => 0 => e.numshots))
+    set out@+ = string.format("tbl_shiptech_weap[%i].cost = %i\n", i, if e.cost == true => 1 => (if e.cost == false => 0 => e.cost))
+    set out@+ = string.format("tbl_shiptech_weap[%i].space = %i\n", i, if e.space == true => 1 => (if e.space == false => 0 => e.space))
+    set out@+ = string.format("tbl_shiptech_weap[%i].power = %i\n", i, if e.power == true => 1 => (if e.power == false => 0 => e.power))
+    set out@+ = string.format("tbl_shiptech_weap[%i].is_bio = %i\n", i, if e.is_bio == true => 1 => (if e.is_bio == false => 0 => e.is_bio))
+    set out@+ = string.format("tbl_shiptech_weap[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+    set out@+ = string.format("tbl_shiptech_weap[%i].v24 = %i\n", i, if e.v24 == true => 1 => (if e.v24 == false => 0 => e.v24))
+    set out@+ = string.format("tbl_shiptech_weap[%i].dtbl =", i)
+    loop k in 7 { set out@+ = string.format(" %i", e.dtbl@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_weap[%i].sound = %i\n", i, if e.sound == true => 1 => (if e.sound == false => 0 => e.sound))
+    set out@+ = string.format("tbl_shiptech_weap[%i].nummiss = %i\n", i, if e.nummiss == true => 1 => (if e.nummiss == false => 0 => e.nummiss))
+}
+loop i in #tbl_shiptech_comp {
+    val e = tbl_shiptech_comp@(i)
+    set out@+ = string.format("tbl_shiptech_comp[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_comp[%i].power =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.power@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_comp[%i].space =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.space@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_comp[%i].cost =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.cost@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_comp[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+    set out@+ = string.format("tbl_shiptech_comp[%i].level = %i\n", i, if e.level == true => 1 => (if e.level == false => 0 => e.level))
+}
+loop i in #tbl_shiptech_engine {
+    val e = tbl_shiptech_engine@(i)
+    set out@+ = string.format("tbl_shiptech_engine[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_engine[%i].power = %i\n", i, if e.power == true => 1 => (if e.power == false => 0 => e.power))
+    set out@+ = string.format("tbl_shiptech_engine[%i].space = %i\n", i, if e.space == true => 1 => (if e.space == false => 0 => e.space))
+    set out@+ = string.format("tbl_shiptech_engine[%i].cost = %i\n", i, if e.cost == true => 1 => (if e.cost == false => 0 => e.cost))
+    set out@+ = string.format("tbl_shiptech_engine[%i].warp = %i\n", i, if e.warp == true => 1 => (if e.warp == false => 0 => e.warp))
+    set out@+ = string.format("tbl_shiptech_engine[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+}
+loop i in #tbl_shiptech_armor {
+    val e = tbl_shiptech_armor@(i)
+    set out@+ = string.format("tbl_shiptech_armor[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_armor[%i].cost =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.cost@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_armor[%i].space =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.space@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_armor[%i].armor = %i\n", i, if e.armor == true => 1 => (if e.armor == false => 0 => e.armor))
+    set out@+ = string.format("tbl_shiptech_armor[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+}
+loop i in #tbl_shiptech_shield {
+    val e = tbl_shiptech_shield@(i)
+    set out@+ = string.format("tbl_shiptech_shield[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_shield[%i].cost =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.cost@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_shield[%i].space =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.space@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_shield[%i].power =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.power@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_shield[%i].absorb = %i\n", i, if e.absorb == true => 1 => (if e.absorb == false => 0 => e.absorb))
+    set out@+ = string.format("tbl_shiptech_shield[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+}
+loop i in #tbl_shiptech_jammer {
+    val e = tbl_shiptech_jammer@(i)
+    set out@+ = string.format("tbl_shiptech_jammer[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_jammer[%i].power =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.power@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_jammer[%i].space =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.space@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_jammer[%i].cost =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.cost@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_jammer[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+    set out@+ = string.format("tbl_shiptech_jammer[%i].level = %i\n", i, if e.level == true => 1 => (if e.level == false => 0 => e.level))
+}
+loop i in #tbl_shiptech_special {
+    val e = tbl_shiptech_special@(i)
+    set out@+ = string.format("tbl_shiptech_special[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_special[%i].extratextptr = %s\n", i, e.extratextptr())
+    set out@+ = string.format("tbl_shiptech_special[%i].cost =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.cost@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_special[%i].space =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.space@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_special[%i].power =", i)
+    loop k in SHIP_HULL_NUM { set out@+ = string.format(" %i", e.power@(k)) }
+    set out@+ = "\n"
+    set out@+ = string.format("tbl_shiptech_special[%i].tech_i = %i\n", i, if e.tech_i == true => 1 => (if e.tech_i == false => 0 => e.tech_i))
+    set out@+ = string.format("tbl_shiptech_special[%i].field = %i\n", i, if e.field == true => 1 => (if e.field == false => 0 => e.field))
+    set out@+ = string.format("tbl_shiptech_special[%i].type = %i\n", i, if e.type == true => 1 => (if e.type == false => 0 => e.type))
+    set out@+ = string.format("tbl_shiptech_special[%i].repair = %i\n", i, if e.repair == true => 1 => (if e.repair == false => 0 => e.repair))
+    set out@+ = string.format("tbl_shiptech_special[%i].extraman = %i\n", i, if e.extraman == true => 1 => (if e.extraman == false => 0 => e.extraman))
+    set out@+ = string.format("tbl_shiptech_special[%i].misshield = %i\n", i, if e.misshield == true => 1 => (if e.misshield == false => 0 => e.misshield))
+    set out@+ = string.format("tbl_shiptech_special[%i].extrarange = %i\n", i, if e.extrarange == true => 1 => (if e.extrarange == false => 0 => e.extrarange))
+    set out@+ = string.format("tbl_shiptech_special[%i].pulsar = %i\n", i, if e.pulsar == true => 1 => (if e.pulsar == false => 0 => e.pulsar))
+    set out@+ = string.format("tbl_shiptech_special[%i].stream = %i\n", i, if e.stream == true => 1 => (if e.stream == false => 0 => e.stream))
+    set out@+ = string.format("tbl_shiptech_special[%i].boolmask = %i\n", i, if e.boolmask == true => 1 => (if e.boolmask == false => 0 => e.boolmask))
+}
+loop i in #tbl_shiptech_hull {
+    val e = tbl_shiptech_hull@(i)
+    set out@+ = string.format("tbl_shiptech_hull[%i].nameptr = %s\n", i, e.nameptr())
+    set out@+ = string.format("tbl_shiptech_hull[%i].cost = %i\n", i, if e.cost == true => 1 => (if e.cost == false => 0 => e.cost))
+    set out@+ = string.format("tbl_shiptech_hull[%i].space = %i\n", i, if e.space == true => 1 => (if e.space == false => 0 => e.space))
+    set out@+ = string.format("tbl_shiptech_hull[%i].hits = %i\n", i, if e.hits == true => 1 => (if e.hits == false => 0 => e.hits))
+    set out@+ = string.format("tbl_shiptech_hull[%i].power = %i\n", i, if e.power == true => 1 => (if e.power == false => 0 => e.power))
+    set out@+ = string.format("tbl_shiptech_hull[%i].defense = %i\n", i, if e.defense == true => 1 => (if e.defense == false => 0 => e.defense))
+}
+io.write(vector.join(out, ""))
