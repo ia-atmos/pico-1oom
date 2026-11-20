@@ -13,7 +13,7 @@ settled before the rule keep their old numbers (1 to 7, see "Settled").
 The initial instructions are in `ia-atmos/lang`,
 `.claude/plans/261114-pico-1oom.md` (commit `354cf19`).
 
-Last update: 2026-11-19
+Last update: 2026-11-20
 
 ## Index
 
@@ -130,3 +130,7 @@ Other sessions:
   Management", "Pin", "Set"; summary in `.claude/plans/TODO-pin.md`,
   "Stable (2026-11-19)"). The port passed its tests with that compiler
   before the merge (atmos-lang#81): nothing to migrate.
+- 2026-11-20: the compiler (`692af43`) has numeric build options, off by
+  default. The port needs the default: `ATMOS_INT=32` would break
+  `ctypes.atm` (`u32`, `i32` need integers wider than 32 bits), and
+  `ATMOS_REAL=float` is not wanted where C uses `double`.
