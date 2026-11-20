@@ -1,0 +1,152 @@
+;; Port of c/src/os/unix/os.c: the paths of the data and of the user.
+;; `access` and `mkdir` are called in C (native literals).
+
+include "../../util.atm"
+include "osdefs.atm"
+
+```:prelude
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+```
+
+;; ---------------------------------------------------------------------------
+
+val NUM_ALL_DATA_PATHS = 64
+
+var data_path = nil
+var user_path = nil
+pin all_data_paths = []
+var num_data_paths = 0
+
+;; ---------------------------------------------------------------------------
+
+val idstr_os = "unix"
+
+func os_early_init () {
+    0
+}
+
+func os_init () {
+    0
+}
+
+func os_shutdown () {
+    set user_path = nil
+    set data_path = nil
+    vector.clear(all_data_paths)
+    set num_data_paths = 0
+}
+
+;; A vector of paths (the `NULL` at the end of C is the end of the vector).
+func os_get_paths_data () {
+    if num_data_paths == 0 {
+        var got_xdg = false
+        if data_path {
+            set all_data_paths@+ = data_path
+        }
+        do {
+            val p = os.getenv("XDG_DATA_HOME")
+            if p {
+                set all_data_paths@+ = util_concat(p, "/1oom")
+                set got_xdg = true
+            }
+        }
+        do {
+            val p = os.getenv("XDG_DATA_DIRS")
+            if p {
+                ;; The pieces between ':', up to the first empty one, with no
+                ;; '/' at their end.
+                loop _,q in string.split(p, ":") {
+                    until q == ""
+                    var r = q
+                    if string.sub(r, -1) == "/" {
+                        set r = string.sub(r, 0, -2)
+                    }
+                    set all_data_paths@+ = util_concat(r, "/1oom")
+                }
+                set got_xdg = true
+            }
+        }
+        if !got_xdg {
+            val p = os.getenv("HOME")
+            if p {
+                set all_data_paths@+ = util_concat(p, "/.local/share/1oom")
+            }
+        }
+        set all_data_paths@+ = "/usr/share/1oom"
+        set all_data_paths@+ = "/usr/local/share/1oom"
+        set all_data_paths@+ = "."
+        set all_data_paths@+ = "./data"
+        set num_data_paths = #all_data_paths
+    }
+    all_data_paths
+}
+
+func os_get_path_data () {
+    data_path
+}
+
+func os_set_path_data (path) {
+    set data_path = path
+}
+
+func os_get_path_user () {
+    if user_path == nil {
+        val xdg_config_home = os.getenv("XDG_CONFIG_HOME")
+        if xdg_config_home != nil {
+            set user_path = util_concat(xdg_config_home, "/1oom")
+        } else {
+            val home = os.getenv("HOME")
+            if home != nil {
+                set user_path = util_concat(home, "/.config/1oom")
+            } else {
+                set user_path = "."
+            }
+        }
+    }
+    user_path
+}
+
+func os_set_path_user (path) {
+    set user_path = path
+}
+
+func os_make_path (path) {
+    if (path == nil) || (path == ".") {
+        return 0
+    }
+    if `:boolean access(A_STR_OF($path)->s, F_OK) != 0` {
+        return `:number mkdir(A_STR_OF($path)->s, 0700)`
+    }
+    0
+}
+
+func os_make_path_user () {
+    os_make_path(os_get_path_user())
+}
+
+func os_make_path_for (filename) {
+    var res = 0
+    val path = util_fname_split(filename)
+    if path != nil {
+        set res = os_make_path(path)
+    }
+    res
+}
+
+func os_get_fname_save_slot (savei) {
+    nil
+}
+
+func os_get_fname_save_year (year) {
+    nil
+}
+
+func os_get_fname_cfg (gamestr, uistr, hwstr) {
+    nil
+}
+
+func os_get_fname_log () {
+    "1oom_log.txt"
+}
