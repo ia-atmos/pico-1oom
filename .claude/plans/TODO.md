@@ -19,40 +19,53 @@ Last update: 2026-11-20
 
 | # | Item | Kind | State |
 |---|------|------|-------|
-| #1 | Step 2 of the port: the data tables of the 5 LBX of the logic | work | waiting for the author's go |
+| #1 | Step 2 of the port: the data tables of the 5 LBX of the logic | work | done 2026-11-20, by the session, to be confirmed |
 | #2 | Three commits with the trailer in the title line | remark | open: history not rewritten unless he asks |
-| #3 | The slot names and paths of the saves (`game_save_get_slot_fname`) | work | open, needs `os` |
-| #4 | Headers ported in part (`game_shiptech.h`, `game_shipdesign.h`) | work | open, with their `.c` |
+| #3 | The slot names and paths of the saves (`game_save_get_slot_fname`) | work | done 2026-11-20 |
+| #4 | Headers ported in part (`game_shiptech.h`, `game_shipdesign.h`) | work | done 2026-11-20, with their `.c` |
 | #5 | `log.atm` writes errors to the standard output, and holds `hw_log_*` | remark | open, until the hardware of pico |
 | #6 | Step 1 done, and how the C becomes Atmos | report | reported 2026-11-17; he asked about the structure 2026-11-18 |
+| #7 | Work with no input (atmos-lang#95): #1, #3, #4 done without his answer | report | reported 2026-11-20 |
+| #8 | Step 3 of the port: a new game from a seed | work | next |
 
 ## A. Decisions waiting for an answer
 
 Each has the option recommended by this session. Asked one at a time.
 
-- #1 Step 2, the data tables of the 5 LBX of the logic (`research`,
-  `firing`, `diplomat`, `eventmsg`, `names`): recommended, go.
 - #2 Three commits of 2026-11-17 (`0d492fe`, `90e0bd7`, `7c8e0d7`) have
   the trailer in the title line (a missing blank line). Recommended:
-  leave them; rewriting needs a forced push to `master`.
+  leave them; rewriting needs a forced push to `master` (and the rule of
+  work with no input forbids rewriting history).
 
 ## B. Work known and not done
 
-The port goes in the order of decision 5 (see "Settled"):
+The port goes in the order of decision 5 (see "Settled"). The checks are
+in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
 
-- Step 1, the save: **done** (2026-11-17). `tst/save.sh` on 109 saves of
-  5 games (2 to 6 players, all galaxy sizes, up to 27 turns, with
-  nebulas, fleets, and transports): each is written back byte by byte,
-  and its values are the same as the C, field by field (the text of
-  `1oom_saveconv -o t`).
-- #1 Step 2: next.
-- #3 The slot names and paths of the saves (`game_save_get_slot_fname`),
-  which need `os`.
-- #4 Headers ported in part: `game_shiptech.h` (the enums; its tables
-  come with `game_shiptech.c`) and `game_shipdesign.h` (its tables come
-  with `game_shipdesign.c`).
+- Step 1, the save: **done** (2026-11-17). `tst/save.sh`: 109 saves of 5
+  games, byte by byte and field by field against the C. The slots and
+  paths of the saves (#3): **done** (2026-11-20), `tst/save-slots.atm`.
+- Step 2 (#1), the data tables of the LBX of the logic: **done**
+  (2026-11-20, by the session, to be confirmed). `lbx.c` (`tst/lbx.sh`:
+  every item of the 33 files), `game_aux.c` (`tst/game_aux.sh`: the
+  tables of `research`, `diplomat`, `eventmsg`, `firing`, and the
+  distances of the stars of 5 saves), with `util_math.c`
+  (`tst/util_math.sh`: 3000 random points) and `os/unix/os.c`.
+  `names.lbx` is read by `lbx.atm`; the code that uses it is in
+  `game_new.c`, step 3.
+- #4 **done** (2026-11-20): `game_shiptech.c` (its tables, converted by
+  `tools/game_shiptech.py`; `tst/game_shiptech.sh`: 2231 fields),
+  `game_techtypes.h`, `game_shipdesign.c` (`tst/game_shipdesign.sh`),
+  and `game_str.c` (converted by `tools/game_str.py`; `tst/game_str.sh`:
+  1177 strings).
+- #8 Step 3, a new game from a seed (`game_new.c`): next.
 - #5 `log.atm` writes the errors to the standard output (Atmos has no
   standard error), and holds `hw_log_*` until the hardware of pico.
+- Reading a file is slow (`cfile_read` takes byte by byte with
+  `string.byte`): `tst/lbx.sh` takes 30 s. Not a problem yet.
+- The pointers of C into the LBX data that the logic only reads are
+  copies here (`game_aux.atm`, see its top). A pointer that is written
+  through will need a buffer and a position, as `lbx.atm` does.
 
 The environment, to rebuild in a new container:
 
@@ -71,6 +84,13 @@ The environment, to rebuild in a new container:
   at `8c9453c` (2026-11-18): `tst/save.sh` passes on the 109 saves.
 
 ## C. Reported or decided, and not acknowledged
+
+- #7 2026-11-20: by the rule of work with no input (atmos-lang#95,
+  relayed by `atmos-lang` from the author's words; read in
+  `ia-atmos/lang` `.claude/plans/TODO.md`), #1 (step 2), #3, and #4 were
+  done without his answer, each checked against the C. #1 is marked "by
+  the session, to be confirmed": it can be undone by reverting its
+  commits.
 
 - #6 2026-11-17: step 1 (the save) done, and how the C becomes Atmos (in
   `README.md`): the state is a tree of tables with every field of C,
