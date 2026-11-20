@@ -1,0 +1,455 @@
+;; Port of c/src/lbx.c and lbx.h: the LBX files of MOO1.
+;;
+;; A pointer of C into a file is the vector of its bytes and a position:
+;; `lbxfile_item_get` returns both. A file that C keeps open and reads by
+;; parts (`in_memory` false) is read whole here, and its items are copied,
+;; as C copies them.
+
+include "bits.atm"
+include "cfile.atm"
+include "ctypes.atm"
+include "lbxgfx.atm"
+include "log.atm"
+include "os/unix/os.atm"
+include "util.atm"
+
+val LBX_TYPE_GFX   = 0
+val LBX_TYPE_SOUND = 1
+val LBX_TYPE_FONTS = 2
+val LBX_TYPE_HELP  = 3
+val LBX_TYPE_DATA  = 5
+
+;; lbxfile_e
+val LBXFILE_BACKGRND = 0
+val LBXFILE_COLONIES = 1
+val LBXFILE_COUNCIL  = 2
+val LBXFILE_DESIGN   = 3
+val LBXFILE_DIPLOMAT = 4
+val LBXFILE_EMBASSY  = 5
+val LBXFILE_EVENTMSG = 6
+val LBXFILE_FIRING   = 7
+val LBXFILE_FONTS    = 8
+val LBXFILE_HELP     = 9
+val LBXFILE_INTRO    = 10
+val LBXFILE_INTRO2   = 11
+val LBXFILE_INTROSND = 12
+val LBXFILE_LANDING  = 13
+val LBXFILE_MISSILE  = 14
+val LBXFILE_MUSIC    = 15
+val LBXFILE_NAMES    = 16
+val LBXFILE_NEBULA   = 17
+val LBXFILE_NEWSCAST = 18
+val LBXFILE_PLANETS  = 19
+val LBXFILE_RESEARCH = 20
+val LBXFILE_SCREENS  = 21
+val LBXFILE_SHIPS    = 22
+val LBXFILE_SHIPS2   = 23
+val LBXFILE_SOUNDFX  = 24
+val LBXFILE_SPACE    = 25
+val LBXFILE_SPIES    = 26
+val LBXFILE_STARMAP  = 27
+val LBXFILE_STARVIEW = 28
+val LBXFILE_TECHNO   = 29
+val LBXFILE_V11      = 30
+val LBXFILE_VORTEX   = 31
+val LBXFILE_WINLOSE  = 32
+val LBXFILE_NUM      = 33
+
+;; ---------------------------------------------------------------------------
+
+val LBX_HEADER_LEN = 0x200
+
+val LBX_MODE_NONE      = 0
+val LBX_MODE_FILE_OPEN = 1
+val LBX_MODE_MEMORY    = 2
+
+;; struct lbxpatch_s: a list of C, here a vector in the same order.
+func lbxpatch_s (data, len, offs, i) {
+    [ data=data, len=len, offs=offs, i=i ]
+}
+
+func lbx_s () {
+    [
+        mode        = LBX_MODE_NONE,
+        fd          = nil,  ;; the bytes of the open file
+        len         = 0,    ;; uint32_t
+        entries     = 0,    ;; uint16_t
+        type        = 0,    ;; uint16_t
+        header      = nil,  ;; uint8_t * (here, the bytes of the file)
+        data        = nil,  ;; uint8_t *
+        num_in_use  = 0,    ;; int
+        patches     = [],
+        overwrites  = [],
+    ]
+}
+
+pin lbxinfo = [
+    [ filename="backgrnd.lbx", in_memory=true ],
+    [ filename="colonies.lbx", in_memory=true ],
+    [ filename="council.lbx",  in_memory=true ],
+    [ filename="design.lbx",   in_memory=true ],
+    [ filename="diplomat.lbx", in_memory=true ],
+    [ filename="embassy.lbx",  in_memory=true ],
+    [ filename="eventmsg.lbx", in_memory=true ],
+    [ filename="firing.lbx",   in_memory=true ],
+    [ filename="fonts.lbx",    in_memory=true ],
+    [ filename="help.lbx",     in_memory=true ],
+    [ filename="intro.lbx",    in_memory=false ],
+    [ filename="intro2.lbx",   in_memory=false ],
+    [ filename="introsnd.lbx", in_memory=false ],
+    [ filename="landing.lbx",  in_memory=true ],
+    [ filename="missile.lbx",  in_memory=true ],
+    [ filename="music.lbx",    in_memory=true ],
+    [ filename="names.lbx",    in_memory=true ],
+    [ filename="nebula.lbx",   in_memory=true ],
+    [ filename="newscast.lbx", in_memory=true ],
+    [ filename="planets.lbx",  in_memory=true ],
+    [ filename="research.lbx", in_memory=true ],
+    [ filename="screens.lbx",  in_memory=true ],
+    [ filename="ships.lbx",    in_memory=true ],
+    [ filename="ships2.lbx",   in_memory=true ],
+    [ filename="soundfx.lbx",  in_memory=true ],
+    [ filename="space.lbx",    in_memory=true ],
+    [ filename="spies.lbx",    in_memory=true ],
+    [ filename="starmap.lbx",  in_memory=true ],
+    [ filename="starview.lbx", in_memory=true ],
+    [ filename="techno.lbx",   in_memory=true ],
+    [ filename="v11.lbx",      in_memory=true ],
+    [ filename="vortex.lbx",   in_memory=true ],
+    [ filename="winlose.lbx",  in_memory=false ],
+]
+
+pin lbxtbl = carrayf(LBXFILE_NUM, lbx_s)
+
+;; ---------------------------------------------------------------------------
+
+;; The bytes of the file, also with its name in upper case; or nil.
+func lbxfile_try_fopen (path, filename) {
+    var fd = cfile_read(if path => util_concat(path, FSDEV_DIR_SEP_STR, filename) => filename)
+    if !fd {
+        val buf = string.upper(filename)
+        set fd = cfile_read(if path => util_concat(path, FSDEV_DIR_SEP_STR, buf) => buf)
+    }
+    fd
+}
+
+func lbxfile_open (p, filename) {
+    set p.fd = lbxfile_try_fopen(os_get_path_data(), filename)
+    if !p.fd {
+        log_error("opening file '%s'!\n", filename)
+        return -1
+    }
+    if #p.fd < LBX_HEADER_LEN {
+        log_error("reading header of file '%s'!\n", filename)
+        set p.fd = nil
+        return -1
+    }
+    set p.header = p.fd
+    var v = GET_LE_16(p.header, 0)
+    set p.entries = v
+    set v = GET_LE_16(p.header, 2)
+    if v != 0xfead {
+        log_error("file '%s' has wrong signature 0x%04x!\n", filename, v)
+        set p.fd = nil
+        set p.header = nil
+        return -1
+    }
+    set v = GET_LE_16(p.header, 4)
+    if v != 0 {
+        log_error("file '%s' has nonzero at offs 4: 0x%04x!\n", filename, v)
+    }
+    set p.type = GET_LE_16(p.header, 6)
+    set p.len = #p.fd
+    set p.mode = LBX_MODE_FILE_OPEN
+    set p.num_in_use = 0
+    0
+}
+
+func lbxfile_close (i) {
+    val p = lbxtbl@(i)
+    match p.mode {
+        LBX_MODE_FILE_OPEN => {
+            set p.fd = nil
+            set p.header = nil
+        }
+        LBX_MODE_MEMORY => {
+            set p.data = nil
+            set p.header = nil
+        }
+        else => {}
+    }
+    set p.mode = LBX_MODE_NONE
+}
+
+func lbxfile_load (i) {
+    val p = lbxtbl@(i)
+    if lbxfile_open(p, lbxinfo@(i).filename) != 0 {
+        os.exit(1)      ;; EXIT_FAILURE
+    }
+    if lbxinfo@(i).in_memory {
+        set p.data = p.fd
+        set p.fd = nil
+        set p.header = p.data
+        set p.mode = LBX_MODE_MEMORY
+    }
+    0
+}
+
+;; The item `i`, as a buffer and a position, and its length; or nil.
+func lbx_extract (p, i, filename) {
+    if !p {
+        return nil
+    }
+    if i >= p.entries {
+        log_error("LBX: %s invalid id %i >= %i\n", filename, i, p.entries)
+        return nil
+    }
+    val offs0 = GET_LE_32(p.header, 8 + (i * 4))
+    val offs1 = GET_LE_32(p.header, 8 + (i * 4) + 4)
+    val len = u32(offs1 - offs0)
+    ifs {
+        p.mode == LBX_MODE_FILE_OPEN => {
+            if (offs0 + len) > #p.fd {
+                log_error("LBX: problem reading file %s\n", filename)
+                return nil
+            }
+            val d = []
+            loop k in len {
+                set d@+ = p.fd@(offs0 + k)
+            }
+            return d, 0, len
+        }
+        p.mode == LBX_MODE_MEMORY => {
+            return p.data, offs0, len
+        }
+        else => {
+            log_error("LBX: extract without open\n")
+            return nil
+        }
+    }
+}
+
+func lbxfile_get_patch (lbx, i) {
+    if !lbx {
+        return nil
+    }
+    loop _,p in lbx.patches {
+        if p.i == i {
+            return p.data, 0, p.len
+        }
+    }
+    nil
+}
+
+func lbxfile_apply_overwrites (lbx, i, data, offs, len, lbxname) {
+    if !lbx {
+        return false
+    }
+    loop _,p in lbx.overwrites {
+        if p.i == i {
+            if (p.offs >= len) || ((p.offs + p.len) > len) {
+                log_fatal_and_die("LBX: PBX overwrite for %s item %i offs 0x%x len 0x%x exceeds item len 0x%x!\n", lbxname, i, p.offs, p.len, len)
+                return false
+            }
+            loop k in p.len {
+                set data@(offs + p.offs + k) = p.data@(k)
+            }
+        }
+    }
+    true
+}
+
+;; The item as a buffer, a position, and a length; or nil.
+func lbxfile_item_get_do (file_id, entry_id) {
+    val lbx = lbxtbl@(file_id)
+    var p, offs, len = lbxfile_get_patch(lbx, entry_id)
+    if p == nil {
+        if lbx.mode == LBX_MODE_NONE {
+            if lbxfile_load(file_id) != 0 {
+                return nil
+            }
+        }
+        set p, offs, len = lbx_extract(lbx, entry_id, lbxinfo@(file_id).filename)
+        if p == nil {
+            return nil
+        }
+    }
+    if !lbxfile_apply_overwrites(lbx, entry_id, p, offs, len, lbxinfo@(file_id).filename) {
+        return nil
+    }
+    set lbx.num_in_use = lbx.num_in_use + 1
+    return p, offs, len
+}
+
+func lbxfile_shutdown_patches (lbx) {
+    if !lbx {
+        return nil
+    }
+    set lbx.patches = []
+    set lbx.overwrites = []
+}
+
+;; ---------------------------------------------------------------------------
+
+func lbxfile_init () {
+    loop i in LBXFILE_NUM {
+        set lbxtbl@(i) = lbx_s()
+    }
+    0
+}
+
+func lbxfile_shutdown () {
+    loop i in LBXFILE_NUM {
+        lbxfile_close(i)
+        lbxfile_shutdown_patches(lbxtbl@(i))
+    }
+}
+
+func lbxfile_find_dir () {
+    val paths = os_get_paths_data()
+    log_message_direct("LBX: seeking data directory\n")
+    loop _,pp in paths {
+        log_message("LBX: trying '%s'\n", pp)
+        if lbxfile_try_fopen(pp, "fonts.lbx") {
+            log_message("LBX: found data directory at '%s'\n", pp)
+            os_set_path_data(pp)
+            return 0
+        }
+    }
+    log_error("could not find the LBX files! Try running with -data path_to_moo1.\n")
+    -1
+}
+
+;; The item as a buffer and a position (a pointer of C); or nil.
+func lbxfile_item_get (file_id, entry_id) {
+    val p, offs = lbxfile_item_get_do(file_id, entry_id)
+    return p, offs
+}
+
+;; The item as a buffer, a position, and its length; or nil.
+func lbxfile_item_get_with_len (file_id, entry_id) {
+    lbxfile_item_get_do(file_id, entry_id)
+}
+
+func lbxfile_item_release (file_id, ptr, offs) {
+    val lbx = lbxtbl@(file_id)
+    if lbx.num_in_use <= 0 {
+        log_error("%s: release without use\n", lbxinfo@(file_id).filename)
+        return nil
+    }
+    if lbx.mode == LBX_MODE_MEMORY {
+        if lbx.type == LBX_TYPE_GFX {
+            ;; restore gfx data to original state
+            lbxgfx_set_frame_0(ptr, offs)
+            lbxgfx_set_epage(ptr, offs, 0)
+        }
+    }
+    set lbx.num_in_use = lbx.num_in_use - 1
+    if lbx.num_in_use <= 0 {
+        lbxfile_close(file_id)
+    }
+}
+
+func lbxfile_item_release_file (file_id) {
+    lbxfile_close(file_id)
+}
+
+func lbxfile_exists (file_id) {
+    if lbxtbl@(file_id).mode != LBX_MODE_NONE {
+        true
+    } else {
+        lbxfile_try_fopen(os_get_path_data(), lbxinfo@(file_id).filename) != nil
+    }
+}
+
+func lbxfile_name (file_id) {
+    lbxinfo@(file_id).filename
+}
+
+func lbxfile_id (filename) {
+    loop j in LBXFILE_NUM {
+        if lbxfile_name(j) == filename {
+            return j
+        }
+    }
+    LBXFILE_NUM
+}
+
+func lbxfile_type (file_id) {
+    if (lbxtbl@(file_id).mode == LBX_MODE_NONE) && (lbxfile_load(file_id) != 0) {
+        return -1
+    }
+    lbxtbl@(file_id).type
+}
+
+func lbxfile_num_items (file_id) {
+    if (lbxtbl@(file_id).mode == LBX_MODE_NONE) && (lbxfile_load(file_id) != 0) {
+        return -1
+    }
+    lbxtbl@(file_id).entries
+}
+
+;; The name of an item, up to its first zero (32 bytes at most).
+func lbxfile_item_name (file_id, entry_id) {
+    if (lbxtbl@(file_id).mode == LBX_MODE_NONE) && (lbxfile_load(file_id) != 0) {
+        return nil
+    }
+    val p = lbxtbl@(file_id)
+    val bs = p.header
+    pin cs = []
+    loop k in 32 {
+        val b = bs@(0x200 + (entry_id * 32) + k)
+        if b == 0 {
+            break
+        }
+        set cs@+ = string.char(b)
+    }
+    vector.join(cs, "")
+}
+
+func lbxfile_item_len (file_id, entry_id) {
+    if (lbxtbl@(file_id).mode == LBX_MODE_NONE) && (lbxfile_load(file_id) != 0) {
+        return -1
+    }
+    val p = lbxtbl@(file_id)
+    val offs0 = GET_LE_32(p.header, 8 + (entry_id * 4))
+    val offs1 = GET_LE_32(p.header, 8 + (entry_id * 4) + 4)
+    i32(offs1 - offs0)
+}
+
+func lbxfile_item_offs (file_id, entry_id) {
+    if (lbxtbl@(file_id).mode == LBX_MODE_NONE) && (lbxfile_load(file_id) != 0) {
+        return -1
+    }
+    i32(GET_LE_32(lbxtbl@(file_id).header, 8 + (entry_id * 4)))
+}
+
+;; The list of patches is sorted by item; a new one replaces the one of the
+;; same item.
+func lbxfile_add_patch (file_id, i, data, len, patchfilename) {
+    val lbx = lbxtbl@(file_id)
+    val pnew = lbxpatch_s(data, len, 0, i)
+    var k = 0
+    loop {
+        while (k < #lbx.patches) && (i > lbx.patches@(k).i)
+        set k = k + 1
+    }
+    if (k < #lbx.patches) && (i == lbx.patches@(k).i) {
+        log_warning("replacing patch on %s item %i with one from '%s'\n", lbxinfo@(file_id).filename, i, patchfilename)
+        set lbx.patches@(k) = pnew
+    } else {
+        vector.insert(lbx.patches, k, pnew)
+    }
+}
+
+;; The overwrites are sorted by item, in the order they came for an item.
+func lbxfile_add_overwrite (file_id, i, itemoffs, data, len, patchfilename) {
+    val lbx = lbxtbl@(file_id)
+    val pnew = lbxpatch_s(data, len, itemoffs, i)
+    var k = 0
+    loop {
+        while (k < #lbx.overwrites) && (i >= lbx.overwrites@(k).i)
+        set k = k + 1
+    }
+    vector.insert(lbx.overwrites, k, pnew)
+}
