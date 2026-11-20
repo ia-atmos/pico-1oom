@@ -1,0 +1,62 @@
+;; game_aux.c of the port against the C: `atmos tst/game_aux.atm DATADIR
+;; SAVE...` must print the same lines as tst/c/game_aux.c (see
+;; tst/game_aux.sh).
+
+include "../src/game/game_aux.atm"
+include "../src/game/game_save.atm"
+
+val args = [...]
+pin out = []
+
+func dump (name, p, len) {
+    var sum = 0
+    loop j in len {
+        set sum = ((sum * 31) + p@(j)) & 0xffffff
+    }
+    set out@+ = string.format("%s len %i sum %d first", name, len, sum)
+    loop j in math.min(16, len) {
+        set out@+ = string.format(" %i", p@(j))
+    }
+    set out@+ = "\n"
+}
+
+os_set_path_data(args@0)
+lbxfile_init()
+pin gaux = game_aux_s()
+pin g = game_s()
+game_aux_init(gaux, g)
+dump("research.d0", gaux.research.d0, #gaux.research.d0)
+dump("research.names", gaux.research.names, #gaux.research.names)
+dump("research.descr", gaux.research.descr, #gaux.research.descr)
+dump("diplomat.msg", gaux.diplomat.msg, #gaux.diplomat.msg)
+dump("diplomat.d0", gaux.diplomat.d0, DIPLOMAT_D0_NUM)
+dump("eventmsg", gaux.eventmsg, #gaux.eventmsg)
+loop j in NUM_SHIPLOOKS {
+    set out@+ = string.format("firing[%i]", j)
+    loop i in 12 {
+        set out@+ = string.format(" %i", gaux.firing@(j).d0@(i))
+    }
+    set out@+ = string.format(" target %i %i param", gaux.firing@(j).target_x, gaux.firing@(j).target_y)
+    loop a2 in (1, 3) {
+        loop dir in 2 {
+            set out@+ = string.format(" %i,%i", game_aux_get_firing_param_x(gaux, j, a2, dir != 0), game_aux_get_firing_param_y(gaux, j, a2, dir != 0))
+        }
+    }
+    set out@+ = "\n"
+}
+loop k in (1, #args - 1) {
+    if game_save_do_load_fname(args@(k), nil, g) != 0 {
+        set out@+ = "load failed\n"
+        skip
+    }
+    game_aux_start(gaux, g)
+    set out@+ = string.format("save %i local_players %i move_temp %i\n", k - 1, gaux.local_players, cint(gaux.move_temp != nil))
+    loop i in g.galaxy_stars {
+        set out@+ = string.format("star_dist[%i]", i)
+        loop j in g.galaxy_stars {
+            set out@+ = string.format(" %i", gaux.star_dist@(i)@(j))
+        }
+        set out@+ = "\n"
+    }
+}
+io.write(vector.join(out, ""))
