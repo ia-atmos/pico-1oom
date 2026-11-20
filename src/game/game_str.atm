@@ -1,0 +1,775 @@
+;; Port of c/src/game/game_str.c: the strings of the game.
+;; Generated from the C by a converter, which also writes the check
+;; (tst/game_str.sh). In C each is a `const char *`, which a PBX file may
+;; replace: here a `var`, or a vector of strings.
+
+var game_str_mm_continue = "Continue"
+var game_str_mm_load = "Load Game"
+var game_str_mm_new = "New Game"
+var game_str_mm_quit = "Quit to OS"
+pin game_str_tbl_race = [
+    "Human", "Mrrshan", "Silicoid", "Sakkra",
+    "Psilon", "Alkari", "Klackon", "Bulrathi",
+    "Meklar", "Darlok", "Random",
+]
+pin game_str_tbl_races = [
+    "Humans", "Mrrshans", "Silicoids", "Sakkras",
+    "Psilons", "Alkaris", "Klackons", "Bulrathis",
+    "Meklars", "Darloks",
+]
+pin game_str_tbl_banner = [
+    "Blue", "Green", "Purple", "Red",
+    "White", "Yellow", "Random",
+]
+pin game_str_tbl_gsize = [
+    "Small", "Medium", "Large", "Huge",
+]
+pin game_str_tbl_diffic = [
+    "Simple", "Easy", "Average", "Hard",
+    "Impossible",
+]
+pin game_str_tbl_oppon = [
+    "One", "Two", "Three", "Four",
+    "Five",
+]
+pin game_str_tbl_traits = [
+    "EXPERT TRADERS", "AND MAGNIFICENT", "DIPLOMATS", "SUPERIOR GUNNERS",
+    "", "", "IMMUNE TO", "HOSTILE PLANET",
+    "ENVIRONMENTS", "INCREASED", "POPULATION", "GROWTH",
+    "SUPERIOR", "RESEARCH", "TECHNIQUES", "SUPERIOR PILOTS",
+    "", "", "INCREASED", "WORKER",
+    "PRODUCTION", "TERRIFIC GROUND", "FIGHTERS", "",
+    "ENHANCED", "FACTORY", "CONTROLS", "SUPREME SPIES",
+    "", "",
+]
+pin game_str_tbl_trait1 = [
+    "Xenophobic", "Ruthless", "Aggressive", "Erratic",
+    "Honorable", "Pacifistic",
+]
+pin game_str_tbl_trait2 = [
+    "Diplomat", "Militarist", "Expansionist", "Technologist",
+    "Industrialist", "Ecologist",
+]
+var game_str_ng_choose_race = "Choose Race"
+var game_str_ng_choose_banner = "Choose Banner"
+var game_str_ng_your_name = "Your Name..."
+var game_str_ng_home_name = "Home World..."
+var game_str_ng_ai = "AI"
+var game_str_ng_computer = "Computer"
+var game_str_ng_player = "Player"
+var game_str_ng_cancel = "Cancel"
+var game_str_ng_ok = "Start Game"
+var game_str_ng_allai = "Must have at least one human player!"
+pin game_str_tbl_planet_names = [
+    "Paranar", "Denubius", "Antares", "Draconis",
+    "Zoctan", "Rigel", "Talas", "Moro",
+    "Quayal", "Neptunus", "Jinga", "Argus",
+    "Escalon", "Berel", "Collassa", "Whynil",
+    "Nordia", "Tau Cygni", "Phyco", "Firma",
+    "Keeta", "Arietis", "Rhilus", "Willow",
+    "Mu Delphi", "Stalaz", "Gorra", "Beta Ceti",
+    "Spica", "Omicron", "Rha", "Kailis",
+    "Vulcan", "Centauri", "Herculis", "Endoria",
+    "Kulthos", "Hyboria", "Zhardan", "Yarrow",
+    "Incedius", "Paladia", "Romulas", "Galos",
+    "Uxmai", "Thrax", "Laan", "Imra",
+    "Selia", "Seidon", "Tao", "Rana",
+    "Vox", "Maalor", "Xudax", "Helos",
+    "Crypto", "Gion", "Phantos", "Reticuli",
+    "Maretta", "Toranor", "Exis", "Tyr",
+    "Ajax", "Obaca", "Dolz", "Drakka",
+    "Ryoun", "Vega", "Anraq", "Gienah",
+    "Rotan", "Proxima", "Mobas", "Iranha",
+    "Celtsi", "Dunatis", "Morrig", "Primodius",
+    "Nyarl", "Ukko", "Crius", "Hyades",
+    "Kronos", "Guradas", "Rayden", "Kakata",
+    "Misha", "Xendalla", "Artemis", "Aurora",
+    "Proteus", "Esper", "Darrian", "Trax",
+    "Xengara", "Nitzer", "Simius", "Bootis",
+    "Pollus", "Cygni", "Aquilae", "Volantis",
+    "Tauri", "Regulus", "Klystron", "Lyae",
+    "Capella", "Alcor",
+]
+pin game_str_tbl_home_names = [
+    "Sol", "Fierias", "Cryslon", "Sssla",
+    "Mentar", "Altair", "Kholdan", "Ursa",
+    "Meklon", "Nazin", "Randomia",
+]
+var game_str_rndempname = "Mr Random"
+var game_str_planet_name_orion = "Orion"
+pin game_str_tbl_stship_names = [
+    "SCOUT", "FIGHTER", "DESTROYER", "BOMBER",
+    "COLONY SHIP", "NONE",
+]
+pin game_str_tbl_copyprotection_ship_names = [
+    "Paladin", "Marauder", "Gladiator", "Devastator",
+    "Cutlass", "Sky Hawk", "Shark", "Dark Star",
+    "Cyclops", "Panther", "Corvette", "Penetrator",
+    "Punisher", "Black Widow", "Destroyer", "Warbird",
+    "Piranha", "Banshee", "Hydra", "Cheetah",
+    "Dreadstar", "Foxbat", "Hunter", "Hornet",
+    "Star Blazer", "Knight", "Kraken", "Avenger",
+    "Manta", "Warcat", "Escort", "Nemesis",
+    "Warbear", "Scorpion", "Seeker", "Condor",
+    "Sun Fire", "Viper", "Titan", "Lynx",
+]
+pin game_str_tbl_monsh_names = [
+    "SPACE CRYSTAL", "SPACE AMOEBA", "GUARDIAN",
+]
+pin game_str_tbl_mon_names = [
+    "Space Crystal", "Space Amoeba", "Guardian",
+]
+var game_str_ai_colonyship = "COLONY SHIP"
+var game_str_st_none = "NONE"
+var game_str_st_none2 = "None"
+pin game_str_tbl_st_weap = [
+    "NUCLEAR BOMB", "LASER", "NUCLEAR MISSILE", "NUCLEAR MISSILE",
+    "HEAVY LASER", "HYPER-V ROCKET", "HYPER-V ROCKET", "GATLING LASER",
+    "NEUTRON PELLET GUN", "HYPER-X ROCKET", "HYPER-X ROCKET", "FUSION BOMB",
+    "ION CANNON", "HEAVY ION CANNON", "SCATTER PACK V", "SCATTER PACK V",
+    "DEATH SPORES", "MASS DRIVER", "MERCULITE MISSILE", "MERCULITE MISSILE",
+    "NEUTRON BLASTER", "HEAVY BLAST CANNON", "ANTI-MATTER BOMB", "GRAVITON BEAM",
+    "STINGER MISSILE", "STINGER MISSILE", "HARD BEAM", "FUSION BEAM",
+    "HEAVY FUSION BEAM", "OMEGA-V BOMB", "ANTI-MATTER TORP", "MEGABOLT CANNON",
+    "PHASOR", "HEAVY PHASOR", "SCATTER PACK VII", "SCATTER PACK VII",
+    "DOOM VIRUS", "AUTO BLASTER", "PULSON MISSILE", "PULSON MISSILE",
+    "TACHYON BEAM", "GAUSS AUTOCANNON", "PARTICLE BEAM", "HERCULAR MISSILE",
+    "HERCULAR MISSILE", "PLASMA CANNON", "DISRUPTOR", "PULSE PHASOR",
+    "NEUTRONIUM BOMB", "BIO TERMINATOR", "HELLFIRE TORPEDO", "ZEON MISSILE",
+    "ZEON MISSILE", "PROTON TORPEDO", "SCATTER PACK X", "SCATTER PACK X",
+    "TRI-FOCUS PLASMA", "STELLAR CONVERTER", "MAULER DEVICE", "PLASMA TORPEDO",
+    "CRYSTAL RAY", "DEATH RAY", "AMEOBA STREAM",
+]
+pin game_str_tbl_st_weapx = [
+    "GROUND ATTACKS ONLY", " ", "2 SHOTS, +1 SPEED", "5 SHOTS",
+    " ", "2 SHOTS, +1 SPEED", "5 SHOTS", "FIRES 4 TIMES/TURN ",
+    "HALVES ENEMY SHIELDS", "2 SHOTS, +1 TO HIT", "5 SHOTS, +1 TO HIT", "GROUND ATTACKS ONLY ",
+    " ", " ", "2 SHOTS, MIRVS TO 5", "5 SHOTS, MIRVS TO 5",
+    "BIOLOGICAL WEAPON", "HALVES ENEMY SHIELDS", "2 SHOTS, +2 TO HIT", "5 SHOTS, +2 TO HIT",
+    " ", " ", "GROUND ATTACKS ONLY", "STREAMING ATTACK",
+    "2 SHOTS, +3 TO HIT", "5 SHOTS, +3 TO HIT", "HALVES SHIELD STR", " ",
+    " ", "GROUND ATTACKS ONLY ", "FIRES ONE PER 2 TURNS", "+3 LEVELS TO HIT",
+    " ", " ", "2 SHOTS, MIRVS TO 7", "5 SHOTS, MIRVS TO 7",
+    "BIOLOGICAL WEAPON", "FIRES 3 TIMES/TURN", "2 SHOTS, +4 TO HIT", "5 SHOTS, +4 TO HIT",
+    "STREAMING ATTACK", "1/2 SHIELDS, FIRES 4$", "HALVES SHIELDS STR", "2 SHOTS, +5 TO HIT",
+    "5 SHOTS, +5 TO HIT", " ", " ", "FIRES 3 TIMES/TURN",
+    "GROUND ATTACKS ONLY", "BIOLOGICAL WEAPON", "HITS ALL FOUR SHIELDS", "2 SHOTS, +6 TO HIT",
+    "5 SHOTS, +6 TO HIT", "FIRES ONE PER 2 TURNS", "2 SHOTS, MIRVS TO 10", "5 SHOTS, MIRVS TO 10",
+    " ", "HITS ALL FOUR SHIELDS", "CRUEL BRUTAL DAMAGE", "LOSES 15 DAMAGE/HEX",
+    "", "", "",
+]
+pin game_str_tbl_st_comp = [
+    "MARK I", "MARK II", "MARK III", "MARK IV",
+    "MARK V", "MARK VI", "MARK VII", "MARK VIII",
+    "MARK IX", "MARK X", "MARK XI",
+]
+pin game_str_tbl_st_engine = [
+    "RETROS", "NUCLEAR", "SUB-LIGHT", "FUSION",
+    "IMPULSE", "ION", "ANTI-MATTER", "INTERPHASED",
+    "HYPERTHRUST",
+]
+pin game_str_tbl_st_armor = [
+    "TITANIUM", "TITANIUM II", "DURALLOY", "DURALLOY II",
+    "ZORTRIUM", "ZORTRIUM II", "ANDRIUM", "ANDRIUM II",
+    "TRITANIUM", "TRITANIUM II", "ADAMANTIUM", "ADAMANTIUM II",
+    "NEUTRONIUM", "NEUTRONIUM II",
+]
+pin game_str_tbl_st_shield = [
+    "CLASS I", "CLASS II", "CLASS III", "CLASS IV",
+    "CLASS V", "CLASS VI", "CLASS VII", "CLASS IX",
+    "CLASS XI", "CLASS XIII", "CLASS XV",
+]
+pin game_str_tbl_st_jammer = [
+    "JAMMER I", "JAMMER II", "JAMMER III", "JAMMER IV",
+    "JAMMER V", "JAMMER VI", "JAMMER VII", "JAMMER VIII",
+    "JAMMER IX", "JAMMER X",
+]
+pin game_str_tbl_st_specsh = [
+    "NO SPECIALS", "RESERVE TANKS", "COLONY BASE", "BARREN BASE",
+    "TUNDRA BASE", "DEAD BASE", "INFERNO BASE", "TOXIC BASE",
+    "RADIATED BASE", "BATTLE SCANNER", "ANTI-MISSILES", "REPULSOR BEAM",
+    "WARP DISSIPATOR", "ENERGY PULSAR", "INERT STABILIZER", "ZYRO SHIELD",
+    "AUTO REPAIR", "STASIS FIELD", "CLOAKING DEVICE", "ION STREAM",
+    "H-ENERGY FOCUS", "IONIC PULSAR", "BLACK HOLE GEN", "TELEPORTER",
+    "LIGHTNING SHIELD", "NEUTRON STREAM", "ADV DMG CONTROL", "TECH NULLIFIER",
+    "INERT. NULLIFIER", "ORACLE INTERFACE", "DISPLACE DEVICE",
+]
+pin game_str_tbl_st_special = [
+    "RESERVE FUEL TANKS", "STANDARD COLONY BASE", "BARREN COLONY BASE", "TUNDRA COLONY BASE",
+    "DEAD COLONY BASE", "INFERNO COLONY BASE", "TOXIC COLONY BASE", "RADIATED COLONY BASE",
+    "BATTLE SCANNER", "ANTI-MISSILE ROCKETS", "REPULSOR BEAM", "WARP DISSIPATOR",
+    "ENERGY PULSAR", "INERTIAL STABILIZER", "ZYRO SHIELD", "AUTOMATED REPAIR",
+    "STASIS FIELD", "CLOAKING DEVICE", "ION STREAM PROJECTOR", "HIGH ENERGY FOCUS",
+    "IONIC PULSAR", "BLACK HOLE GENERATOR", "SUB SPACE TELEPORTER", "LIGHTNING SHIELD",
+    "NEUTRON STREAM PROJECTOR", "ADV DAMAGE CONTROL", "TECHNOLOGY NULLIFIER", "INERTIAL NULLIFIER",
+    "ORACLE INTERFACE", "DISPLACMENT DEVICE",
+]
+pin game_str_tbl_st_specialx = [
+    "EXTENDS SHIP RANGE BY 3 PARSECS", "ALLOWS NORMAL PLANET LANDINGS", "ALLOWS BARREN PLANET LANDINGS", "ALLOWS TUNDRA PLANET LANDINGS",
+    "ALLOWS DEAD PLANET LANDINGS", "ALLOWS INFERNO PLANET LANDINGS", "ALLOWS TOXIC PLANET LANDINGS", "ALLOWS RADIATED PLANET LANDINGS",
+    "DISPLAYS ENEMY SHIP STATS", "40% CHANCE MISSILES DESTROYED", "MOVES ENEMY SHIPS BACK 1 SPACE", "REDUCES SPEED OF ENEMY SHIPS",
+    "EXPANDS TO INFLICT 1-5 HITS", "ADDS +2 TO MANEUVERABILITY", "75% CHANCE MISSILES DESTROYED", "HEALS 15% OF SHIP'S HITS A TURN",
+    "ENEMY FROZEN FOR 1 TURN", "RENDERS SHIPS NEARLY INVISIBLE", "REDUCES ENEMY ARMOR BY 20%", "INCREASES WEAPON RANGES BY 3",
+    "EXPANDS TO INFLICT 2-10 HITS", "KILLS 25%-100% OF ENEMY SHIPS", "TELEPORTS SHIP IN COMBAT", "100% CHANCE MISSILES DESTROYED",
+    "REDUCES ENEMY ARMOR BY 40%", "HEALS 30% OF SHIP'S HITS A TURN", "DESTROYS ENEMY COMPUTERS", "ADDS +4 TO MANEUVERABILITY",
+    "CONCENTRATES BEAM ATTACKS", "1/3 OF ALL ENEMY ATTACKS MISS",
+]
+pin game_str_tbl_st_hull = [
+    "SMALL", "MEDIUM", "LARGE", "HUGE",
+]
+var game_str_sm_crystal = "CRYSTAL"
+var game_str_sm_amoeba = "AMOEBA"
+var game_str_sm_game = "Game"
+var game_str_sm_design = "Design"
+var game_str_sm_fleet = "Fleet"
+var game_str_sm_map = "Map"
+var game_str_sm_races = "Races"
+var game_str_sm_planets = "Planets"
+var game_str_sm_tech = "Tech"
+var game_str_sm_next_turn = "Next Turn"
+pin game_str_tbl_sm_stinfo = [
+    "Yellow stars offer the best chance of discovering terran and sub-terran planets.", "Red stars are old, dull stars that commonly have poor planets.", "Green stars are moderately bright and have a wide range of planetary types.", "White stars burn incredibly hot and generally have hostile planets.",
+    "Blue stars are relatively young stars with mineral rich lifeless planets.", "Neutron stars are rare and offer the greatest chance of finding rich planets.",
+]
+var game_str_sm_range = "Range"
+var game_str_sm_parsec = "Parsec"
+var game_str_sm_parsecs = "Parsecs"
+var game_str_sm_parsecs2 = "PARSECS"
+var game_str_sm_colony = "Colony"
+var game_str_sm_lastrep = "Last Reported As A"
+var game_str_sm_stargate = "STAR GATE"
+var game_str_sm_prodnone = "NONE"
+var game_str_sm_prod_y = "Y"
+var game_str_sm_defupg = "UPGRD"
+var game_str_sm_defshld = "SHIELD"
+var game_str_sm_refit = "REFIT"
+pin game_str_sm_irc = [
+    "IRC II", "IRC III", "IRC IV", "IRC V",
+    "IRC VI", "IRC VII",
+]
+var game_str_sm_indmax = "MAX"
+var game_str_sm_indres = "RESERV"
+var game_str_sm_ecowaste = "WASTE"
+var game_str_sm_ecoclean = "CLEAN"
+var game_str_sm_ecoatmos = "ATMOS"
+var game_str_sm_ecotform = "T-FORM"
+var game_str_sm_ecosoil = "SOIL"
+var game_str_sm_ecogaia = "GAIA"
+var game_str_sm_ecopop = "POP"
+var game_str_sm_unexplored = "UNEXPLORED"
+var game_str_sm_nohabit = "NO HABITABLE"
+var game_str_sm__planets = "PLANETS"
+pin game_str_tbl_sm_pltype = [
+    "NO HABITABLE PLANETS", "RADIATED", "TOXIC", "INFERNO",
+    "DEAD", "TUNDRA", "BARREN", "MINIMAL",
+    "DESERT", "STEPPE", "ARID", "OCEAN",
+    "JUNGLE", "TERRAN", "GAIA",
+]
+var game_str_sm_plague = "Plague"
+var game_str_sm_nova = "Nova"
+var game_str_sm_comet = "Comet"
+var game_str_sm_pirates = "Pirates"
+var game_str_sm_rebellion = "Rebellion"
+var game_str_sm_unrest = "UNREST"
+var game_str_sm_accident = "Accident"
+pin game_str_tbl_sm_pgrowth = [
+    "HOSTILE", " ", "FERTILE", "GAIA",
+]
+pin game_str_tbl_sm_pspecial = [
+    "ULTRA POOR", "POOR", "", "ARTIFACTS",
+    "RICH", "ULTRA RICH", "4$ TECH",
+]
+var game_str_sm_pop = "POP"
+var game_str_sm_max = "MAX"
+var game_str_sm_hasreached = "has reached its"
+var game_str_sm_indmaxof = "industry maximum of"
+var game_str_sm_factories = "factories"
+var game_str_sm_extrares = " The extra spent was placed in the planetary reserve."
+var game_str_sm_popmaxof = "population maximum of"
+var game_str_sm_colonists = "colonists"
+var game_str_sm_hasterraf = "has been terraformed to a"
+pin game_str_tbl_sm_terraf = [
+    "normal", "fertile", "gaia",
+]
+var game_str_sm_envwith = "environment with"
+pin game_str_tbl_sm_envmore = [
+    "", "150% of ", "double ",
+]
+var game_str_sm_stdgrow = "the standard growth rate"
+var game_str_sm_hasfsgate = "has finished building a stargate"
+var game_str_sm_hasfshield = "has completed building a Class"
+var game_str_sm_planshield = "Planetary Shield"
+var game_str_sm_planratio = " Planetary spending ratios may be changed at this time. "
+var game_str_sm_fleetdep = "FLEET DEPLOYMENT"
+var game_str_sm_destoor = "DESTINATION IS OUT OF RANGE,"
+var game_str_sm_destoor2 = "OUT OF RANGE"
+var game_str_sm_parsfromcc = "PARSECS FROM CLOSEST COLONY"
+var game_str_sm_eta = "ETA"
+var game_str_sm_turn = "TURN"
+var game_str_sm_turns = "TURNS"
+var game_str_sm_chdest = "Choose destination and number to send"
+var game_str_sm_outsr = "OUT SHIP RANGE BY"
+var game_str_sm_sreloc = "Ship Relocation"
+var game_str_sm_sreloc2 = "Choose another star system under your control to redirect newly built ships to."
+var game_str_sm_delay = "DELAY"
+var game_str_sm_seltr = "Select a destination star system to send colonists or troops to."
+var game_str_sm_notrange = "You do not have the required ship range to reach the system."
+var game_str_sm_notrange1 = "The star system is"
+var game_str_sm_notrange2 = "parsecs away and you have a maximum range of"
+var game_str_sm_notrange3 = "parsecs."
+var game_str_sm_trfirste = "You must first explore a star system and form a new colony before transporting colonists."
+var game_str_sm_trcontr1 = "You must have at least controlled"
+var game_str_sm_trcontr2 = "environments to land troops onto the planet."
+var game_str_sm_trfirstc = "You must first build a ship equipped with a colony base and create a new colony before sending out transports."
+var game_str_sm_trwarna = "Warning, destination is owned by an ally"
+var game_str_sm_trwarnm1 = "Warning - Target planet can only support"
+var game_str_sm_trwarnm2 = "million!"
+var game_str_sm_trchnum1 = "Choose number of colonists to transport"
+var game_str_sm_trchnum2 = "Choose number of troops to transport"
+var game_str_sm_trans1 = "Transport"
+var game_str_sm_transs = "Transports"
+var game_str_sm_tdest = "Destination"
+var game_str_sm_bomb1 = "Bomb the"
+var game_str_sm_bomb2 = "Enemy Planet?"
+var game_str_sm_trinb1 = "Troop Transport"
+var game_str_sm_trinb1s = "Troop Transport"
+var game_str_sm_trinb2 = "Currently Enroute"
+var game_str_sm_obomb1 = "Orbital"
+var game_str_sm_obomb2 = "Bombardment"
+var game_str_sm_cdest1 = "colony"
+var game_str_sm_cdest2 = "destroyed"
+var game_str_sm_ineff1 = "bombing"
+var game_str_sm_ineff2 = "ineffective"
+var game_str_sm_bkill1 = "MILLION"
+var game_str_sm_bkill2 = "KILLED"
+var game_str_sm_bfact1 = "FACTORY"
+var game_str_sm_bfact1s = "FACTORIES"
+var game_str_sm_bfact2 = "DESTROYED"
+var game_str_sm_traad1 = "transports attempting to land on"
+var game_str_sm_traad2 = "were all destroyed."
+var game_str_sm_trbdb1 = "The base at"
+var game_str_sm_trbdb2 = "was destroyed before the transports arrived leaving the colonists without supplies and shelter. All have perished."
+var game_str_sm_inorbit = "In Orbit"
+var game_str_sm_ship_everywhere = "Build everywhere"
+var game_str_sm_ship_replace = "Replace"
+pin game_str_tbl_roman = [
+    " ", "I", "II", "III",
+    "IV", "V", "VI", "VII",
+    "VIII", "IX", "X", "XI",
+    "XII", "XIII", "XIV", "XV",
+    "XVI", "XVII", "XVIII", "XIX",
+    "XX", "XXI", "XXII", "XXIII",
+    "XXIV", "XXV", "XXVI", "XXVII",
+    "XXVIII", "XXIX", "XXX",
+]
+var game_str_no_events = "No Events"
+var game_str_no_elections = "No Elections"
+var game_str_bc = "BC"
+var game_str_y = "Y"
+var game_str_year = "Year "
+var game_str_year0 = "/Year"
+var game_str_year1 = "Year:"
+var game_str_player = "Player"
+var game_str_pl_reserve = "Reserve"
+var game_str_pl_plague = "PLAGUE"
+var game_str_pl_nova = "SUPER NOVA"
+var game_str_pl_comet = "COMET"
+var game_str_pl_pirates = "PIRATES"
+var game_str_pl_rebellion = "REBELLION"
+var game_str_pl_unrest = "UNREST"
+var game_str_pl_accident = "ACCIDENT"
+var game_str_pl_spending = "Spending Costs"
+var game_str_pl_tincome = "Total Income"
+var game_str_pl_transof = "Transfer of planetary"
+var game_str_pl_resto = "reserves to"
+var game_str_sd_cancel = "CANCEL"
+var game_str_sd_build = "BUILD"
+var game_str_sd_clear = "CLEAR"
+var game_str_sd_comp = "Computer"
+var game_str_sd_shield = "Shield"
+var game_str_sd_ecm = "Ecm"
+var game_str_sd_armor = "Armor"
+var game_str_sd_engine = "Engine"
+var game_str_sd_man = "Maneuver"
+pin game_str_tbl_sd_spec = [
+    "Special 1", "Special 2", "Special 3",
+]
+pin game_str_tbl_sd_weap = [
+    "Weapon 1", "Weapon 2", "Weapon 3", "Weapon 4",
+]
+var game_str_sd_count = "Count"
+var game_str_sd_sweap = "Ship Weapons"
+var game_str_sd_damage = "Damage"
+var game_str_sd_rng = "Rng"
+var game_str_sd_notes = "Notes"
+var game_str_sd_hp = "HIT POINTS"
+var game_str_sd_warp = "WARP"
+var game_str_sd_def = "DEF"
+var game_str_sd_cspeed = "COMBAT SPEED"
+var game_str_sd_absorbs = "ABSORBS"
+var game_str_sd_hit = "HIT"
+var game_str_sd_hits = "HITS"
+var game_str_sd_misdef = "MISSILE DEF"
+var game_str_sd_att = "ATTACK LEVEL"
+var game_str_sd_comptype = "COMPUTER TYPE"
+var game_str_sd_cost = "COST"
+var game_str_sd_size = "SIZE"
+var game_str_sd_power = "POWER"
+var game_str_sd_space = "SPACE"
+var game_str_sd_comps = "COMPUTERS"
+var game_str_sd_shieldtype = "SHIELD TYPE"
+var game_str_sd_shields = "SHIELDS"
+var game_str_sd_ecmtype = "ECM TYPE"
+var game_str_sd_ecm2 = "ECM"
+var game_str_sd_armortype = "ARMOR TYPE"
+var game_str_sd_armor2 = "ARMOR"
+var game_str_sd_engtype = "ENGINE TYPE"
+var game_str_sd_numengs = "NUM ENGINES"
+var game_str_sd_engs = "ENGINES"
+var game_str_sd_man1 = "MANEUVER"
+var game_str_sd_man2 = "MANEUVERABILITY"
+var game_str_sd_class = "CLASS"
+var game_str_sd_speed = "SPEED"
+var game_str_sd_max = "MAX"
+var game_str_sd_weapname = "WEAPON NAME"
+var game_str_sd_descr = "DESCRIPTION"
+var game_str_sd_dmg = "DMG"
+var game_str_sd_weaps = "WEAPONS"
+var game_str_sd_specname = "SPECIAL NAME"
+var game_str_sd_specs = "SPECIAL DEVICES"
+pin game_str_sd_wgroup_names = [
+    "WEAPONS", "BEAMS", "KINETIC", "BOMBS",
+    "MISSILES", "BIOLOGICAL", "SPECIAL",
+]
+var game_str_sp_only6 = "Only 6 ships may be commisioned at one time. 1/4 the decomissioned ship's cost is placed in the planetary reserve."
+var game_str_sp_wantscrap = "Do you want to scrap this ship?"
+var game_str_sp_before = "Before a new design can be created, you must first scrap one of the six current designs."
+var game_str_sp_cost = "Cost"
+var game_str_fl_station = "STATION"
+var game_str_fl_inorbit = "IN ORBIT"
+var game_str_fl_moving = "MOVING TO"
+var game_str_fl_unknown = "UNKNOWN"
+var game_str_fl_system = "SYSTEM"
+var game_str_gm_tchar = "TJOASDMBUEIPRN"
+pin game_str_tbl_gm_spec = [
+    "U POOR", "POOR", "", "ARTIFACTS",
+    "RICH", "U RICH", "ORION",
+]
+var game_str_gm_unable = "Unable to land on"
+var game_str_gm_prod = "PROD"
+var game_str_gm_tech = "TECH"
+var game_str_gm_1_3 = "1/3"
+var game_str_gm_1_2 = "1/2"
+var game_str_gm_2x = "2$ "
+var game_str_gm_3x = "3$ "
+var game_str_gm_4x = "4$ "
+var game_str_gm_prodb1 = "PRODUCTION BONUSES"
+var game_str_gm_prodb2 = "APPLY TO INDUSTRY,"
+var game_str_gm_prodb3 = "SHIPS AND DEFENSE"
+var game_str_gm_gmap = "Galaxy Map"
+var game_str_gm_mapkey = "Map Key"
+var game_str_bs_line1 = "How many missile"
+var game_str_bs_line2 = "bases to eliminate?"
+var game_str_bs_bases = "Bases"
+pin game_str_tbl_te_field = [
+    "Computer", "Construction", "Force Field", "Planetology",
+    "Propulsion", "Weapon",
+]
+var game_str_te_adv = "Advanced"
+var game_str_te_tech = "Tech"
+var game_str_te_techno = "Technology"
+var game_str_te_techno2 = "technology"
+var game_str_te_genimp = "General improvements of existing"
+var game_str_te_nmis = "Missiles tipped with nuclear warheads that explode for 4 points of damage and move at a speed of 2."
+var game_str_te_nbomb = "Bombs that explode for 3-12 points of damage on ground targets only."
+var game_str_te_scrange = "SCANNER RANGE"
+var game_str_te_rctrl = "Robot Controls"
+var game_str_te_col = "col"
+var game_str_te_fwaste = "FACTORY WASTE"
+var game_str_te_gcombat = "GROUND COMBAT"
+var game_str_te_tform = "TERRAFORM"
+var game_str_te_wasteel = "WASTE ELIMINATION"
+var game_str_te_shrange = "SHIP RANGE"
+var game_str_te_max = "MAX"
+var game_str_te_rp = "RP"
+var game_str_nt_achieve = "Scientists Achieve A"
+var game_str_nt_break = "Breakthrough"
+var game_str_nt_infil = "Spies Infiltrate The Research Center At"
+var game_str_nt_ruins = "Troopers At The Ruins Of"
+var game_str_nt_discover = "Discover"
+var game_str_nt_orion = "Troopers Landing on Orion Discover"
+var game_str_nt_scouts = "Scouts Exploring The Ruins Of"
+var game_str_nt_choose = "Choose the area of research our scientists now focus on"
+var game_str_nt_reveal = "Scientists Reveal Their"
+var game_str_nt_secrets = "Secrets"
+var game_str_nt_frame = "Your spies managed to frame another race for the theft"
+var game_str_nt_victim = "Choose the victim race:"
+var game_str_nt_doyou = "Do you want to "
+var game_str_nt_inc = "increase the "
+var game_str_nt_redueco = "reduce the ecology ratio of all of your colonies to the minimum amount necessary to keep them clean?"
+var game_str_nt_ind = "industry ratios of all of your colonies to upgrade your factory controls?"
+var game_str_nt_ecoall = "ecology ratios of all of your colonies"
+var game_str_nt_terra = " in order to begin terraforming your planets?"
+var game_str_nt_def = "defense ratio of all of your colonies to build the new planetary shields?"
+var game_str_nt_ecostd = "ecology ratio of your colonies with standard environments"
+var game_str_nt_ecohost = "ecology ratio of your colonies with hostile environments"
+pin game_str_tbl_nt_adj = [
+    "NO", "+25%", "+50%", "+75%",
+]
+var game_str_adj_set = "set the "
+var game_str_adj_ratios = " ratios of all of your colonies?"
+var game_str_adj_max = " ratios of all of your colonies to maximum?"
+pin game_str_adj_slider = [
+    "ship", "defense", "industry", "ecology",
+    "technology",
+]
+var game_str_adj_colonies = " colonies?"
+var game_str_adj_lock = " slider lock for all of your colonies?"
+var game_str_adj_lock2 = " slider lock for "
+pin game_str_adj_special = [
+    "ultra poor", "poor", "normal", "artifacts",
+    "rich", "ultra rich", "4x tech",
+]
+var game_str_ra_nocont = "No Contact"
+var game_str_ra_notpres = "Not Present"
+var game_str_ra_secline1 = "SECURITY INCREASES THE CHANCE OF"
+var game_str_ra_secline2 = "CATCHING ALL ENEMY SPIES. "
+var game_str_ra_alloc = "Allocations"
+var game_str_ra_planres = "Planetary Resources"
+var game_str_ra_diplo = "Diplomat"
+var game_str_ra_gone = "Gone"
+var game_str_ra_nospies = "NO SPIES"
+var game_str_ra_spy = "SPY"
+var game_str_ra_spies = "SPIES"
+pin game_str_tbl_ra_treaty = [
+    "No Treaty", "Non-Aggression Pact", "Alliance", "War",
+    "Final War",
+]
+var game_str_ra_trade = "Trade"
+var game_str_ra_notrade = "No Trade"
+pin game_str_tbl_ra_relat = [
+    "FEUD", "HATE", "DISCORD", "TROUBLED",
+    "TENSE", "RESTLESS", "WARY", "UNEASE",
+    "NEUTRAL", "RELAXED", "AMIABLE", "CALM",
+    "AFFABLE", "PEACEFUL", "FRIENDLY", "UNITY",
+    "HARMONY",
+]
+var game_str_ra_stats = "Racial Stats"
+var game_str_re_reportis = "REPORT IS"
+var game_str_re_current = "CURRENT"
+var game_str_re_yearsold = "years old"
+var game_str_re_alliance = "Alliances"
+var game_str_re_wars = "Wars"
+var game_str_re_environ = "ENVIRON"
+var game_str_sc_caught = "Spies Caught  Yours  Theirs"
+var game_str_bp_scombat = "Space Combat"
+var game_str_bp_attack = "attack"
+var game_str_bp_attacks = "attacks"
+var game_str_bp_won = "won"
+var game_str_bt_auto_move = "AUTO MOVE"
+var game_str_bt_pop = "POPULATION"
+var game_str_bt_ind = "INDUSTRY"
+var game_str_bt_bases = "MISSILE BASES"
+var game_str_bt_subint = "SUBSPACE INTERDICTOR"
+var game_str_bt_launch = "LAUNCHERS"
+var game_str_bt_coldest = "Colony Was Destroyed!"
+var game_str_es_youresp1 = "YOUR SPIES HAVE INFILTRATED A"
+var game_str_es_youresp2 = "BASE"
+var game_str_es_youresp3 = "CHOOSE THE TYPE OF TECHNOLOGY TO STEAL"
+var game_str_es_thesp1 = "Espionage"
+var game_str_es_thesp2 = "spies steal the plans for:"
+var game_str_es_unkn = "Unknown"
+var game_str_sb_choose = "Choose target for sabotage"
+var game_str_sb_lastrep = "Last Report:"
+var game_str_sb_pop = "Population:"
+var game_str_sb_fact = "Factories:"
+var game_str_sb_bases = "Missile Bases:"
+var game_str_sb_unkn = "Unknown spy"
+var game_str_sb_your = "Your"
+var game_str_sb_spies = "spies"
+var game_str_sb_increv = "incited a revolt!"
+var game_str_sb_inc1 = "incited"
+var game_str_sb_inc2 = "rebels. Unrest now at"
+var game_str_sb_destr = "destroyed"
+var game_str_sb_fact2 = "factory"
+var game_str_sb_facts = "factories"
+var game_str_sb_mbase = "missile base"
+var game_str_sb_mbases = "missile bases"
+var game_str_sb_failed = "failed!"
+var game_str_sb_nofact = "No factories to sabotage"
+var game_str_sb_nobases = "No missile bases to sabotage"
+var game_str_sb_noinc = "failed to incite any rebels"
+var game_str_sb_frame = "Your spies managed to frame another race for the sabotage"
+var game_str_ex_planeta = "Planetary"
+var game_str_ex_scanner = "scanners"
+var game_str_ex_scout = "Scout ships"
+var game_str_ex_explore = "explore a new"
+var game_str_ex_starsys = "star system"
+var game_str_ex_build = "Build a"
+var game_str_ex_colony = "new colony?"
+var game_str_ex_popgr = "POPULATION GROWTH"
+var game_str_ex_resopnt = "RESOURCE POINTS"
+var game_str_ex_fromind = "FROM INDUSTRY ARE"
+var game_str_ex_techpnt = "TECHNOLOGY POINTS"
+var game_str_ex_fromres = "FROM RESEARCH"
+var game_str_ex_aredbl = "ARE DOUBLED."
+var game_str_ex_arequad = "ARE QUADRUPLED."
+pin game_str_ex_pg1 = [
+    "Hostile", "Ecologicaly", "Ecological",
+]
+pin game_str_ex_pg2 = [
+    "Environment", "Fertile", "Gaia",
+]
+pin game_str_ex_pg3 = [
+    "IS HALVED.", "IS +50% NORMAL.", "IS DOUBLED.",
+]
+pin game_str_ex_ps1 = [
+    "Ultra Poor", "Mineral Poor", "Artifacts", "Mineral Rich",
+    "Ultra Rich",
+]
+pin game_str_ex_ps2 = [
+    "CUT TO ONE-THIRD.", "HALVED.", "DOUBLED.", "TRIPLED.",
+]
+var game_str_la_colony = "Colony Name..."
+var game_str_la_inyear = "In the year"
+var game_str_la_the = "the"
+var game_str_la_formnew = "s form a new colony"
+var game_str_gr_carmor = "Combat Armor"
+var game_str_gr_outof = "out of"
+var game_str_gr_transs = "transports"
+var game_str_gr_reclaim = "transports land to reclaim the colony"
+var game_str_gr_penetr = "penetrate"
+var game_str_gr_defenss = "defenses"
+var game_str_gr_troops = "Troops"
+var game_str_gr_rebel = "Rebel"
+var game_str_gr_gcon = "Ground Combat On"
+var game_str_gr_scapt = "s Capture"
+var game_str_gr_itroops = "Imperial Troops Recapture"
+var game_str_gr_succd = "s Successfully Defend"
+var game_str_gr_fcapt = "factories captured"
+var game_str_gr_tsteal = "technology stolen"
+var game_str_gr_tnew = "new tech found"
+var game_str_el_no = "no"
+var game_str_el_vote = "vote"
+var game_str_el_votes = "votes"
+var game_str_el_total = "total"
+var game_str_el_start = "The High Council has convened to elect one leader to be Emperor of the Galaxy..."
+var game_str_el_emperor = "Emperor"
+var game_str_el_ofthe = "of the"
+var game_str_el_and = "and"
+var game_str_el_for = "for"
+var game_str_el_nomin = "have been nominated."
+var game_str_el_abs1 = "The"
+var game_str_el_abs2 = "abstain ("
+var game_str_el_dots = ")..."
+var game_str_el_your = "Your choice ("
+var game_str_el_bull = "["
+var game_str_el_self = "Yourself"
+var game_str_el_abs = "Abstain"
+var game_str_el_chose1 = "In the year"
+var game_str_el_chose2 = ", the Council has chosen"
+var game_str_el_chose3 = "to be the High Master of the New Republic."
+var game_str_el_neither = "Neither leader has a two thirds majority..."
+var game_str_el_accept = "Do you accept the ruling?"
+var game_str_el_yes = "Yes"
+var game_str_el_no2 = "No"
+var game_str_el_sobeit = "So be it. You defy the ruling of the council. Now you will feel the wrath of the New Republic!"
+var game_str_el_isnow = "is now High Master."
+var game_str_au_facts = "factories"
+var game_str_au_bases = "missile bases"
+var game_str_au_treaty = "treaty"
+var game_str_au_allian = "Alliance"
+var game_str_au_nonagg = "Non-Aggression Pact"
+var game_str_au_tradea = "Trade Agreement"
+var game_str_au_amreca = "(ambassador recalled)"
+var game_str_au_tech = "tech"
+var game_str_au_framed = "(you were framed)"
+var game_str_au_bull = "["
+var game_str_au_inxchng = "In exchange you will receive:"
+var game_str_au_whatif1 = "What if we were to also offer"
+var game_str_au_whatif2 = "as an incentive"
+var game_str_au_perrec1 = "Perhaps you would reconsider if we also provided"
+var game_str_au_ques = "?"
+var game_str_au_howmay = "How may our empire serve you:"
+var game_str_au_youprte = "You propose a treaty:"
+var game_str_au_youprta = "You propose a trade agreement for:"
+var game_str_au_youract = "Your actions:"
+var game_str_au_whatech = "What type of technology interests you?"
+var game_str_au_whatrad = "What will you trade for it?"
+var game_str_au_whatoff = "What do you offer as tribute?"
+var game_str_au_perthr1 = "Perhaps if you were to throw in"
+var game_str_au_perthr2 = "we could deal."
+var game_str_au_alsoof1 = "If you also offer us"
+var game_str_au_alsoof2 = "we would accept."
+var game_str_au_whowar = "Who should we declare war on?"
+var game_str_au_whobrk = "Who should we break our treaty with?"
+var game_str_au_bcpery = "BC / year"
+var game_str_au_whattr = "What do you offer as tribute?"
+var game_str_au_techn = "[ Technology"
+var game_str_au_nextp = "[ Next page"
+var game_str_au_back = "[ Back"
+pin game_str_au_opts_main = [
+    "[ Propose Treaty", "[ Form Trade Agreement", "[ Threaten/Break Treaty and Trade", "[ Offer Tribute",
+    "[ Exchange Technology", "[ Good Bye",
+]
+pin game_str_au_opts_treaty = [
+    "[ Non-Aggression Pact", "[ Alliance", "[ Peace Treaty", "[ Declaration of War on Another Race",
+    "[ Break Alliance With Another Race", "[ Forget It",
+]
+pin game_str_au_opts_agree = [
+    "[ Agree", "[ Forget It",
+]
+pin game_str_au_opts_accept = [
+    "[ Accept", "[ Reject",
+]
+pin game_str_au_opts_threaten = [
+    "[ Break Non-Aggression Pact", "[ Break Alliance", "[ Break Trade Agreement", "[ Threaten To Attack",
+    "[ Forget It",
+]
+pin game_str_au_optsmp1 = [
+    "[ Agree", "[ Forget It", "[ Demand BC", "[ Demand Technology",
+]
+var game_str_tr_cont1 = "Contact has been broken with the"
+var game_str_tr_cont2 = "empire!"
+var game_str_tr_fuel1 = "The fleet orbiting"
+var game_str_tr_fuel2 = "has been cut off from refueling supply lines and has been lost."
+var game_str_sv_envir = "environment"
+var game_str_sv_stargt = "Star Gate"
+var game_str_sv_shild1 = "CLASS"
+var game_str_sv_shild2 = "SHIELD"
+var game_str_sv_psize = "PLANET SIZE:"
+var game_str_sv_fact = "FACTORIES:"
+var game_str_sv_waste = "WASTE:"
+var game_str_sv_pop = "POPULATION:"
+var game_str_sv_growth = "GROWTH:"
+var game_str_sv_techp = "Technology points from research are"
+var game_str_sv_resp = "Resource points from industry are"
+var game_str_sv_1_3x = "cut to one-third."
+var game_str_sv_1_2x = "halved."
+var game_str_sv_2x = "doubled."
+var game_str_sv_3x = "tripled."
+var game_str_sv_4x = "quadrupled."
+var game_str_sv_popgr = "Population growth is"
+pin game_str_sv_pg1 = [
+    "Hostile", "Fertile", "Gaia",
+]
+pin game_str_sv_pg2 = [
+    "halved.", "50% greater.", "doubled.",
+]
+var game_str_in_loading = "Loading Master of Orion..."
+var game_str_wl_won_1 = "Escorted by Honor Guard, High Master "
+var game_str_wl_won_2 = "returns to Orion, throne world of the Ancients."
+var game_str_wl_won_3 = "The Galactic Imperium has been reformed..."
+var game_str_wl_3_good_1 = "A new era has dawned. We must set aside our past"
+var game_str_wl_3_good_2 = "conflicts and greet a new millenium as a united galaxy"
+var game_str_wl_3_tyrant_1 = "The universe is mine and all shall bow before the"
+var game_str_wl_3_tyrant_2 = "might of "
+var game_str_wl_3_tyrant_3 = ", Master of Orion."
+var game_str_wl_3_tyrant_4 = "Master of the Universe..."
+var game_str_wl_exile_1 = "Exiled from the known galaxy, Emperor "
+var game_str_wl_exile_2 = "sets forth to conquer new worlds."
+var game_str_wl_exile_3 = "vowing to return and claim the renowned title of"
+var game_str_wl_exile_4 = " Master of Orion..."
+var game_str_gnn_end_good = "And that's the way it is..."
+var game_str_gnn_end_tyrant = "Oh well, another millenium serving under a ruthless tyrant..."
+var game_str_gnn_also = "Also in the news..."
