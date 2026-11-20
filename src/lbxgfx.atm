@@ -1,0 +1,17 @@
+;; Port of c/src/lbxgfx.h: the macros that lbx.c uses so far. The rest of
+;; lbxgfx.c comes with the interface of 1993.
+;; A pointer of C is a buffer and a position.
+
+include "bits.atm"
+
+func lbxgfx_set_frame (data, offs, v) {
+    SET_LE_16(data, offs + 0x04, v)
+}
+
+func lbxgfx_set_frame_0 (data, offs) {
+    lbxgfx_set_frame(data, offs, 0)
+}
+
+func lbxgfx_set_epage (data, offs, v) {
+    set data@(offs + 0x0b) = v
+}
