@@ -1,5 +1,4 @@
-;; Port of c/src/game/game_shipdesign.h: the constants and the structure.
-;; The tables that it declares are ported with game_shipdesign.c.
+;; Port of c/src/game/game_shipdesign.c and game_shipdesign.h.
 
 include "../ctypes.atm"
 include "game_shiptech.atm"
@@ -31,3 +30,127 @@ func shipdesign_t () {
         hp      = 0,                        ;; uint16_t (hit points)
     ]
 }
+
+;; ---------------------------------------------------------------------------
+
+var startship_num = 5   ;; int16_t
+
+;; The name of each design is "" (all zeros).
+pin tbl_startship = [
+    do { ;; SCOUT
+        val sd = shipdesign_t()
+        set sd.cost = 10
+        set sd.space = 0
+        set sd.hull = SHIP_HULL_SMALL
+        set sd.look = 0
+        set sd.wpnt = [0, 0, 0, 0]
+        set sd.wpnn = [0, 0, 0, 0]
+        set sd.engine = 0
+        set sd.engines = 10
+        set sd.special = [SHIP_SPECIAL_RESERVE_FUEL_TANKS, 0, 0]
+        set sd.shield = 0
+        set sd.jammer = 0
+        set sd.comp = 0
+        set sd.armor = 0
+        set sd.man = 0
+        set sd.hp = 3
+        sd
+    },
+    do { ;; FIGHTER
+        val sd = shipdesign_t()
+        set sd.cost = 15
+        set sd.space = 0
+        set sd.hull = SHIP_HULL_SMALL
+        set sd.look = 1
+        set sd.wpnt = [WEAPON_LASER, 0, 0, 0]
+        set sd.wpnn = [1, 0, 0, 0]
+        set sd.engine = 0
+        set sd.engines = 30
+        set sd.special = [0, 0, 0]
+        set sd.shield = 0
+        set sd.jammer = 0
+        set sd.comp = 0
+        set sd.armor = 0
+        set sd.man = 0
+        set sd.hp = 3
+        sd
+    },
+    do { ;; DESTROYER
+        val sd = shipdesign_t()
+        set sd.cost = 66
+        set sd.space = 0
+        set sd.hull = SHIP_HULL_MEDIUM
+        set sd.look = 6
+        set sd.wpnt = [WEAPON_NUCLEAR_MISSILE_2, WEAPON_LASER, 0, 0]
+        set sd.wpnn = [1, 3, 0, 0]
+        set sd.engine = 0
+        set sd.engines = 115
+        set sd.special = [0, 0, 0]
+        set sd.shield = 0
+        set sd.jammer = 0
+        set sd.comp = 0
+        set sd.armor = 0
+        set sd.man = 0
+        set sd.hp = 18
+        sd
+    },
+    do { ;; BOMBER
+        val sd = shipdesign_t()
+        set sd.cost = 86
+        set sd.space = 0
+        set sd.hull = SHIP_HULL_MEDIUM
+        set sd.look = 7
+        set sd.wpnt = [WEAPON_NUCLEAR_BOMB, WEAPON_LASER, 0, 0]
+        set sd.wpnn = [2, 2, 0, 0]
+        set sd.engine = 0
+        set sd.engines = 90
+        set sd.special = [0, 0, 0]
+        set sd.shield = 0
+        set sd.jammer = 0
+        set sd.comp = 0
+        set sd.armor = 0
+        set sd.man = 0
+        set sd.hp = 18
+        sd
+    },
+    do { ;; COLONY SHIP
+        val sd = shipdesign_t()
+        set sd.cost = 591
+        set sd.space = 0
+        set sd.hull = SHIP_HULL_LARGE
+        set sd.look = 12
+        set sd.wpnt = [0, 0, 0, 0]
+        set sd.wpnn = [0, 0, 0, 0]
+        set sd.engine = 0
+        set sd.engines = 205
+        set sd.special = [SHIP_SPECIAL_STANDARD_COLONY_BASE, 0, 0]
+        set sd.shield = 0
+        set sd.jammer = 0
+        set sd.comp = 0
+        set sd.armor = 0
+        set sd.man = 0
+        set sd.hp = 100
+        sd
+    },
+    do { ;; (unused)
+        val sd = shipdesign_t()
+        set sd.cost = 10
+        set sd.space = 0
+        set sd.hull = SHIP_HULL_SMALL
+        set sd.look = 0
+        set sd.wpnt = [0, 0, 0, 0]
+        set sd.wpnn = [0, 0, 0, 0]
+        set sd.engine = 0
+        set sd.engines = 10
+        set sd.special = [0, 0, 0]
+        set sd.shield = 0
+        set sd.jammer = 0
+        set sd.comp = 0
+        set sd.armor = 0
+        set sd.man = 0
+        set sd.hp = 3
+        sd
+    },
+]
+
+pin startfleet_ships = [ 2, 0, 0, 0, 1, 0 ]   ;; shipcount_t[]
