@@ -138,9 +138,10 @@ Other sessions:
 - Findings about `pin` go to `atmos-pin`
   (session_011eECogSDhkVfyt7qme5DLh), with a small program; everything
   else of the compiler to `atmos-lang` (session_011eECogKVQ7ZzmWCoMST2wK).
-- `t@0.x` is lexed as the invalid number `0.x` (write `t@(0).x`). Now in
-  the manual's table of ambiguities; the change of the lexer is item 65
-  of the compiler, waiting for the author.
+- `t@0.x` was lexed as the invalid number `0.x`. Since `ia-atmos/lang`
+  `61979ce` (2026-11-20) a dot belongs to a number only before a digit,
+  so `t@0.x` is the field `x` of `t@0`. The port still writes `t@(0).x`,
+  which stays valid.
 - The rules of `pin` changed three times (2026-11-15, twice on
   2026-11-17), then were declared stable (`1746969`). The port was
   migrated once: five `pin` given away by their block became `val`.
