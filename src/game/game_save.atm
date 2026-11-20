@@ -11,6 +11,7 @@
 include "../cfile.atm"
 include "../ctypes.atm"
 include "../log.atm"
+include "../os/unix/os.atm"
 include "game.atm"
 include "game_endecode.atm"
 include "game_nebula.atm"
@@ -894,6 +895,9 @@ func game_save_do_save_do (filename, savename, g, savei, version) {
     if len <= 0 {
         return -1
     }
+    if os_make_path_for(filename) != 0 {
+        log_error("Save: failed to create path for '%s'\n", filename)
+    }
     pin hdr = []
     game_save_make_header(hdr, savename, version)
     if (savei >= 0) && (savei < (NUM_SAVES + 1)) {
@@ -979,3 +983,61 @@ func game_save_do_load_do (filename, g, savei, savename) {
     }
     res
 }
+
+;; The file of a slot, or `nil` (C writes it in a buffer, and returns -1
+;; when the buffer is too small, which a string cannot be).
+func game_save_get_slot_fname (i) {
+    val path = os_get_path_user()
+    val namebuf = os_get_fname_save_slot(i + 1) || string.format("1oom_save%i.bin", i + 1)
+    util_concat(path, FSDEV_DIR_SEP_STR, namebuf)
+}
+
+func game_save_get_year_fname (year) {
+    val path = os_get_path_user()
+    val namebuf = os_get_fname_save_year(year) || string.format("1oom_save_%i.bin", year)
+    util_concat(path, FSDEV_DIR_SEP_STR, namebuf)
+}
+
+func game_save_check_saves () {
+    loop i in NUM_ALL_SAVES {
+        game_save_open_check_header(game_save_get_slot_fname(i), i, true, nil)
+    }
+    0
+}
+
+func game_save_do_load_fname (filename, savename, g) {
+    game_save_do_load_do(filename, g, -1, savename)
+}
+
+func game_save_do_save_fname (filename, savename, g, version) {
+    if version > GAME_SAVE_VERSION {
+        log_error("Save: BUG: invalid version %i > %i\n", version, GAME_SAVE_VERSION)
+        return -1
+    }
+    game_save_do_save_do(filename, savename, g, -1, version)
+}
+
+func game_save_do_load_i (savei, g) {
+    game_save_do_load_do(game_save_get_slot_fname(savei), g, savei, nil)
+}
+
+func game_save_do_save_i (savei, savename, g) {
+    if os_make_path_user() != 0 {
+        log_error("Save: failed to create user path '%s'\n", os_get_path_user())
+    }
+    game_save_do_save_do(game_save_get_slot_fname(savei), savename, g, savei, GAME_SAVE_VERSION)
+}
+
+func game_save_do_load_year (year, savename, g) {
+    game_save_do_load_do(game_save_get_year_fname(year), g, -1, savename)
+}
+
+func game_save_do_save_year (savename, g) {
+    if os_make_path_user() != 0 {
+        log_error("Save: failed to create user path '%s'\n", os_get_path_user())
+    }
+    val filename = game_save_get_year_fname(g.year + YEAR_BASE)
+    val name = savename || string.format("Year %i", g.year + YEAR_BASE)
+    game_save_do_save_do(filename, name, g, -1, GAME_SAVE_VERSION)
+}
+
