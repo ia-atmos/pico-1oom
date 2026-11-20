@@ -1,0 +1,24 @@
+;; lbx.c of the port against the C: `atmos tst/lbx.atm DATADIR` must print
+;; the same lines as tst/c/lbx.c (see tst/lbx.sh).
+
+include "../src/lbx.atm"
+
+os_set_path_data(...)
+lbxfile_init()
+pin out = []
+loop f in LBXFILE_NUM {
+    val n = lbxfile_num_items(f)
+    set out@+ = string.format("%s type %i items %i\n", lbxfile_name(f), lbxfile_type(f), n)
+    loop i in n {
+        val p, offs, len = lbxfile_item_get_with_len(f, i)
+        var sum = 0
+        loop j in len {
+            set sum = ((sum * 31) + p@(offs + j)) & 0xffffff
+        }
+        set out@+ = string.format("  %i '%s' offs %i len %i/%d sum %d\n", i, lbxfile_item_name(f, i), lbxfile_item_offs(f, i), lbxfile_item_len(f, i), len, sum)
+        lbxfile_item_release(f, p, offs)
+    }
+    lbxfile_item_release_file(f)
+}
+lbxfile_shutdown()
+io.write(vector.join(out, ""))
