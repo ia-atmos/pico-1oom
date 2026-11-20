@@ -1,0 +1,31 @@
+;; util_math against the C: `atmos tst/util_math.atm` must print the same
+;; lines as tst/c/util_math.c (see tst/util_math.sh).
+
+include "../src/util_math.atm"
+
+var seed = 12345
+func rnd (n) {
+    set seed = ((seed * 1103515245) + 12345) & 0xffffffff
+    (seed >> 16) % n
+}
+
+pin out = []
+loop k in 3000 {
+    val x0 = rnd(600) - 50
+    val y0 = rnd(400) - 50
+    val x1 = rnd(600) - 50
+    val y1 = rnd(400) - 50
+    pin tx = []
+    pin ty = []
+    set out@+ = string.format("angle %i %i = %i\n", x1 - x0, y1 - y0, util_math_calc_angle(x1 - x0, y1 - y0))
+    set out@+ = string.format("cos %i = %i, sin = %i\n", k % 361, util_math_angle_dist_cos(k % 361, k % 50), util_math_angle_dist_sin(k % 361, k % 50))
+    set out@+ = string.format("steps %i %i %i %i = %i\n", x0, y0, x1, y1, util_math_dist_steps(x0, y0, x1, y1))
+    set out@+ = string.format("fast = %i, maxabs = %i\n", util_math_dist_fast(x0, y0, x1, y1), util_math_dist_maxabs(x0, y0, x1, y1))
+    val len = util_math_line_plot(x0, y0, x1, y1, tx, ty)
+    set out@+ = string.format("plot = %i", len)
+    if len > 0 {
+        set out@+ = string.format(" (%i,%i) (%i,%i) route = %i", tx@0, ty@0, tx@(len - 1), ty@(len - 1), util_math_get_route_len(x0, y0, tx, ty, len))
+    }
+    set out@+ = "\n"
+}
+io.write(vector.join(out, ""))
