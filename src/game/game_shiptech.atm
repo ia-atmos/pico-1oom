@@ -1,6 +1,12 @@
-;; Port of c/src/game/game_shiptech.h: the enums and the constants.
-;; The tables that it declares are ported with game_shiptech.c.
+;; Port of c/src/game/game_shiptech.c and game_shiptech.h.
+;; The enums by tools/hdr2atm.py; the tables by tools/game_shiptech.py.
+;; A `char const * const *` (a pointer to a string of game_str, which a PBX
+;; file may replace) is a function that gives the string: `*p->nameptr` is
+;; `p.nameptr()`.
 
+include "../ctypes.atm"
+include "game_str.atm"
+include "game_techtypes.atm"
 include "game_types.atm"
 
 ;; weapon_t
@@ -195,4 +201,2577 @@ val SHIP_SPECIAL_BOOL_SUBSPACE = 6
 val SHIP_SPECIAL_BOOL_TECHNULL = 7
 val SHIP_SPECIAL_BOOL_ORACLE = 8
 val SHIP_SPECIAL_BOOL_DISP = 9
+
+
+var strspace = " "
+var strempty = ""
+
+pin tbl_shiptech_weap = [
+    [
+        nameptr = \{ game_str_st_none },    ;; char const * const * const
+        extratextptr = \{ strspace },    ;; char const * const * const
+        damagemin = 0,    ;; uint16_t
+        damagemax = 0,    ;; uint16_t
+        range = 0,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 0,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 0,    ;; uint16_t
+        space = 0,    ;; uint16_t
+        power = 0,    ;; uint16_t
+        is_bio = 0,    ;; bool
+        tech_i = 0,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0, 0, 0, 0, 0, 0, 0],    ;; uint8_t [7]
+        sound = 0,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(0) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(0) },    ;; char const * const * const
+        damagemin = 3,    ;; uint16_t
+        damagemax = 12,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 10,    ;; int8_t
+        cost = 30,    ;; uint16_t
+        space = 40,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_LASERS,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x25,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(1) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(1) },    ;; char const * const * const
+        damagemin = 1,    ;; uint16_t
+        damagemax = 4,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 30,    ;; uint16_t
+        space = 10,    ;; uint16_t
+        power = 25,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_LASERS,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46],    ;; uint8_t [7]
+        sound = 0x7,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(2) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(2) },    ;; char const * const * const
+        damagemin = 4,    ;; uint16_t
+        damagemax = 4,    ;; uint16_t
+        range = 6,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 70,    ;; uint16_t
+        space = 50,    ;; uint16_t
+        power = 20,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_LASERS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x60, 0x0, 0x0, 0x6, 0x50, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(3) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(3) },    ;; char const * const * const
+        damagemin = 4,    ;; uint16_t
+        damagemax = 4,    ;; uint16_t
+        range = 4,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 105,    ;; uint16_t
+        space = 75,    ;; uint16_t
+        power = 30,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_LASERS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x40, 0x0, 0x0, 0x6, 0x50, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(4) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(4) },    ;; char const * const * const
+        damagemin = 1,    ;; uint16_t
+        damagemax = 7,    ;; uint16_t
+        range = 2,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 30,    ;; uint16_t
+        power = 75,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_LASERS,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x40, 0x41, 0x42, 0x43, 0x44, 0x45, 0x46],    ;; uint8_t [7]
+        sound = 0xa,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(5) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(5) },    ;; char const * const * const
+        damagemin = 6,    ;; uint16_t
+        damagemax = 6,    ;; uint16_t
+        range = 7,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 70,    ;; uint16_t
+        power = 20,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HYPER_V_ROCKETS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x70, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(6) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(6) },    ;; char const * const * const
+        damagemin = 6,    ;; uint16_t
+        damagemax = 6,    ;; uint16_t
+        range = 5,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 135,    ;; uint16_t
+        space = 105,    ;; uint16_t
+        power = 30,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HYPER_V_ROCKETS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x50, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(7) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(7) },    ;; char const * const * const
+        damagemin = 1,    ;; uint16_t
+        damagemax = 4,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 4,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 20,    ;; uint16_t
+        power = 70,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_GATLING_LASER,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x43, 0x41, 0x3f, 0x25, 0x3f, 0x41, 0x43],    ;; uint8_t [7]
+        sound = 0x1,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(8) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(8) },    ;; char const * const * const
+        damagemin = 2,    ;; uint16_t
+        damagemax = 5,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = true,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 30,    ;; uint16_t
+        space = 15,    ;; uint16_t
+        power = 25,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_NEUTRON_PELLET_GUN,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0xae, 0x0, 0x0, 0x0, 0xae, 0x0],    ;; uint8_t [7]
+        sound = 0x1,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(9) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(9) },    ;; char const * const * const
+        damagemin = 8,    ;; uint16_t
+        damagemax = 8,    ;; uint16_t
+        range = 7,    ;; uint8_t
+        extraacc = 1,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 120,    ;; uint16_t
+        space = 100,    ;; uint16_t
+        power = 20,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HYPER_X_ROCKETS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x60, 0x0, 0x0, 0x6, 0x50, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(10) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(10) },    ;; char const * const * const
+        damagemin = 8,    ;; uint16_t
+        damagemax = 8,    ;; uint16_t
+        range = 5,    ;; uint8_t
+        extraacc = 1,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 180,    ;; uint16_t
+        space = 150,    ;; uint16_t
+        power = 30,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HYPER_X_ROCKETS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x50, 0x0, 0x0, 0x6, 0x50, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(11) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(11) },    ;; char const * const * const
+        damagemin = 5,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 10,    ;; int8_t
+        cost = 30,    ;; uint16_t
+        space = 50,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_FUSION_BOMB,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x25,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(12) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(12) },    ;; char const * const * const
+        damagemin = 3,    ;; uint16_t
+        damagemax = 8,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 40,    ;; uint16_t
+        space = 15,    ;; uint16_t
+        power = 35,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_ION_CANNON,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0xe4, 0xe5, 0xe6, 0xe7, 0xe6, 0xe5, 0xe4],    ;; uint8_t [7]
+        sound = 0x10,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(13) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(13) },    ;; char const * const * const
+        damagemin = 3,    ;; uint16_t
+        damagemax = 15,    ;; uint16_t
+        range = 2,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 110,    ;; uint16_t
+        space = 45,    ;; uint16_t
+        power = 105,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_ION_CANNON,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0xe4, 0xe5, 0xe6, 0xe7, 0xe6, 0xe5, 0xe4],    ;; uint8_t [7]
+        sound = 0xf,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(14) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(14) },    ;; char const * const * const
+        damagemin = 6,    ;; uint16_t
+        damagemax = 6,    ;; uint16_t
+        range = 7,    ;; uint8_t
+        extraacc = 1,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 180,    ;; uint16_t
+        space = 115,    ;; uint16_t
+        power = 50,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_SCATTER_PACK_V_ROCKETS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x60, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x3,    ;; uint8_t
+        nummiss = 5,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(15) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(15) },    ;; char const * const * const
+        damagemin = 6,    ;; uint16_t
+        damagemax = 6,    ;; uint16_t
+        range = 5,    ;; uint8_t
+        extraacc = 1,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 270,    ;; uint16_t
+        space = 170,    ;; uint16_t
+        power = 80,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_SCATTER_PACK_V_ROCKETS,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x50, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x3,    ;; uint8_t
+        nummiss = 5,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(16) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(16) },    ;; char const * const * const
+        damagemin = 1,    ;; uint16_t
+        damagemax = 1,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 100,    ;; uint16_t
+        space = 100,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = true,    ;; bool
+        tech_i = TECH_PLAN_DEATH_SPORES,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x25,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(17) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(17) },    ;; char const * const * const
+        damagemin = 5,    ;; uint16_t
+        damagemax = 8,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = true,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 55,    ;; uint16_t
+        power = 50,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_MASS_DRIVER,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0xc, 0x0, 0x0, 0x0, 0xc, 0x0],    ;; uint8_t [7]
+        sound = 0x17,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(18) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(18) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 10,    ;; uint16_t
+        range = 8,    ;; uint8_t
+        extraacc = 2,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 130,    ;; uint16_t
+        space = 105,    ;; uint16_t
+        power = 20,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_MERCULITE_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x80, 0x0, 0x0, 0x4, 0x78, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(19) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(19) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 10,    ;; uint16_t
+        range = 6,    ;; uint8_t
+        extraacc = 2,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 195,    ;; uint16_t
+        space = 155,    ;; uint16_t
+        power = 30,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_MERCULITE_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x60, 0x0, 0x0, 0x4, 0x78, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(20) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(20) },    ;; char const * const * const
+        damagemin = 3,    ;; uint16_t
+        damagemax = 12,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 60,    ;; uint16_t
+        space = 20,    ;; uint16_t
+        power = 60,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_NEUTRON_BLASTER,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0xcf, 0xce, 0xcd, 0xcc, 0xcb, 0xca, 0xc9],    ;; uint8_t [7]
+        sound = 0xa,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(21) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(21) },    ;; char const * const * const
+        damagemin = 3,    ;; uint16_t
+        damagemax = 24,    ;; uint16_t
+        range = 2,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 180,    ;; uint16_t
+        space = 60,    ;; uint16_t
+        power = 180,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_NEUTRON_BLASTER,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0xcf, 0xce, 0xcd, 0xcc, 0xcb, 0xca, 0xc9],    ;; uint8_t [7]
+        sound = 0x12,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(22) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(22) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 40,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 10,    ;; int8_t
+        cost = 50,    ;; uint16_t
+        space = 75,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_ANTI_MATTER_BOMB,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x25,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(23) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(23) },    ;; char const * const * const
+        damagemin = 1,    ;; uint16_t
+        damagemax = 15,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 60,    ;; uint16_t
+        space = 20,    ;; uint16_t
+        power = 50,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_GRAVITON_BEAM,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xd1, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7],    ;; uint8_t [7]
+        sound = 0x0,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(24) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(24) },    ;; char const * const * const
+        damagemin = 15,    ;; uint16_t
+        damagemax = 15,    ;; uint16_t
+        range = 9,    ;; uint8_t
+        extraacc = 3,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 190,    ;; uint16_t
+        space = 155,    ;; uint16_t
+        power = 30,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_STINGER_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x90, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(25) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(25) },    ;; char const * const * const
+        damagemin = 15,    ;; uint16_t
+        damagemax = 15,    ;; uint16_t
+        range = 7,    ;; uint8_t
+        extraacc = 3,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 270,    ;; uint16_t
+        space = 230,    ;; uint16_t
+        power = 45,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_STINGER_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x70, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(26) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(26) },    ;; char const * const * const
+        damagemin = 8,    ;; uint16_t
+        damagemax = 12,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = true,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 120,    ;; uint16_t
+        space = 50,    ;; uint16_t
+        power = 100,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HARD_BEAM,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0xa1, 0x96, 0xa1, 0x96, 0xa1, 0x96, 0xa1],    ;; uint8_t [7]
+        sound = 0x1,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(27) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(27) },    ;; char const * const * const
+        damagemin = 4,    ;; uint16_t
+        damagemax = 16,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 70,    ;; uint16_t
+        space = 20,    ;; uint16_t
+        power = 75,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_FUSION_BEAM,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0xb7, 0xb6, 0xb5, 0xb4, 0xb3, 0xb2, 0xb1],    ;; uint8_t [7]
+        sound = 0xb,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(28) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(28) },    ;; char const * const * const
+        damagemin = 4,    ;; uint16_t
+        damagemax = 30,    ;; uint16_t
+        range = 2,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 210,    ;; uint16_t
+        space = 60,    ;; uint16_t
+        power = 225,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_FUSION_BEAM,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0xb7, 0xb6, 0xb5, 0xb4, 0xb3, 0xb2, 0xb1],    ;; uint8_t [7]
+        sound = 0x19,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(29) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(29) },    ;; char const * const * const
+        damagemin = 20,    ;; uint16_t
+        damagemax = 50,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 10,    ;; int8_t
+        cost = 80,    ;; uint16_t
+        space = 140,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_OMEGA_V_BOMB,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x25,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(30) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(30) },    ;; char const * const * const
+        damagemin = 30,    ;; uint16_t
+        damagemax = 30,    ;; uint16_t
+        range = 8,    ;; uint8_t
+        extraacc = 4,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 1,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 300,    ;; uint16_t
+        space = 75,    ;; uint16_t
+        power = 300,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_ANTI_MATTER_TORPEDOES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x80, 0x0, 0x0, 0x3, 0xa0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x11,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(31) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(31) },    ;; char const * const * const
+        damagemin = 2,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 3,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 80,    ;; uint16_t
+        space = 30,    ;; uint16_t
+        power = 65,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_MEGABOLT_CANNON,    ;; uint8_t
+        v24 = 3,    ;; uint8_t
+        dtbl = [0xaf, 0xd7, 0xae, 0xd7, 0xaf, 0xd7, 0xae],    ;; uint8_t [7]
+        sound = 0x12,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(32) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(32) },    ;; char const * const * const
+        damagemin = 5,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 20,    ;; uint16_t
+        power = 90,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PHASOR,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0xdb, 0xdc, 0xdd, 0xde, 0xdd, 0xdc, 0xdb],    ;; uint8_t [7]
+        sound = 0x1c,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(33) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(33) },    ;; char const * const * const
+        damagemin = 5,    ;; uint16_t
+        damagemax = 40,    ;; uint16_t
+        range = 2,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 260,    ;; uint16_t
+        space = 60,    ;; uint16_t
+        power = 270,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PHASOR,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0xdb, 0xdc, 0xdd, 0xde, 0xdd, 0xdc, 0xdb],    ;; uint8_t [7]
+        sound = 0x1a,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(34) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(34) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 10,    ;; uint16_t
+        range = 8,    ;; uint8_t
+        extraacc = 2,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 280,    ;; uint16_t
+        space = 170,    ;; uint16_t
+        power = 50,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_SCATTER_PACK_VII_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x80, 0x0, 0x0, 0x4, 0x78, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x3,    ;; uint8_t
+        nummiss = 7,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(35) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(35) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 10,    ;; uint16_t
+        range = 6,    ;; uint8_t
+        extraacc = 2,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 420,    ;; uint16_t
+        space = 230,    ;; uint16_t
+        power = 80,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_SCATTER_PACK_VII_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x60, 0x0, 0x0, 0x4, 0x78, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x3,    ;; uint8_t
+        nummiss = 7,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(36) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(36) },    ;; char const * const * const
+        damagemin = 2,    ;; uint16_t
+        damagemax = 2,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 150,    ;; uint16_t
+        space = 200,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = true,    ;; bool
+        tech_i = TECH_PLAN_DOOM_VIRUS,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x25,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(37) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(37) },    ;; char const * const * const
+        damagemin = 4,    ;; uint16_t
+        damagemax = 16,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 3,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 140,    ;; uint16_t
+        space = 30,    ;; uint16_t
+        power = 90,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_AUTO_BLASTER,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0xbe, 0xbd, 0xbc, 0xbb, 0xba, 0xb9, 0xb8],    ;; uint8_t [7]
+        sound = 0x1,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(38) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(38) },    ;; char const * const * const
+        damagemin = 20,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 4,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 200,    ;; uint16_t
+        space = 160,    ;; uint16_t
+        power = 40,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PULSON_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xa0, 0x0, 0x0, 0x4, 0xa0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(39) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(39) },    ;; char const * const * const
+        damagemin = 20,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 8,    ;; uint8_t
+        extraacc = 4,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 300,    ;; uint16_t
+        space = 240,    ;; uint16_t
+        power = 60,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PULSON_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x80, 0x0, 0x0, 0x4, 0xa0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(40) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(40) },    ;; char const * const * const
+        damagemin = 1,    ;; uint16_t
+        damagemax = 25,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 30,    ;; uint16_t
+        power = 70,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_TACHYON_BEAM,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x8e, 0x8c, 0x8b, 0x8a, 0x89, 0x88, 0x87],    ;; uint8_t [7]
+        sound = 0x1f,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(41) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(41) },    ;; char const * const * const
+        damagemin = 7,    ;; uint16_t
+        damagemax = 10,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = true,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 4,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 280,    ;; uint16_t
+        space = 105,    ;; uint16_t
+        power = 105,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_GAUSS_AUTOCANNON,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0xf, 0x0, 0x12, 0x0, 0x15, 0x0],    ;; uint8_t [7]
+        sound = 0x1,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(42) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(42) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = true,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 150,    ;; uint16_t
+        space = 90,    ;; uint16_t
+        power = 75,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PARTICLE_BEAM,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0xf, 0x0, 0x12, 0x0, 0x15, 0x0],    ;; uint8_t [7]
+        sound = 0x21,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(43) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(43) },    ;; char const * const * const
+        damagemin = 25,    ;; uint16_t
+        damagemax = 25,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 5,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 260,    ;; uint16_t
+        space = 220,    ;; uint16_t
+        power = 40,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HERCULAR_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xb0, 0x0, 0x0, 0x6, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(44) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(44) },    ;; char const * const * const
+        damagemin = 25,    ;; uint16_t
+        damagemax = 25,    ;; uint16_t
+        range = 9,    ;; uint8_t
+        extraacc = 5,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 390,    ;; uint16_t
+        space = 330,    ;; uint16_t
+        power = 60,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HERCULAR_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x90, 0x0, 0x0, 0x6, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(45) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(45) },    ;; char const * const * const
+        damagemin = 6,    ;; uint16_t
+        damagemax = 30,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 120,    ;; uint16_t
+        space = 30,    ;; uint16_t
+        power = 100,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PLASMA_CANNON,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x46, 0x45, 0x44, 0x43, 0x44, 0x45, 0x46],    ;; uint8_t [7]
+        sound = 0x1e,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(46) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(46) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 40,    ;; uint16_t
+        range = 2,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 210,    ;; uint16_t
+        space = 70,    ;; uint16_t
+        power = 160,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_DISRUPTOR,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0xf7, 0xf6, 0xf5, 0xf4, 0xf3, 0xf2, 0xf1],    ;; uint8_t [7]
+        sound = 0x1c,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(47) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(47) },    ;; char const * const * const
+        damagemin = 5,    ;; uint16_t
+        damagemax = 20,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 3,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 250,    ;; uint16_t
+        space = 40,    ;; uint16_t
+        power = 120,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PULSE_PHASOR,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0xdb, 0xdc, 0xdd, 0xde, 0xdd, 0xdc, 0xdb],    ;; uint8_t [7]
+        sound = 0x1,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(48) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(48) },    ;; char const * const * const
+        damagemin = 40,    ;; uint16_t
+        damagemax = 70,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 10,    ;; int8_t
+        cost = 90,    ;; uint16_t
+        space = 200,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_NEUTRONIUM_BOMB,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x14,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(49) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(49) },    ;; char const * const * const
+        damagemin = 3,    ;; uint16_t
+        damagemax = 3,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = true,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 200,    ;; uint16_t
+        space = 300,    ;; uint16_t
+        power = 10,    ;; uint16_t
+        is_bio = true,    ;; bool
+        tech_i = TECH_PLAN_BIO_TERMINATOR,    ;; uint8_t
+        v24 = 0,    ;; uint8_t
+        dtbl = [0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x14,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(50) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(50) },    ;; char const * const * const
+        damagemin = 25,    ;; uint16_t
+        damagemax = 25,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 6,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 2,    ;; uint8_t
+        damagemul = 4,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 500,    ;; uint16_t
+        space = 150,    ;; uint16_t
+        power = 350,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_HELLFIRE_TORPEDOES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xa0, 0x0, 0x0, 0x4, 0x8c, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x11,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(51) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(51) },    ;; char const * const * const
+        damagemin = 30,    ;; uint16_t
+        damagemax = 30,    ;; uint16_t
+        range = 9,    ;; uint8_t
+        extraacc = 6,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 300,    ;; uint16_t
+        space = 250,    ;; uint16_t
+        power = 50,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_ZEON_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xc0, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(52) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(52) },    ;; char const * const * const
+        damagemin = 30,    ;; uint16_t
+        damagemax = 30,    ;; uint16_t
+        range = 7,    ;; uint8_t
+        extraacc = 6,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 450,    ;; uint16_t
+        space = 375,    ;; uint16_t
+        power = 75,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_ZEON_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xa0, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x8,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(53) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(53) },    ;; char const * const * const
+        damagemin = 75,    ;; uint16_t
+        damagemax = 75,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 6,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 3,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 500,    ;; uint16_t
+        space = 100,    ;; uint16_t
+        power = 400,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PROTON_TORPEDOES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xff, 0x0, 0x0, 0x3, 0xc8, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x11,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(54) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(54) },    ;; char const * const * const
+        damagemin = 15,    ;; uint16_t
+        damagemax = 15,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 3,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 2,    ;; int8_t
+        cost = 300,    ;; uint16_t
+        space = 250,    ;; uint16_t
+        power = 50,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_SCATTER_PACK_X_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x90, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x3,    ;; uint8_t
+        nummiss = 10,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(55) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(55) },    ;; char const * const * const
+        damagemin = 15,    ;; uint16_t
+        damagemax = 15,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 3,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = 5,    ;; int8_t
+        cost = 450,    ;; uint16_t
+        space = 420,    ;; uint16_t
+        power = 80,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_SCATTER_PACK_X_MISSILES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x70, 0x0, 0x0, 0x5, 0x64, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x3,    ;; uint8_t
+        nummiss = 10,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(56) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(56) },    ;; char const * const * const
+        damagemin = 20,    ;; uint16_t
+        damagemax = 50,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 250,    ;; uint16_t
+        space = 70,    ;; uint16_t
+        power = 180,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_TRI_FOCUS_PLASMA_CANNON,    ;; uint8_t
+        v24 = 1,    ;; uint8_t
+        dtbl = [0x46, 0x45, 0x44, 0x43, 0x44, 0x45, 0x46],    ;; uint8_t [7]
+        sound = 0x1b,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(57) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(57) },    ;; char const * const * const
+        damagemin = 10,    ;; uint16_t
+        damagemax = 35,    ;; uint16_t
+        range = 3,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 4,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 500,    ;; uint16_t
+        space = 200,    ;; uint16_t
+        power = 300,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_STELLAR_CONVERTER,    ;; uint8_t
+        v24 = 3,    ;; uint8_t
+        dtbl = [0x49, 0x56, 0x71, 0x46, 0x49, 0x56, 0x71],    ;; uint8_t [7]
+        sound = 0x15,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(58) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(58) },    ;; char const * const * const
+        damagemin = 20,    ;; uint16_t
+        damagemax = 100,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 550,    ;; uint16_t
+        space = 150,    ;; uint16_t
+        power = 300,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_MAULER_DEVICE,    ;; uint8_t
+        v24 = 4,    ;; uint8_t
+        dtbl = [0xbb, 0xbc, 0xbd, 0xbd, 0xbd, 0xbc, 0xbb],    ;; uint8_t [7]
+        sound = 0x23,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(59) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(59) },    ;; char const * const * const
+        damagemin = 150,    ;; uint16_t
+        damagemax = 150,    ;; uint16_t
+        range = 10,    ;; uint8_t
+        extraacc = 7,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = true,    ;; bool
+        misstype = 4,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 600,    ;; uint16_t
+        space = 150,    ;; uint16_t
+        power = 450,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_PLASMA_TORPEDOES,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0xc0, 0x0, 0x0, 0x3, 0xa0, 0x0, 0x0],    ;; uint8_t [7]
+        sound = 0x11,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(60) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(60) },    ;; char const * const * const
+        damagemin = 100,    ;; uint16_t
+        damagemax = 300,    ;; uint16_t
+        range = 3,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 4,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 600,    ;; uint16_t
+        space = 200,    ;; uint16_t
+        power = 400,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = 101,    ;; uint8_t
+        v24 = 3,    ;; uint8_t
+        dtbl = [0xe, 0xc7, 0xe, 0xe, 0xef, 0xe, 0xc7],    ;; uint8_t [7]
+        sound = 0x18,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(61) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(61) },    ;; char const * const * const
+        damagemin = 200,    ;; uint16_t
+        damagemax = 1000,    ;; uint16_t
+        range = 1,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 1000,    ;; uint16_t
+        space = 2000,    ;; uint16_t
+        power = 2000,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = TECH_WEAP_DEATH_RAY,    ;; uint8_t
+        v24 = 4,    ;; uint8_t
+        dtbl = [0xcb, 0xc5, 0xc4, 0x46, 0xc4, 0xc5, 0xcb],    ;; uint8_t [7]
+        sound = 0x1d,    ;; uint8_t
+        nummiss = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_weap@(62) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_weapx@(62) },    ;; char const * const * const
+        damagemin = 250,    ;; uint16_t
+        damagemax = 1000,    ;; uint16_t
+        range = 3,    ;; uint8_t
+        extraacc = 0,    ;; uint8_t
+        halveshield = false,    ;; bool
+        is_bomb = false,    ;; bool
+        damagefade = false,    ;; bool
+        misstype = 0,    ;; uint8_t
+        damagemul = 1,    ;; uint8_t
+        numfire = 1,    ;; uint8_t
+        numshots = -1,    ;; int8_t
+        cost = 600,    ;; uint16_t
+        space = 200,    ;; uint16_t
+        power = 400,    ;; uint16_t
+        is_bio = false,    ;; bool
+        tech_i = 101,    ;; uint8_t
+        v24 = 2,    ;; uint8_t
+        dtbl = [0x46, 0x46, 0xdc, 0xdc, 0xdc, 0xd3, 0xd3],    ;; uint8_t [7]
+        sound = 0xc,    ;; uint8_t
+        nummiss = 1,    ;; uint8_t
+    ],
+]
+
+pin tbl_shiptech_comp = [
+    [
+        nameptr = \{ game_str_st_none },    ;; char const * const * const
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 0,    ;; uint8_t
+        level = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(0) },    ;; char const * const * const
+        power = [5, 10, 20, 100],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [5, 10, 20, 100],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [40, 200, 1000, 5000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 1,    ;; uint8_t
+        level = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(1) },    ;; char const * const * const
+        power = [7, 15, 30, 150],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [7, 15, 30, 150],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [50, 240, 1200, 6000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 5,    ;; uint8_t
+        level = 2,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(2) },    ;; char const * const * const
+        power = [10, 20, 40, 200],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [10, 20, 40, 200],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [60, 280, 1400, 7000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 10,    ;; uint8_t
+        level = 3,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(3) },    ;; char const * const * const
+        power = [12, 25, 50, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [12, 25, 50, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [70, 320, 1600, 8000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 15,    ;; uint8_t
+        level = 4,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(4) },    ;; char const * const * const
+        power = [15, 30, 60, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [15, 30, 60, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [80, 360, 1800, 9000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 20,    ;; uint8_t
+        level = 5,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(5) },    ;; char const * const * const
+        power = [17, 35, 70, 350],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [17, 35, 70, 350],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [90, 400, 2000, 10000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 25,    ;; uint8_t
+        level = 6,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(6) },    ;; char const * const * const
+        power = [20, 40, 80, 400],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [20, 40, 80, 400],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [100, 440, 2200, 11000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 30,    ;; uint8_t
+        level = 7,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(7) },    ;; char const * const * const
+        power = [22, 45, 90, 450],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [22, 45, 90, 450],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [110, 480, 2400, 12000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 35,    ;; uint8_t
+        level = 8,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(8) },    ;; char const * const * const
+        power = [25, 50, 100, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [25, 50, 100, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [120, 520, 2600, 13000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 40,    ;; uint8_t
+        level = 9,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(9) },    ;; char const * const * const
+        power = [27, 55, 110, 550],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [27, 55, 110, 550],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [130, 560, 2800, 14000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 45,    ;; uint8_t
+        level = 10,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_comp@(10) },    ;; char const * const * const
+        power = [30, 60, 120, 600],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [30, 60, 120, 600],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [140, 600, 3000, 15000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 50,    ;; uint8_t
+        level = 11,    ;; uint8_t
+    ],
+]
+
+pin tbl_shiptech_engine = [
+    [
+        nameptr = \{ game_str_tbl_st_engine@(0) },    ;; char const * const * const
+        power = 10,    ;; uint16_t
+        space = 10,    ;; uint16_t
+        cost = 20,    ;; uint16_t
+        warp = 1,    ;; uint8_t
+        tech_i = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(1) },    ;; char const * const * const
+        power = 20,    ;; uint16_t
+        space = 18,    ;; uint16_t
+        cost = 40,    ;; uint16_t
+        warp = 2,    ;; uint8_t
+        tech_i = 6,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(2) },    ;; char const * const * const
+        power = 30,    ;; uint16_t
+        space = 26,    ;; uint16_t
+        cost = 60,    ;; uint16_t
+        warp = 3,    ;; uint8_t
+        tech_i = 12,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(3) },    ;; char const * const * const
+        power = 40,    ;; uint16_t
+        space = 33,    ;; uint16_t
+        cost = 80,    ;; uint16_t
+        warp = 4,    ;; uint8_t
+        tech_i = 18,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(4) },    ;; char const * const * const
+        power = 50,    ;; uint16_t
+        space = 36,    ;; uint16_t
+        cost = 100,    ;; uint16_t
+        warp = 5,    ;; uint8_t
+        tech_i = 24,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(5) },    ;; char const * const * const
+        power = 60,    ;; uint16_t
+        space = 40,    ;; uint16_t
+        cost = 120,    ;; uint16_t
+        warp = 6,    ;; uint8_t
+        tech_i = 30,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(6) },    ;; char const * const * const
+        power = 70,    ;; uint16_t
+        space = 44,    ;; uint16_t
+        cost = 140,    ;; uint16_t
+        warp = 7,    ;; uint8_t
+        tech_i = 36,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(7) },    ;; char const * const * const
+        power = 80,    ;; uint16_t
+        space = 47,    ;; uint16_t
+        cost = 160,    ;; uint16_t
+        warp = 8,    ;; uint8_t
+        tech_i = 42,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_engine@(8) },    ;; char const * const * const
+        power = 90,    ;; uint16_t
+        space = 50,    ;; uint16_t
+        cost = 180,    ;; uint16_t
+        warp = 9,    ;; uint8_t
+        tech_i = 48,    ;; uint8_t
+    ],
+]
+
+pin tbl_shiptech_armor = [
+    [
+        nameptr = \{ game_str_tbl_st_armor@(0) },    ;; char const * const * const
+        cost = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 100,    ;; uint16_t
+        tech_i = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(1) },    ;; char const * const * const
+        cost = [20, 100, 500, 2500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [20, 80, 400, 2000],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 150,    ;; uint16_t
+        tech_i = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(2) },    ;; char const * const * const
+        cost = [20, 100, 600, 3000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [2, 10, 60, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 150,    ;; uint16_t
+        tech_i = 10,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(3) },    ;; char const * const * const
+        cost = [30, 150, 900, 4500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [25, 85, 425, 2100],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 225,    ;; uint16_t
+        tech_i = 10,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(4) },    ;; char const * const * const
+        cost = [40, 200, 1000, 5000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [4, 20, 100, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 200,    ;; uint16_t
+        tech_i = 17,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(5) },    ;; char const * const * const
+        cost = [60, 300, 1500, 7500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [30, 100, 500, 2500],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 300,    ;; uint16_t
+        tech_i = 17,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(6) },    ;; char const * const * const
+        cost = [60, 300, 1500, 7500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [6, 30, 150, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 250,    ;; uint16_t
+        tech_i = 26,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(7) },    ;; char const * const * const
+        cost = [90, 450, 2250, 11250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [35, 115, 575, 2875],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 375,    ;; uint16_t
+        tech_i = 26,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(8) },    ;; char const * const * const
+        cost = [80, 400, 2000, 10000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [8, 40, 200, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 300,    ;; uint16_t
+        tech_i = 34,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(9) },    ;; char const * const * const
+        cost = [120, 600, 3000, 15000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [40, 130, 650, 3250],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 450,    ;; uint16_t
+        tech_i = 34,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(10) },    ;; char const * const * const
+        cost = [100, 500, 2500, 12500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [10, 50, 250, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 350,    ;; uint16_t
+        tech_i = 42,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(11) },    ;; char const * const * const
+        cost = [150, 750, 3750, 18750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [45, 150, 750, 3750],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 525,    ;; uint16_t
+        tech_i = 42,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(12) },    ;; char const * const * const
+        cost = [120, 600, 3000, 15000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [12, 60, 300, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 400,    ;; uint16_t
+        tech_i = 50,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_armor@(13) },    ;; char const * const * const
+        cost = [180, 900, 4500, 25000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [50, 175, 875, 4375],    ;; uint16_t [SHIP_HULL_NUM]
+        armor = 600,    ;; uint16_t
+        tech_i = 50,    ;; uint8_t
+    ],
+]
+
+pin tbl_shiptech_shield = [
+    [
+        nameptr = \{ game_str_st_none },    ;; char const * const * const
+        cost = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 0,    ;; uint8_t
+        tech_i = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(0) },    ;; char const * const * const
+        cost = [30, 190, 1200, 7500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [5, 20, 60, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [5, 20, 60, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 1,    ;; uint8_t
+        tech_i = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(1) },    ;; char const * const * const
+        cost = [35, 220, 1400, 8750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [10, 35, 90, 375],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [10, 35, 90, 375],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 2,    ;; uint8_t
+        tech_i = 4,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(2) },    ;; char const * const * const
+        cost = [40, 250, 1600, 10000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [15, 50, 120, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [15, 50, 120, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 3,    ;; uint8_t
+        tech_i = 10,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(3) },    ;; char const * const * const
+        cost = [45, 280, 1800, 11250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [20, 65, 150, 675],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [20, 65, 150, 675],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 4,    ;; uint8_t
+        tech_i = 14,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(4) },    ;; char const * const * const
+        cost = [50, 310, 2000, 12500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [25, 80, 180, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [25, 80, 180, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 5,    ;; uint8_t
+        tech_i = 20,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(5) },    ;; char const * const * const
+        cost = [55, 340, 2200, 13750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [30, 95, 210, 875],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [30, 95, 210, 875],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 6,    ;; uint8_t
+        tech_i = 24,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(6) },    ;; char const * const * const
+        cost = [60, 370, 2400, 15000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [35, 110, 240, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [35, 110, 240, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 7,    ;; uint8_t
+        tech_i = 30,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(7) },    ;; char const * const * const
+        cost = [65, 400, 2600, 16250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [40, 125, 270, 1125],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [40, 125, 270, 1125],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 9,    ;; uint8_t
+        tech_i = 34,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(8) },    ;; char const * const * const
+        cost = [70, 430, 2800, 17500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [45, 140, 300, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [45, 140, 300, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 11,    ;; uint8_t
+        tech_i = 40,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(9) },    ;; char const * const * const
+        cost = [80, 460, 3000, 18750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [50, 155, 330, 1375],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [50, 155, 330, 1375],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 13,    ;; uint8_t
+        tech_i = 44,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_shield@(10) },    ;; char const * const * const
+        cost = [90, 490, 3200, 20000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [55, 160, 360, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [55, 160, 360, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        absorb = 15,    ;; uint8_t
+        tech_i = 50,    ;; uint8_t
+    ],
+]
+
+pin tbl_shiptech_jammer = [
+    [
+        nameptr = \{ game_str_st_none },    ;; char const * const * const
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 0,    ;; uint8_t
+        level = 0,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(0) },    ;; char const * const * const
+        power = [10, 20, 40, 170],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [10, 20, 40, 170],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [25, 150, 1000, 6250],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 2,    ;; uint8_t
+        level = 1,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(1) },    ;; char const * const * const
+        power = [15, 30, 60, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [15, 30, 60, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [27, 165, 1100, 6875],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 7,    ;; uint8_t
+        level = 2,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(2) },    ;; char const * const * const
+        power = [20, 40, 80, 330],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [20, 40, 80, 330],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [30, 180, 1200, 7500],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 12,    ;; uint8_t
+        level = 3,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(3) },    ;; char const * const * const
+        power = [25, 50, 100, 410],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [25, 50, 100, 410],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [32, 195, 1300, 8125],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 17,    ;; uint8_t
+        level = 4,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(4) },    ;; char const * const * const
+        power = [30, 60, 120, 490],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [30, 60, 120, 490],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [35, 210, 1400, 8750],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 22,    ;; uint8_t
+        level = 5,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(5) },    ;; char const * const * const
+        power = [35, 70, 140, 570],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [35, 70, 140, 570],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [37, 225, 1500, 9375],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 27,    ;; uint8_t
+        level = 6,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(6) },    ;; char const * const * const
+        power = [40, 80, 160, 650],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [40, 80, 160, 650],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [40, 240, 1600, 10000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 32,    ;; uint8_t
+        level = 7,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(7) },    ;; char const * const * const
+        power = [45, 90, 180, 730],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [45, 90, 180, 730],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [42, 255, 1700, 10625],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 37,    ;; uint8_t
+        level = 8,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(8) },    ;; char const * const * const
+        power = [50, 100, 200, 810],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [50, 100, 200, 810],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [45, 270, 1800, 11250],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 42,    ;; uint8_t
+        level = 9,    ;; uint8_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_jammer@(9) },    ;; char const * const * const
+        power = [55, 110, 220, 900],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [55, 110, 220, 900],    ;; uint16_t [SHIP_HULL_NUM]
+        cost = [50, 285, 1900, 11875],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 47,    ;; uint8_t
+        level = 10,    ;; uint8_t
+    ],
+]
+
+pin tbl_shiptech_special = [
+    [
+        nameptr = \{ game_str_st_none },    ;; char const * const * const
+        extratextptr = \{ strempty },    ;; char const * const * const
+        cost = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = 0,    ;; uint8_t
+        field = 0,    ;; tech_field_t
+        type = 0,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(0) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(0) },    ;; char const * const * const
+        cost = [20, 100, 500, 2500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [20, 100, 500, 2500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_CONS_RESERVE_FUEL_TANKS,    ;; uint8_t
+        field = TECH_FIELD_CONSTRUCTION,    ;; tech_field_t
+        type = 1,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(1) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(1) },    ;; char const * const * const
+        cost = [3500, 3500, 3500, 3500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_ECOLOGICAL_RESTORATION,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(2) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(2) },    ;; char const * const * const
+        cost = [3750, 3750, 3750, 3750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_CONTROLLED_BARREN_ENVIRONMENT,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(3) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(3) },    ;; char const * const * const
+        cost = [4000, 4000, 4000, 4000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_CONTROLLED_TUNDRA_ENVIRONMENT,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(4) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(4) },    ;; char const * const * const
+        cost = [4250, 4250, 4250, 4250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_CONTROLLED_DEAD_ENVIRONMENT,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(5) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(5) },    ;; char const * const * const
+        cost = [4500, 4500, 4500, 4500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_CONTROLLED_INFERNO_ENVIRONMENT,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(6) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(6) },    ;; char const * const * const
+        cost = [4750, 4750, 4750, 4750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_CONTROLLED_TOXIC_ENVIRONMENT,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(7) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(7) },    ;; char const * const * const
+        cost = [5000, 5000, 5000, 5000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [700, 700, 700, 700],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [0, 0, 0, 0],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PLAN_CONTROLLED_RADIATED_ENVIRONMENT,    ;; uint8_t
+        field = TECH_FIELD_PLANETOLOGY,    ;; tech_field_t
+        type = 2,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(8) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(8) },    ;; char const * const * const
+        cost = [300, 300, 300, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [50, 50, 50, 50],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [50, 50, 50, 50],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_COMP_BATTLE_SCANNER,    ;; uint8_t
+        field = TECH_FIELD_COMPUTER,    ;; tech_field_t
+        type = 3,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_SCANNER),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(9) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(9) },    ;; char const * const * const
+        cost = [100, 100, 100, 100],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [2, 10, 50, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [8, 40, 200, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_WEAP_ANTI_MISSILE_ROCKETS,    ;; uint8_t
+        field = TECH_FIELD_WEAPON,    ;; tech_field_t
+        type = 4,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 40,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(10) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(10) },    ;; char const * const * const
+        cost = [550, 550, 550, 550],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [100, 100, 100, 100],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [200, 200, 200, 200],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_FFLD_REPULSOR_BEAM,    ;; uint8_t
+        field = TECH_FIELD_FORCE_FIELD,    ;; tech_field_t
+        type = 5,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_REPULSOR),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(11) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(11) },    ;; char const * const * const
+        cost = [650, 650, 650, 650],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [100, 100, 100, 100],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [300, 300, 300, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_WARP_DISSIPATOR,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 6,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_WARPDIS),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(12) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(12) },    ;; char const * const * const
+        cost = [750, 750, 750, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [150, 150, 150, 150],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [250, 250, 250, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_ENERGY_PULSAR,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 7,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 1,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(13) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(13) },    ;; char const * const * const
+        cost = [20, 75, 500, 2700],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [4, 20, 100, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [8, 40, 200, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_INERTIAL_STABILIZER,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 8,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 2,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(14) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(14) },    ;; char const * const * const
+        cost = [50, 100, 200, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [4, 20, 100, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [12, 60, 300, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_FFLD_ZYRO_SHIELD,    ;; uint8_t
+        field = TECH_FIELD_FORCE_FIELD,    ;; tech_field_t
+        type = 4,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 75,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(15) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(15) },    ;; char const * const * const
+        cost = [2, 8, 50, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [3, 15, 100, 600],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [3, 10, 50, 300],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_CONS_AUTOMATED_REPAIR_SYSTEM,    ;; uint8_t
+        field = TECH_FIELD_CONSTRUCTION,    ;; tech_field_t
+        type = 9,    ;; uint8_t
+        repair = 15,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(16) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(16) },    ;; char const * const * const
+        cost = [2500, 2500, 2500, 2500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [200, 200, 200, 200],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [275, 275, 275, 275],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_FFLD_STASIS_FIELD,    ;; uint8_t
+        field = TECH_FIELD_FORCE_FIELD,    ;; tech_field_t
+        type = 10,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_STASIS),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(17) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(17) },    ;; char const * const * const
+        cost = [30, 150, 750, 3750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [5, 25, 120, 600],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [10, 50, 250, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_FFLD_CLOAKING_DEVICE,    ;; uint8_t
+        field = TECH_FIELD_FORCE_FIELD,    ;; tech_field_t
+        type = 11,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_CLOAK),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(18) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(18) },    ;; char const * const * const
+        cost = [1000, 1000, 1000, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [250, 250, 250, 250],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [500, 500, 500, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_WEAP_ION_STREAM_PROJECTOR,    ;; uint8_t
+        field = TECH_FIELD_WEAPON,    ;; tech_field_t
+        type = 12,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 1,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(19) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(19) },    ;; char const * const * const
+        cost = [30, 135, 625, 3500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [35, 100, 150, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [65, 200, 350, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_HIGH_ENERGY_FOCUS,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 13,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 3,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(20) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(20) },    ;; char const * const * const
+        cost = [1500, 1500, 1500, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [400, 400, 400, 400],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [750, 750, 750, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_IONIC_PULSAR,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 7,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 2,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(21) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(21) },    ;; char const * const * const
+        cost = [2750, 2750, 2750, 2750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [750, 750, 750, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [750, 750, 750, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_FFLD_BLACK_HOLE_GENERATOR,    ;; uint8_t
+        field = TECH_FIELD_FORCE_FIELD,    ;; tech_field_t
+        type = 14,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_BLACKHOLE),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(22) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(22) },    ;; char const * const * const
+        cost = [25, 100, 450, 2250],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [4, 20, 100, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [16, 80, 400, 2000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_SUB_SPACE_TELEPORTER,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 15,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_SUBSPACE),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(23) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(23) },    ;; char const * const * const
+        cost = [200, 300, 400, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [6, 30, 150, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [15, 70, 350, 1750],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_FFLD_LIGHTNING_SHIELD,    ;; uint8_t
+        field = TECH_FIELD_FORCE_FIELD,    ;; tech_field_t
+        type = 4,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 100,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(24) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(24) },    ;; char const * const * const
+        cost = [2000, 2000, 2000, 2000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [500, 500, 500, 500],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [1250, 1250, 1250, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_WEAP_NEUTRON_STREAM_PROJECTOR,    ;; uint8_t
+        field = TECH_FIELD_WEAPON,    ;; tech_field_t
+        type = 16,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 2,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(25) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(25) },    ;; char const * const * const
+        cost = [40, 200, 1000, 5000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [9, 45, 300, 1800],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [9, 30, 150, 450],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_CONS_ADVANCED_DAMAGE_CONTROL,    ;; uint8_t
+        field = TECH_FIELD_CONSTRUCTION,    ;; tech_field_t
+        type = 9,    ;; uint8_t
+        repair = 30,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(26) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(26) },    ;; char const * const * const
+        cost = [3000, 3000, 3000, 3000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [750, 750, 750, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [1000, 1000, 1000, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_COMP_TECHNOLOGY_NULLIFIER,    ;; uint8_t
+        field = TECH_FIELD_COMPUTER,    ;; tech_field_t
+        type = 17,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_TECHNULL),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(27) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(27) },    ;; char const * const * const
+        cost = [60, 200, 1500, 5000],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [6, 30, 150, 750],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [12, 60, 300, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_INERTIAL_NULLIFIER,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 8,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 4,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = 0,    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(28) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(28) },    ;; char const * const * const
+        cost = [30, 150, 600, 2750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [8, 40, 200, 1000],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [12, 60, 300, 1500],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_COMP_ORACLE_INTERFACE,    ;; uint8_t
+        field = TECH_FIELD_COMPUTER,    ;; tech_field_t
+        type = 20,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_ORACLE),    ;; uint16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_special@(29) },    ;; char const * const * const
+        extratextptr = \{ game_str_tbl_st_specialx@(29) },    ;; char const * const * const
+        cost = [30, 150, 300, 2750],    ;; uint16_t [SHIP_HULL_NUM]
+        space = [10, 50, 225, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        power = [10, 50, 225, 1250],    ;; uint16_t [SHIP_HULL_NUM]
+        tech_i = TECH_PROP_DISPLACEMENT_DEVICE,    ;; uint8_t
+        field = TECH_FIELD_PROPULSION,    ;; tech_field_t
+        type = 21,    ;; uint8_t
+        repair = 0,    ;; uint8_t
+        extraman = 0,    ;; uint8_t
+        misshield = 0,    ;; uint8_t
+        extrarange = 0,    ;; uint8_t
+        pulsar = 0,    ;; uint8_t
+        stream = 0,    ;; uint8_t
+        boolmask = (1 << SHIP_SPECIAL_BOOL_DISP),    ;; uint16_t
+    ],
+]
+
+pin tbl_shiptech_hull = [
+    [
+        nameptr = \{ game_str_tbl_st_hull@(0) },    ;; char const * const * const
+        cost = 60,    ;; uint16_t
+        space = 40,    ;; uint16_t
+        hits = 3,    ;; uint16_t
+        power = 2,    ;; uint16_t
+        defense = 2,    ;; int16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_hull@(1) },    ;; char const * const * const
+        cost = 360,    ;; uint16_t
+        space = 200,    ;; uint16_t
+        hits = 18,    ;; uint16_t
+        power = 15,    ;; uint16_t
+        defense = 1,    ;; int16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_hull@(2) },    ;; char const * const * const
+        cost = 2000,    ;; uint16_t
+        space = 1000,    ;; uint16_t
+        hits = 100,    ;; uint16_t
+        power = 100,    ;; uint16_t
+        defense = 0,    ;; int16_t
+    ],
+    [
+        nameptr = \{ game_str_tbl_st_hull@(3) },    ;; char const * const * const
+        cost = 12000,    ;; uint16_t
+        space = 5000,    ;; uint16_t
+        hits = 600,    ;; uint16_t
+        power = 700,    ;; uint16_t
+        defense = -1,    ;; int16_t
+    ],
+]
 
