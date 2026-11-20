@@ -45,6 +45,12 @@ Building the oracle (the textual interface, with no screen):
     make
     ./src/1oom_cmdline -data PATH_TO_LBX -new 300:0:0:12345
 
-Checking the port (needs the compiler of Atmos, `ia-atmos/lang`):
+Checking the port against the C (needs the compiler of Atmos,
+`ia-atmos/lang`, the C built as above, and saves written by the C):
 
-    ATMOS=PATH_TO/atmos tst/save.sh SAVE...     # step 1, the save
+    ATMOS=PATH_TO/atmos tst/all.sh PATH_TO_LBX SAVE...
+
+Each check builds a small C program over the original sources (in
+`tst/c/`, not part of the port) and compares its output with the same
+program in Atmos. Some tables are converted from the C by the scripts in
+`tools/`, which also write their checks.
