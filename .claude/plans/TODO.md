@@ -152,6 +152,6 @@ Other sessions:
   "Stable (2026-11-19)"). The port passed its tests with that compiler
   before the merge (atmos-lang#81): nothing to migrate.
 - 2026-11-20: the compiler (`692af43`) has numeric build options, off by
-  default. The port needs the default: `ATMOS_INT=32` would break
+  default. (renamed in `d19d40f`: `ATMOS_FLOAT`, `ATMOS_INTEGER`, `ATMOS_CLOCK`). The port needs the default: `ATMOS_INTEGER=32` would break
   `ctypes.atm` (`u32`, `i32` need integers wider than 32 bits), and
-  `ATMOS_REAL=float` is not wanted where C uses `double`.
+  `ATMOS_FLOAT=32` is not wanted where C uses `double`.
