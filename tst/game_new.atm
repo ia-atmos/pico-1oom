@@ -1,0 +1,41 @@
+;; game_new.c of the port: a new game from the options of `-new GAMESEED`,
+;; saved, as tst/c/game_new.c does it (see tst/game_new.sh).
+;;   atmos tst/game_new.atm DATADIR OPT RACES BANNERS GSEED HUMANS IMPROVED NEBULAE OUT
+
+include "../src/game/game_new.atm"
+include "../src/game/game_save.atm"
+
+val args = [...]
+os_set_path_data(args@0)
+lbxfile_init()
+pin gaux = game_aux_s()
+pin g = game_s()
+game_aux_init(gaux, g)
+
+pin opt = game_new_options_s()
+val o = tonumber(args@1)
+val races = tonumber(args@2)
+val banners = tonumber(args@3)
+val humans = tonumber(args@5)
+set opt.players = o // 100
+set opt.galaxy_size = (o // 10) % 10
+set opt.difficulty = o % 10
+set opt.galaxy_seed = tonumber(args@4)
+set opt.improved_galaxy_generator = tonumber(args@6) != 0
+set opt.nebulae = tonumber(args@7) != 0
+loop i in PLAYER_NUM {
+    val r = (races >> (4 * i)) & 0xf
+    set opt.pdata@(i).race = if r != 0 => (r - 1) => RACE_RANDOM
+    set opt.pdata@(i).is_ai = true
+}
+var m = 1
+loop i in PLAYER_NUM {
+    val b = (banners // m) % 10
+    set opt.pdata@(i).banner = if b != 0 => (b - 1) => BANNER_RANDOM
+    set opt.pdata@(i).is_ai = ((humans // m) % 10) == 0
+    set m = m * 10
+}
+game_new(g, gaux, opt)
+if game_save_do_save_fname(args@8, "new", g, 0) != 0 {
+    os.exit(1)
+}
