@@ -10,6 +10,7 @@ DIR=$(cd "$(dirname "$0")" && pwd)
 DATA=$1
 shift
 "$DIR/util_math.sh"
+"$DIR/rnd.sh"
 "$DIR/game_str.sh"
 "$DIR/game_shiptech.sh"
 "$DIR/game_shipdesign.sh"
