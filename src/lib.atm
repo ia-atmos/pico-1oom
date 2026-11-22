@@ -1,0 +1,54 @@
+;; Port of c/src/lib.c: the functions on strings that the port needs so far.
+;;
+;; A `char[]` of the state is a vector of bytes (see game.atm); a `const char *`
+;; of the program (game_str) is an Atmos string. `cstr` reads a vector as C
+;; reads a string, up to its first zero.
+
+include "log.atm"
+
+;; The string of C at `offs` (0 by default) of a vector of bytes; a string is
+;; itself.
+func cstr (src, offs) {
+    if type(src) == "string" {
+        return src
+    }
+    val o = offs || 0
+    val cs = []
+    var i = o
+    loop {
+        val b = src@(i)
+        while (b != nil) && (b != 0)
+        set cs@+ = string.char(b)
+        set i = i + 1
+    }
+    vector.join(cs, "")
+}
+
+;; `strcpy` into a vector of bytes, with the check of 1oom: the string and
+;; its zero; the bytes after it keep their values, as in C.
+func lib_strcpy (dst, src, dst_bufsize) {
+    val s = cstr(src)
+    if #s >= dst_bufsize {
+        log_fatal_and_die("lib_strcpy: destination buffer too small, need %d, have %d\n", #s + 1, dst_bufsize)
+    }
+    loop i in #s {
+        set dst@(i) = string.byte(s, i)
+    }
+    set dst@(#s) = 0
+    dst
+}
+
+;; `strcasecmp` of libc, on strings: below, equal (0), or above zero.
+func strcasecmp (a, b) {
+    val x = string.lower(cstr(a))
+    val y = string.lower(cstr(b))
+    var i = 0
+    loop {
+        val ca = if i < #x => string.byte(x, i) => 0
+        val cb = if i < #y => string.byte(y, i) => 0
+        if (ca != cb) || (ca == 0) {
+            return ca - cb
+        }
+        set i = i + 1
+    }
+}
