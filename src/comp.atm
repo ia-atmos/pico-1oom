@@ -1,0 +1,43 @@
+;; Port of c/src/comp.h. The macros that assign (`SETMIN(a, b)`) are written
+;; as an assignment of a function in the port: `set a = SETMIN(a, b)`.
+
+func MIN (a, b) {
+    if a <= b => a => b
+}
+
+func MAX (a, b) {
+    if a >= b => a => b
+}
+
+;; `SETMIN(a, b)`: `a`, or `b` if it is lower.
+func SETMIN (a, b) {
+    if b < a => b => a
+}
+
+;; `SETMAX(a, b)`: `a`, or `b` if it is higher.
+func SETMAX (a, b) {
+    if b > a => b => a
+}
+
+;; `SETRANGE(a, b, c)`: `a` in the range from `b` to `c`.
+func SETRANGE (a, b, c) {
+    ifs {
+        (c <= b) || (b > a) => b
+        c < a => c
+        else => a
+    }
+}
+
+;; `ADDSATT(v, n, top)`: `v + n`, at most `top` (in an `int`).
+func ADDSATT (v, n, top) {
+    SETMIN(v + n, top)
+}
+
+;; `SUBSATT(v, n, bot)`: `v - n`, at least `bot` (in an `int`).
+func SUBSATT (v, n, bot) {
+    SETMAX(v - n, bot)
+}
+
+func SUBSAT0 (v, n) {
+    SUBSATT(v, n, 0)
+}
