@@ -1,0 +1,835 @@
+;; Port of c/src/game/game_misc.c and game_misc.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "../rnd.atm"
+include "../util_math.atm"
+include "game.atm"
+include "game_aux.atm"
+include "game_num.atm"
+include "game_planet_c.atm"
+include "game_shiptech.atm"
+include "game_str.atm"
+include "game_tech.atm"
+
+;; The inline functions of game_misc.h.
+
+func game_planet_get_pop_oper_fact (g, p) {
+    if game_num_factory_cost_fix => p.pop_oper_fact => g.eto@(p.owner).colonist_oper_factories
+}
+
+func game_planet_get_fact_adj_cost (g, p) {
+    val e = g.eto@(p.owner)
+    if game_num_factory_cost_fix && (e.race != RACE_MEKLAR) => ((e.factory_cost * p.pop_oper_fact) // 2) => e.factory_adj_cost
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_update_have_reserve_fuel (g) {
+    loop pi in g.players {
+        val srd = g.srd@(pi)
+        val num = g.eto@(pi).shipdesigns_num
+        loop si in NUM_SHIPDESIGNS {
+            set srd.have_reserve_fuel@(si) = false
+        }
+        loop si in num {
+            val sd = srd.design@(si)
+            if (sd.special@0 == SHIP_SPECIAL_RESERVE_FUEL_TANKS) || (sd.special@1 == SHIP_SPECIAL_RESERVE_FUEL_TANKS) || (sd.special@2 == SHIP_SPECIAL_RESERVE_FUEL_TANKS) {
+                set srd.have_reserve_fuel@(si) = true
+            }
+        }
+    }
+}
+
+func game_update_maint_costs (g) {
+    loop pi in g.players {
+        pin tbl_ships = carray(NUM_SHIPDESIGNS)     ;; shipsum_t[]
+        var totalcost   ;; uint32_t (FIXME maybe uint64_t?)
+        var bases       ;; uint16_t
+        val srd = g.srd@(pi)
+        val e = g.eto@(pi)
+        val numsd = e.shipdesigns_num
+        loop si in numsd {
+            loop i in g.galaxy_stars {
+                set tbl_ships@(si) = u32(tbl_ships@(si) + e.orbit@(i).ships@(si))
+            }
+        }
+        loop j in g.enroute_num {
+            if g.enroute@(j).owner == pi {
+                loop si in numsd {
+                    set tbl_ships@(si) = u32(tbl_ships@(si) + g.enroute@(j).ships@(si))
+                }
+            }
+        }
+        set totalcost = 0
+        loop si in NUM_SHIPDESIGNS {
+            val sd = srd.design@(si)
+            set srd.shipcount@(si) = tbl_ships@(si)
+            set totalcost = u32(totalcost + u32(tbl_ships@(si) * sd.cost))
+        }
+        set totalcost = totalcost // 50
+        set totalcost = SETMIN(totalcost, game_num_max_ship_maint)
+        set bases = 0
+        loop i in g.galaxy_stars {
+            val p = g.planet@(i)
+            if p.owner == pi {
+                if p.have_stargate {
+                    set totalcost = u32(totalcost + game_num_stargate_maint)  ;; WASBUG MOO1 sums to a int16_t var after limiting to 32000
+                }
+                set bases = u16(bases + p.missile_bases)
+            }
+        }
+        set totalcost = SETMIN(totalcost, game_num_max_ship_maint)
+        set e.ship_maint_bc = totalcost
+        set e.bases_maint_bc = u32((bases * game_get_base_cost(g, pi)) // 50)
+    }
+}
+
+func game_update_production (g) {
+    game_update_maint_costs(g)
+    loop pi in g.players {
+        set g.eto@(pi).total_production_bc = 0
+    }
+    loop pi in g.players {
+        val e = g.eto@(pi)
+        loop pi2 in g.players {
+            if (pi == pi2) || BOOLVEC_IS0(e.contact, pi2) {
+                set e.spying@(pi2) = 0
+            }
+        }
+    }
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        val owner = p.owner
+        if owner != PLAYER_NONE {
+            val e = g.eto@(owner)
+            var pop = p.pop
+            var v
+            if game_num_leaving_trans_fix {
+                var rebels = p.rebels
+                if p.trans_num != 0 {   ;; see game_send_transport()
+                    set pop = pop - p.trans_num
+                    set rebels = SUBSAT0(rebels, (p.trans_num // 2) + 1)
+                    set pop = SETMAX(pop, 1)
+                }
+                set v = (pop - rebels) * game_planet_get_pop_oper_fact(g, p)
+                set v = SETMAX(v, 0)
+            } else {
+                var popx = p.pop - p.rebels
+                set popx = SETMAX(popx, 0)
+                set v = popx * game_planet_get_pop_oper_fact(g, p)
+            }
+            do {
+                var factories = u16(p.factories)
+                set factories = u16(SETMIN(factories, v))
+                var extra = (pop * ((e.tech.percent@(TECH_FIELD_PLANETOLOGY) * 3) + 50)) // 100
+                if e.race == RACE_KLACKON {
+                    set extra = extra << 1
+                }
+                set v = factories + extra
+            }
+            if BOOLVEC_IS1(g.is_ai, owner) {
+                match g.difficulty {    ;; TODO BUG? simple has larger v than easy
+                    DIFFICULTY_EASY => { set v = (v << 2) // 5 }
+                    DIFFICULTY_AVERAGE => { set v = v + (v // 4) }
+                    DIFFICULTY_HARD => { set v = v + (v // 2) }
+                    DIFFICULTY_IMPOSSIBLE => { set v = v + v }
+                    else => {}
+                }
+            }
+            do {
+                ;; `reserve` is uint32_t: SETMIN compares it as unsigned
+                var reserve = p.reserve
+                if u32(v) < reserve {
+                    set reserve = u32(v)
+                }
+                set v = i32(v + reserve)
+            }
+            if p.unrest == PLANET_UNREST_REBELLION {
+                set v = 0
+            }
+            set v = SETMAX(v, 0)
+            set p.prod_after_maint = u16(v)
+            set p.total_prod = u16(v)
+            set e.total_production_bc = u32(e.total_production_bc + v)
+        }
+    }
+    loop pi in g.players {
+        val e = g.eto@(pi)
+        var spysum = 0  ;; uint16_t
+        loop pi2 in g.players {
+            set spysum = u16(spysum + e.spying@(pi2))
+        }
+        do {
+            var spymaint = 0    ;; uint16_t
+            loop pi2 in g.players {
+                ;; total_production_bc is uint32_t: the product is unsigned
+                set spymaint = u16(spymaint + (u32(e.total_production_bc * e.spying@(pi2)) // 1000))
+            }
+            set e.spying_maint_bc = spymaint
+        }
+        do {
+            val bonus = if e.race == RACE_HUMAN => 25 => 0
+            var trade = 0   ;; int32_t
+            loop pi2 in g.players {
+                set trade = i32(trade + ((e.trade_bc@(pi2) * (e.trade_percent@(pi2) + bonus)) // 100))
+            }
+            set e.total_trade_bc = trade
+        }
+        do {
+            ;; In C: the products with total_production_bc and the sums with
+            ;; ship_maint_bc and bases_maint_bc are unsigned (uint32_t).
+            val tp = e.total_production_bc
+            var actual_prod = u32(u32(tp * (1000 - e.security - spysum)) // 1000)
+            set actual_prod = u32(actual_prod + e.total_trade_bc - e.ship_maint_bc - e.bases_maint_bc)
+            set actual_prod = i32(u32(actual_prod - (u32(tp * e.tax) // 1000)))
+            if actual_prod < 1 {
+                set actual_prod = 1
+            }
+            set e.total_maint_bc = i32(tp - actual_prod)
+            set e.percent_prod_total_to_actual = if tp != 0 => u16(u32(actual_prod * 100) // tp) => 0
+        }
+        loop i in g.galaxy_stars {
+            val p = g.planet@(i)
+            if p.owner == pi {
+                val v = ((p.prod_after_maint * e.percent_prod_total_to_actual) // 100) - p.trans_num
+                ;; BUG: deducting transport cost takes no effect for actual production,
+                ;; which happens after departure, but leads to wrong display for player.
+                set p.prod_after_maint = if v > 0 => u16(v) => 0
+            }
+        }
+    }
+}
+
+func game_update_total_research (g) {
+    loop pi in g.players {
+        set g.eto@(pi).total_research_bc = 0
+    }
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if (p.owner != PLAYER_NONE) && (!((g.evn.have_plague != 0) && (g.evn.plague_planet_i == i))) && (!((g.evn.have_nova != 0) && (g.evn.nova_planet_i == i))) {
+            val e = g.eto@(p.owner)
+            set e.total_research_bc = u32(e.total_research_bc + game_get_tech_prod(p.prod_after_maint, p.slider@(PLANET_SLIDER_TECH), e.race, p.special))
+        }
+    }
+}
+
+func game_update_eco_on_waste (g, player_i, force_adjust) {
+    val e = g.eto@(player_i)
+    if e.race == RACE_SILICOID {
+        return nil
+    }
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if p.owner == player_i {
+            var v = u16(game_planet_get_waste_percent(nil, g, p, false))
+            val check_locks = (!force_adjust) && game_num_slider_respects_locks && IS_HUMAN(g, p.owner)
+            ifs {
+                check_locks && (p.slider_lock@(PLANET_SLIDER_ECO) != 0) => {}
+                check_locks && (p.slider_lock@(PLANET_SLIDER_SHIP) != 0) && (p.slider_lock@(PLANET_SLIDER_DEF) != 0) && (p.slider_lock@(PLANET_SLIDER_IND) != 0) && (p.slider_lock@(PLANET_SLIDER_TECH) != 0) => {}
+                (p.slider@(PLANET_SLIDER_ECO) < v) || force_adjust => {
+                    val eco_diff = i16(v - p.slider@(PLANET_SLIDER_ECO))
+                    var sum = 100   ;; int16_t
+                    if game_num_waste_adjust_fix {
+                        set sum = i16(p.slider@(PLANET_SLIDER_SHIP) + p.slider@(PLANET_SLIDER_DEF) + p.slider@(PLANET_SLIDER_IND) + p.slider@(PLANET_SLIDER_TECH))
+                    }
+                    if check_locks {
+                        var sum_locks = 0   ;; int16_t
+                        loop si in PLANET_SLIDER_NUM {
+                            if p.slider_lock@(si) != 0 {
+                                set sum_locks = i16(sum_locks + p.slider@(si))
+                            }
+                        }
+                        set sum = i16(sum - sum_locks)
+                        set v = u16(SETMIN(v, 100 - sum_locks))
+                    }
+                    set p.slider@(PLANET_SLIDER_ECO) = i16(v)
+                    if sum > 0 {
+                        if (!check_locks) || (p.slider_lock@(PLANET_SLIDER_SHIP) == 0) {
+                            set p.slider@(PLANET_SLIDER_SHIP) = i16(p.slider@(PLANET_SLIDER_SHIP) - ((p.slider@(PLANET_SLIDER_SHIP) * eco_diff) // sum))
+                        }
+                        if (!check_locks) || (p.slider_lock@(PLANET_SLIDER_DEF) == 0) {
+                            set p.slider@(PLANET_SLIDER_DEF) = i16(p.slider@(PLANET_SLIDER_DEF) - ((p.slider@(PLANET_SLIDER_DEF) * eco_diff) // sum))
+                        }
+                        if (!check_locks) || (p.slider_lock@(PLANET_SLIDER_IND) == 0) {
+                            set p.slider@(PLANET_SLIDER_IND) = i16(p.slider@(PLANET_SLIDER_IND) - ((p.slider@(PLANET_SLIDER_IND) * eco_diff) // sum))
+                        }
+                    }
+                }
+                else => {}
+            }
+            set p.slider@(PLANET_SLIDER_SHIP) = SETMAX(p.slider@(PLANET_SLIDER_SHIP), 0)
+            set p.slider@(PLANET_SLIDER_DEF) = SETMAX(p.slider@(PLANET_SLIDER_DEF), 0)
+            set p.slider@(PLANET_SLIDER_IND) = SETMAX(p.slider@(PLANET_SLIDER_IND), 0)
+            set p.slider@(PLANET_SLIDER_ECO) = SETRANGE(p.slider@(PLANET_SLIDER_ECO), 0, 100)
+            var left = 100  ;; int16_t
+            set left = i16(left - p.slider@(PLANET_SLIDER_SHIP))
+            set left = i16(left - p.slider@(PLANET_SLIDER_DEF))
+            set left = i16(left - p.slider@(PLANET_SLIDER_IND))
+            set left = i16(left - p.slider@(PLANET_SLIDER_ECO))
+            set left = SETMAX(left, 0)
+            if (!check_locks) || (p.slider_lock@(PLANET_SLIDER_TECH) == 0) {
+                set p.slider@(PLANET_SLIDER_TECH) = left
+            }
+        }
+    }
+}
+
+func game_update_seen_by_orbit (g, pi) {
+    val e = g.eto@(pi)
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        var in_orbit = false
+        loop j in e.shipdesigns_num {
+            if e.orbit@(i).ships@(j) != 0 {
+                set in_orbit = true
+                break
+            }
+        }
+        if (p.owner == pi) || in_orbit {
+            set g.seen@(pi)@(i).owner = p.owner
+            set g.seen@(pi)@(i).pop = u16(p.pop)
+            set g.seen@(pi)@(i).bases = p.missile_bases
+            set g.seen@(pi)@(i).factories = u16(p.factories)
+        }
+    }
+}
+
+func game_update_within_range (g) {
+    loop pi in g.players {
+        pin tblplanet = carray(PLANETS_MAX)     ;; uint8_t[]
+        var tblplanet_num = 0
+        val e = g.eto@(pi)
+        pin tbl_alliance = carray(PLAYER_NUM, false)
+        loop i in PLAYER_NUM {
+            set tbl_alliance@(i) = (e.treaty@(i) == TREATY_ALLIANCE)
+        }
+        set tbl_alliance@(pi) = true
+        val frange = e.fuel_range
+        val frangep3 = u8(frange + 3)
+        val srange = e.scanner_range
+        ;; uninitialized in C when srange is none of these: 0 here
+        var srange2 = 0
+        match srange {
+            3 => { set srange2 = 0 }
+            5 => { set srange2 = 10 }
+            7 => { set srange2 = 20 }
+            9 => { set srange2 = 30 }
+            else => {}
+        }
+        loop i in g.galaxy_stars {
+            val p = g.planet@(i)
+            if (p.owner != PLAYER_NONE) && tbl_alliance@(p.owner) {
+                set tblplanet@(tblplanet_num) = i
+                set tblplanet_num = tblplanet_num + 1
+            }
+        }
+        loop i in g.galaxy_stars {
+            val p = g.planet@(i)
+            if p.owner == pi {
+                set p.within_frange@(pi) = 1
+                BOOLVEC_SET1(p.within_srange, pi)
+            } else {
+                var dist
+                var mindist1 = 0x2710
+                var mindist2 = 0x2710
+                var j = 0
+                loop {
+                    while (j < tblplanet_num) && ((mindist1 > frange) || (mindist2 > srange))
+                    val planet_i2 = tblplanet@(j)
+                    set dist = g.gaux.star_dist@(i)@(planet_i2)
+                    set mindist1 = SETMIN(mindist1, dist)
+                    if (dist < mindist2) && (g.planet@(planet_i2).owner == pi) {
+                        set mindist2 = dist
+                    }
+                    set j = j + 1
+                }
+                ifs {
+                    mindist1 <= frange => { set p.within_frange@(pi) = 1 }
+                    mindist1 <= frangep3 => { set p.within_frange@(pi) = 2 }
+                    else => { set p.within_frange@(pi) = 0 }
+                }
+                BOOLVEC_SET(p.within_srange, pi, mindist2 <= srange)
+                if BOOLVEC_IS0(p.within_srange, pi) && ((srange2 > 0) || game_num_ship_scanner_fix) {
+                    set mindist1 = 10000
+                    var k = 0
+                    loop {
+                        while (k < g.enroute_num) && (mindist1 > srange2)
+                        if g.enroute@(k).owner == pi {
+                            set dist = u16(util_math_dist_fast(g.enroute@(k).x, g.enroute@(k).y, p.x, p.y))
+                            if game_num_ship_scanner_fix {
+                                if dist < mindist1 {
+                                    set mindist1 = dist
+                                }
+                            } else {
+                                set dist = (dist + 9) // 10
+                                if dist < mindist1 {
+                                    set dist = mindist1
+                                }
+                            }
+                        }
+                        set k = k + 1
+                    }
+                    if mindist1 <= srange2 {
+                        BOOLVEC_SET1(p.within_srange, pi)
+                    }
+                }
+            }
+        }
+    }
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        loop pi in g.players {
+            val e = g.eto@(pi)
+            var snum = 0    ;; uint16_t
+            var j = 0
+            loop {
+                while (j < e.shipdesigns_num) && (snum == 0)
+                set snum = u16(snum + e.orbit@(i).ships@(j))
+                set j = j + 1
+            }
+            if snum == 0 {
+                loop pi2 in PLAYER_NUM {
+                    BOOLVEC_CLEAR(g.eto@(pi2).orbit@(i).visible, PLAYER_NUM)  ;; WASBUG? only cleared bit 0
+                }
+            } else {
+                BOOLVEC_SET1(p.within_srange, pi)
+            }
+        }
+    }
+}
+
+func game_update_reloc_dest (g) {
+    loop i in g.galaxy_stars {
+        val pf = g.planet@(i)
+        if !game_reloc_dest_ok(g, pf.reloc, pf.owner) {
+            set pf.reloc = i
+        }
+    }
+}
+
+func game_update_empire_contact (g) {
+    pin tbl_pnum = carray(PLAYER_NUM)
+    pin tbl_planet = carray2(PLAYER_NUM, PLANETS_MAX)
+    loop i in g.galaxy_stars {
+        val owner = g.planet@(i).owner
+        if owner != PLAYER_NONE {
+            set tbl_planet@(owner)@(tbl_pnum@(owner)) = i
+            set tbl_pnum@(owner) = tbl_pnum@(owner) + 1
+        }
+    }
+    loop pi1 in g.players {
+        val e1 = g.eto@(pi1)
+        loop pi2 in (pi1 + 1, g.players - 1) {
+            val e2 = g.eto@(pi2)
+            val frange = MAX(e1.fuel_range, e2.fuel_range)
+            var mindist = 0xff
+            loop i1 in tbl_pnum@(pi1) {
+                loop i2 in tbl_pnum@(pi2) {
+                    val dist = g.gaux.star_dist@(tbl_planet@(pi1)@(i1))@(tbl_planet@(pi2)@(i2))
+                    set mindist = SETMIN(mindist, dist)
+                }
+            }
+            if mindist <= frange {
+                BOOLVEC_SET1(e1.contact, pi2)
+                BOOLVEC_SET1(e2.contact, pi1)
+            } else {
+                BOOLVEC_SET0(e1.contact, pi2)
+                BOOLVEC_SET0(e2.contact, pi1)
+            }
+        }
+    }
+}
+
+func game_check_coord_is_visible (g, pi, range0, x, y) {
+    val e = g.eto@(pi)
+    var range = range0 * 10     ;; 30, 50, 70, 90
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if (p.owner == pi) && (util_math_dist_fast(x, y, p.x, p.y) <= range) {
+            return true
+        }
+    }
+    set range = (range - 30) // 2   ;; 0, 10, 20, 30
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        var snum = 0    ;; uint32_t
+        var j = 0
+        loop {
+            while (j < e.shipdesigns_num) && (snum == 0)
+            set snum = u32(snum + e.orbit@(i).ships@(j))
+            set j = j + 1
+        }
+        if (snum != 0) && (util_math_dist_fast(x, y, p.x, p.y) <= range) {
+            return true
+        }
+    }
+    loop ei in g.enroute_num {
+        val r = g.enroute@(ei)
+        if (r.owner == pi) && (util_math_dist_fast(x, y, r.x, r.y) <= range) {
+            return true
+        }
+    }
+    false
+}
+
+func game_update_visibility (g) {
+    loop ei in g.enroute_num {
+        val r = g.enroute@(ei)
+        loop pi in g.players {
+            if r.owner != pi {
+                BOOLVEC_SET(r.visible, pi, game_check_coord_is_visible(g, pi, g.eto@(pi).scanner_range, r.x, r.y))
+            } else {
+                BOOLVEC_SET1(r.visible, pi)
+            }
+        }
+    }
+    loop i in g.transport_num {
+        val t = g.transport@(i)
+        loop pi in g.players {
+            if t.owner != pi {
+                BOOLVEC_SET(t.visible, pi, game_check_coord_is_visible(g, pi, g.eto@(pi).scanner_range, t.x, t.y))
+            } else {
+                BOOLVEC_SET1(t.visible, pi)
+            }
+        }
+    }
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        loop pi in g.players {
+            val visible = BOOLVEC_IS1(p.within_srange, pi)
+            loop pi2 in g.players {
+                BOOLVEC_SET(g.eto@(pi2).orbit@(i).visible, pi, visible)
+            }
+            BOOLVEC_SET1(g.eto@(pi).orbit@(i).visible, pi)
+        }
+    }
+    loop i in g.galaxy_stars {
+        loop pi in g.players {
+            val o = g.eto@(pi).orbit@(i)
+            var any_ships = false
+            loop j in NUM_SHIPDESIGNS {
+                if o.ships@(j) != 0 {
+                    set any_ships = true
+                    break
+                }
+            }
+            if !any_ships {
+                BOOLVEC_CLEAR(o.visible, PLAYER_NUM)
+            }
+        }
+    }
+}
+
+;; `slidertbl` is int16_t[], `locktbl` uint16_t[].
+func game_adjust_slider_group (slidertbl, slideri, value0, num, locktbl) {
+    var value = value0
+    var have_unlocked = false
+    var first_unlocked_i = 0
+    var last_unlocked_i = 0
+    var left = 100
+    loop i in num {
+        if locktbl@(i) != 0 {
+            set left = left - slidertbl@(i)
+        } else {
+            set last_unlocked_i = i
+            if !have_unlocked {
+                set have_unlocked = true
+                set first_unlocked_i = i
+            }
+        }
+    }
+    set value = i16(SETMIN(value, left))
+    set slidertbl@(slideri) = value
+    set left = left - value
+    loop i in num {
+        if (i != slideri) && (locktbl@(i) == 0) {
+            if slidertbl@(i) <= left {
+                set left = left - slidertbl@(i)
+            } else {
+                set slidertbl@(i) = i16(left)
+                set left = 0
+            }
+        }
+    }
+    if (left > 0) && have_unlocked {
+        val j = if slideri != last_unlocked_i => last_unlocked_i => first_unlocked_i
+        set slidertbl@(j) = i16(slidertbl@(j) + left)
+    }
+}
+
+func game_equalize_slider_group (slidertbl, num, locktbl) {
+    var total = 0
+    var num_unlocked = 0
+    loop i in num {
+        if locktbl@(i) == 0 {
+            set total = total + slidertbl@(i)
+            set num_unlocked = num_unlocked + 1
+        }
+    }
+    if num_unlocked > 0 {
+        val n = total // num_unlocked
+        var o = total % num_unlocked
+        loop i in num {
+            if locktbl@(i) == 0 {
+                var v = n
+                if o != 0 {
+                    set v = v + 1
+                    set o = o - 1
+                }
+                set slidertbl@(i) = i16(v)
+            }
+        }
+    }
+}
+
+func game_get_min_dist (g, player_i, planet_i) {
+    var mindist = 255
+    loop i in g.galaxy_stars {
+        if (i != planet_i) && (g.planet@(i).owner == player_i) {
+            set mindist = SETMIN(mindist, g.gaux.star_dist@(planet_i)@(i))
+        }
+    }
+    mindist
+}
+
+func game_adjust_prod_by_special (prod, special) {
+    match special {
+        PLANET_SPECIAL_ULTRA_POOR => prod // 3
+        PLANET_SPECIAL_POOR => prod // 2
+        PLANET_SPECIAL_RICH => prod * 2
+        PLANET_SPECIAL_ULTRA_RICH => prod * 3
+        else => prod
+    }
+}
+
+func game_get_pop_growth_max (g, p, max_pop3) {
+    val e = g.eto@(p.owner)
+    var v
+    if e.race == RACE_SILICOID {
+        set v = (100 - ((p.pop * 100) // max_pop3)) // 2
+    } else {
+        set v = 100 - (((p.pop + p.waste) * 100) // max_pop3)
+        match p.growth {
+            PLANET_GROWTH_HOSTILE => {
+                set v = if v >= 0 => (v // 2) => (v * 2)
+            }
+            PLANET_GROWTH_FERTILE => {
+                set v = if v >= 0 => (v + (v // 2)) => ((v * 2) // 3)
+            }
+            PLANET_GROWTH_GAIA => {
+                set v = if v >= 0 => (v * 2) => (v // 2)
+            }
+            else => {}  ;; PLANET_GROWTH_NORMAL
+        }
+        if e.race == RACE_SAKKRA {
+            set v = v * 2
+        }
+    }
+    var retval = ((v * p.pop) + 5) // 100
+    if !game_num_pop_tenths_fix {
+        set retval = retval + p.pop_tenths
+    }
+    if (v > 0) && (retval < 1) {
+        set retval = 1
+    }
+    if (p.pop + (retval // 10)) < 1 {
+        set retval = 1
+    }
+    retval
+}
+
+func game_get_pop_growth_for_eco (g, p, eco) {
+    val e = g.eto@(p.owner)
+    var v = (eco * 10) // e.inc_pop_cost
+    if e.race == RACE_SAKKRA {
+        set v = v * 2
+    } else {
+        if e.race == RACE_SILICOID {
+            set v = v // 2
+        }
+    }
+    val vmax = (p.pop * 10) // 4
+    MIN(v, vmax)
+}
+
+func game_get_tech_prod (prod, slider, race, special) {
+    var v = (prod * slider) // 100
+    if race == RACE_PSILON {
+        set v = v + (v // 2)
+    }
+    match special {
+        PLANET_SPECIAL_ARTIFACTS => { set v = v * 2 }
+        PLANET_SPECIAL_4XTECH => { set v = v * 4 }
+        else => {}
+    }
+    MIN(v, 0x7fff)
+}
+
+func game_print_prod_of_total (g, pi, prod, buf, bufsize) {
+    var v = i32(g.eto@(pi).total_production_bc)
+    if v == 0 {
+        lib_strcpy(buf, "0%%", bufsize)
+    } else {
+        set v = (prod * 1000) // v
+        lib_sprintf(buf, bufsize, "%i.%i%%", v // 10, v % 10)
+    }
+}
+
+func game_xy_is_in_nebula (g, x, y) {
+    loop n in g.nebula_num {
+        loop i in 4 {
+            if (x >= g.nebula_x0@(n)@(i)) && (x <= g.nebula_x1@(n)@(i)) && (y >= g.nebula_y0@(n)@(i)) && (y <= g.nebula_y1@(n)@(i)) {
+                return true
+            }
+        }
+    }
+    false
+}
+
+func game_calc_eta_ship (g, speed, x0, y0, x1, y1) {
+    var x = x0
+    var y = y0
+    var num = 0
+    loop {
+        while (x != x1) || (y != y1)
+        var v = speed
+        var first = true
+        loop {
+            ;; Inside nebulas, ships move on frame 0 and then on every odd frame.
+            if first || (!game_xy_is_in_nebula(g, x, y)) {
+                set x, y = util_math_go_line_dist(x, y, x1, y1, 5)
+            }
+            set x, y = util_math_go_line_dist(x, y, x1, y1, 6)
+            set first = false
+            set v = v - 1
+            while v > 0
+        }
+        set num = num + 1
+    }
+    num
+}
+
+func game_calc_eta_trans (g, speed, x0, y0, x1, y1) {
+    var x = x0
+    var y = y0
+    var num = 0
+    loop {
+        while (x != x1) || (y != y1)
+        var v = speed
+        loop {
+            ;; Inside nebulas, transports move on every even frame.
+            set x, y = util_math_go_line_dist(x, y, x1, y1, 5)
+            if !game_xy_is_in_nebula(g, x, y) {
+                set x, y = util_math_go_line_dist(x, y, x1, y1, 6)
+            }
+            set v = v - 1
+            while v > 0
+        }
+        set num = num + 1
+    }
+    num
+}
+
+func game_transport_dest_ok (g, p, pi) {
+    if !game_num_trans_redir_fix {
+        p.within_frange@(pi) != 0   ;; WASBUG MOO1 allows redirection almost anywhere
+    } else {
+        (p.within_frange@(pi) == 1) && BOOLVEC_IS1(p.explored, pi) && (p.type >= g.eto@(pi).have_colony_for) && (p.owner != PLAYER_NONE)
+    }
+}
+
+;; `pi` may be PLAYER_NONE (6): within_frange has 6 entries, and C reads past
+;; them (into the next field); here it reads nil, which is not 1.
+func game_reloc_dest_ok (g, planet_i, pi) {
+    if game_num_extended_reloc_range => (g.planet@(planet_i).within_frange@(pi) == 1) => (g.planet@(planet_i).owner == pi)
+}
+
+func game_rng_step (g) {
+    ;; TODO disable for multiplayer
+    if !game_num_deterministic {
+        rnd_0_nm1(2, g)
+    }
+}
+
+;; Max. population values: Each planet has three max_pop variables which are
+;; affected by the ECO projects in different ways (see game_misc.c).
+func game_turn_atmos_tform (p) {
+    var max_pop_increase
+    ifs {
+        p.type < PLANET_TYPE_DEAD => { set max_pop_increase = 20 }
+        p.type < PLANET_TYPE_BARREN => { set max_pop_increase = 10 }
+        else => { set max_pop_increase = 0 }
+    }
+    ;; WASBUG max_pop += moved from outside if (bc >= cost)
+    set p.type = PLANET_TYPE_MINIMAL
+    set p.max_pop1 = i16(p.max_pop1 + max_pop_increase)
+    set p.max_pop2 = i16(p.max_pop2 + max_pop_increase)
+    set p.max_pop3 = i16(p.max_pop3 + max_pop_increase)
+    set p.growth = PLANET_GROWTH_NORMAL
+}
+
+func game_turn_soil_enrich (p, best_tform, advanced) {
+    var max_pop_increase = 0
+    set p.growth = if advanced => PLANET_GROWTH_GAIA => PLANET_GROWTH_FERTILE
+    if advanced {
+        set max_pop_increase = (p.max_pop1 // 10) * 5
+        ;; BUG? (see game_misc.c)
+        if ((p.max_pop1 // 10) % 5) != 0 {
+            set max_pop_increase = max_pop_increase + 5
+        }
+        if game_num_soil_rounding_fix {
+            set max_pop_increase = ((p.max_pop1 + 9) // 10) * 5
+        }
+    } else {
+        set max_pop_increase = (p.max_pop1 // 20) * 5
+        ;; BUG? See above.
+        if ((p.max_pop1 // 20) % 5) != 0 {
+            set max_pop_increase = max_pop_increase + 5
+        }
+        if game_num_soil_rounding_fix {
+            set max_pop_increase = ((p.max_pop1 + 19) // 20) * 5
+        }
+    }
+    set max_pop_increase = SETMAX(max_pop_increase, 5)
+    val old_max_pop2 = p.max_pop2
+    set p.max_pop2 = i16(p.max_pop1 + max_pop_increase)
+    set p.max_pop3 = i16(p.max_pop3 + (p.max_pop2 - old_max_pop2))
+    if game_num_reset_tform_to_max {
+        ;; BUG? (see game_misc.c)
+        set p.max_pop3 = i16(SETMIN(p.max_pop3, best_tform + p.max_pop2))
+    }
+    set p.max_pop3 = i16(SETMIN(p.max_pop3, game_num_max_pop))
+}
+
+func game_ship_build_everywhere (g, owner, ship_i) {
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if p.owner == owner {
+            if ship_i == BUILDSHIP_STARGATE {
+                if !p.have_stargate {
+                    set p.buildship = BUILDSHIP_STARGATE
+                }
+            } else {
+                set p.buildship = ship_i
+            }
+        }
+    }
+}
+
+func game_ship_replace_everywhere (g, owner, replace_i, ship_i) {
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if (p.owner == owner) && (p.buildship == replace_i) {
+            if ship_i == BUILDSHIP_STARGATE {
+                if !p.have_stargate {
+                    set p.buildship = BUILDSHIP_STARGATE
+                }
+            } else {
+                set p.buildship = ship_i
+            }
+        }
+    }
+}
