@@ -52,3 +52,17 @@ func strcasecmp (a, b) {
         set i = i + 1
     }
 }
+
+;; `vsnprintf` into a vector of bytes, with the check of 1oom.
+func lib_sprintf (buf, bufsize, fmt, ...) {
+    val s = string.format(fmt, ...)
+    if #s >= bufsize {
+        log_fatal_and_die("lib_sprintf: buffer too small, need %d, have %d", #s, bufsize)
+    }
+    loop i in #s {
+        set buf@(i) = string.byte(s, i)
+    }
+    set buf@(#s) = 0
+    #s
+}
+
