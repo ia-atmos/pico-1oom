@@ -1,0 +1,94 @@
+;; Port of c/src/rnd.c and rnd.h. The seed is a `uint32_t *` in C: here a
+;; table with the field `seed` (the state of the game, or `[seed=...]`).
+
+include "ctypes.atm"
+
+```:prelude
+#include <sys/time.h>
+```
+
+func rnd_0_nm1 (n, seedp) {
+    ;; NOTE: This code is simplified and contains hacks.
+    ;; Assembler code in this function would be more appropriate.
+    var r = 0               ;; uint16_t
+    var di_si = seedp.seed  ;; uint32_t
+    loop in 9 {
+        var ax = u16(di_si)
+        var dx
+        do {
+            var dx_bx = di_si
+            set dx_bx = dx_bx >> 1
+            set ax = u16(ax ^ dx_bx)
+            set dx_bx = dx_bx >> 1
+            set ax = u16(ax ^ dx_bx)
+            set dx_bx = dx_bx >> 2
+            set ax = u16(ax ^ dx_bx)
+            set dx_bx = dx_bx >> 2
+            set ax = u16(ax ^ dx_bx)
+            set dx = u16(dx_bx >> 25)
+        }
+        do {
+            var al = ax & 0xff
+            val ah = ax >> 8
+            set al = u8(al ^ dx)
+            set ax = u16((ah << 8) + al)
+            set dx = ax
+        }
+        set r = u16(r << 1)
+        if (dx & 1) != 0 {
+            set r = u16(r + 1)
+        }
+        set di_si = di_si >> 1
+        if (ax & 1) != 0 {
+            set di_si = u32(di_si + 0x80000000)
+        }
+    }
+    if di_si == 0 {
+        set di_si = 0x30be
+    }
+    set seedp.seed = di_si
+    u16(r % n)
+}
+
+func rnd_1_n (n, seedp) {
+    u16(1 + rnd_0_nm1(n, seedp))
+}
+
+;; The time of the hardware, in microseconds (`hw_get_time_us`).
+func rnd_get_new_seed () {
+    var seed = u32(`:number ({ struct timeval tv; gettimeofday(&tv, NULL); (int64_t)tv.tv_usec + 1000000ll * (int64_t)tv.tv_sec; })`)
+    if seed == 0 {
+        set seed = 123
+    }
+    seed
+}
+
+func rnd_bitfiddle (ax0) {
+    if ax0 == 0 {
+        return 0x35c8
+    }
+    var ax = ax0
+    var loops = 8
+    loop {
+        var dx = ax
+        var bx = ax
+        set bx = bx >> 1
+        set ax = ax ^ bx
+        set bx = bx >> 1
+        set ax = ax ^ bx
+        set bx = bx >> 2
+        set ax = ax ^ bx
+        set bx = bx >> 2
+        set ax = ax ^ bx
+        set bx = bx >> 1
+        set ax = ax ^ bx
+        set dx = dx >> 1
+        if (ax & 1) != 0 {
+            set dx = dx | 0x8000
+        }
+        set ax = dx
+        set loops = loops - 1
+        until loops == 0
+    }
+    ax
+}
