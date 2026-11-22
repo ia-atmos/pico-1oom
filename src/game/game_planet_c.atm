@@ -1,10 +1,14 @@
-;; Port of c/src/game/game_planet.c, in part: the functions that the logic
-;; uses so far. (The structure and the enums of game_planet.h are in
+;; Port of c/src/game/game_planet.c: the functions of the logic. The texts
+;; for the interface (game_planet_get_finished_text, ..._slider_text) come
+;; with the interface. (The structure and the enums of game_planet.h are in
 ;; game_planet.atm.)
 
+include "../boolvec.atm"
 include "../comp.atm"
+include "../ctypes.atm"
 include "../rnd.atm"
 include "game.atm"
+include "game_num.atm"
 include "game_planet.atm"
 
 func game_planet_get_random (g, owner) {
@@ -43,3 +47,154 @@ func game_planet_get_waste_percent (r_waste, g, p, subtract_transports) {
     }
     w
 }
+
+func game_planet_destroy (g, planet_i, attacker) {
+    var p = g.planet@(planet_i)
+    val owner = p.owner
+    if IS_PLAYER(g, owner) {
+        ;; g->seen is not used by classical AI, so the original skips this for AI.
+        set g.seen@(owner)@(planet_i).owner = PLAYER_NONE
+        set g.seen@(owner)@(planet_i).pop = 0
+        set g.seen@(owner)@(planet_i).bases = 0
+        set g.seen@(owner)@(planet_i).factories = 0
+    }
+    if IS_HUMAN(g, owner) {
+        ;; WASBUG there was an unreliable mess here
+        set g.gaux.human_killer = attacker
+    }
+    set p.rebels = 0
+    set p.unrest = 0
+    set p.reserve = 0
+    set p.prev_owner = owner
+    set p.owner = PLAYER_NONE
+    set p.bc_to_ecoproj = 0
+    set p.pop = 0
+    set p.pop_prev = 0
+    set p.prod_after_maint = 0
+    set p.bc_to_ship = 0
+    loop i in PLAYER_NUM {
+        set p.inbound@(i) = 0
+    }
+    set p.buildship = 0
+    loop i in PLANET_SLIDER_NUM {
+        set p.slider@(i) = 0
+        set p.slider_lock@(i) = 0
+    }
+    set p.slider@(PLANET_SLIDER_IND) = 100
+    set p.reloc = planet_i
+    set p.missile_bases = 0
+    set p.bc_upgrade_base = 0
+    set p.bc_to_base = 0
+    set p.trans_num = 0
+    set p.bc_to_ship = 0
+    set p.bc_to_factory = 0
+    set p.have_stargate = false
+    set p.shield = 0
+    set p.bc_to_shield = 0
+    BOOLVEC_CLEAR(p.finished, FINISHED_NUM)
+    if game_num_extended_reloc_range {
+        return nil
+    }
+    loop i in g.galaxy_stars {
+        set p = g.planet@(i)
+        if p.reloc == planet_i {
+            set p.reloc = i
+        }
+    }
+}
+
+func game_planet_adjust_percent2 (g, planet_i, si, percent, respect_locks) {
+    val p = g.planet@(planet_i)
+    if respect_locks && (p.slider_lock@(si) != 0) {
+        return nil
+    }
+    loop j in PLANET_SLIDER_NUM {
+        if respect_locks && (p.slider_lock@(j) != 0) {
+            skip
+        }
+        if si == j {
+            skip
+        }
+        var diff = 0
+        if j == PLANET_SLIDER_ECO {
+            val w = game_planet_get_waste_percent(nil, g, p, true)
+            if w < p.slider@(j) {
+                set diff = ((p.slider@(j) - w) * percent) // 100
+            }
+        } else {
+            set diff = (p.slider@(j) * percent) // 100
+        }
+        set p.slider@(si) = i16(p.slider@(si) + diff)
+        set p.slider@(j) = i16(p.slider@(j) - diff)
+    }
+}
+
+func game_planet_adjust_percent (g, owner, si, percent, growth) {
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if p.owner == owner {
+            if (growth == 0) || ((growth == 1) && (p.growth > PLANET_GROWTH_HOSTILE)) || ((growth == 2) && (p.growth == PLANET_GROWTH_HOSTILE)) {
+                ;; Summing up all sliders except for the one that is going to be
+                ;; increased and ECO, because ECO is set to the minimum for waste
+                ;; cleanup before this function is called. SHIP and TECH are never
+                ;; increased in this function.
+                var sum = p.slider@(PLANET_SLIDER_SHIP) + p.slider@(PLANET_SLIDER_TECH)
+                if si != PLANET_SLIDER_DEF {
+                    set sum = sum + p.slider@(PLANET_SLIDER_DEF)
+                }
+                if si != PLANET_SLIDER_IND {
+                    set sum = sum + p.slider@(PLANET_SLIDER_IND)
+                }
+                if game_num_newtech_adjust_fix && (si != PLANET_SLIDER_ECO) {
+                    var eco = p.slider@(PLANET_SLIDER_ECO) - game_planet_get_waste_percent(nil, g, p, false)
+                    set eco = SETMAX(eco, 0)
+                    set sum = sum + eco
+                    set p.slider@(PLANET_SLIDER_ECO) = i16(p.slider@(PLANET_SLIDER_ECO) - ((eco * percent) // 100))
+                }
+                val slider_increase = (sum * percent) // 100
+                set p.slider@(PLANET_SLIDER_SHIP) = i16((p.slider@(PLANET_SLIDER_SHIP) * (100 - percent)) // 100)
+                if si == PLANET_SLIDER_DEF {
+                    set p.slider@(PLANET_SLIDER_DEF) = i16(p.slider@(PLANET_SLIDER_DEF) + slider_increase)
+                } else {
+                    set p.slider@(PLANET_SLIDER_DEF) = i16((p.slider@(PLANET_SLIDER_DEF) * (100 - percent)) // 100)
+                }
+                if si == PLANET_SLIDER_IND {
+                    set p.slider@(PLANET_SLIDER_IND) = i16(p.slider@(PLANET_SLIDER_IND) + slider_increase)
+                } else {
+                    set p.slider@(PLANET_SLIDER_IND) = i16((p.slider@(PLANET_SLIDER_IND) * (100 - percent)) // 100)
+                }
+                if si == PLANET_SLIDER_ECO {
+                    set p.slider@(PLANET_SLIDER_ECO) = i16(p.slider@(PLANET_SLIDER_ECO) + slider_increase)
+                }
+                set p.slider@(PLANET_SLIDER_TECH) = i16(100 - p.slider@(PLANET_SLIDER_SHIP) - p.slider@(PLANET_SLIDER_ECO) - p.slider@(PLANET_SLIDER_DEF) - p.slider@(PLANET_SLIDER_IND))
+                set p.slider@(PLANET_SLIDER_TECH) = SETMAX(p.slider@(PLANET_SLIDER_TECH), 0)
+            }
+        }
+    }
+}
+
+func game_planet_can_terraform (g, p, active_player, soilatmos) {
+    val e = g.eto@(active_player)
+    if soilatmos {
+        if e.have_atmos_terra && (p.growth == PLANET_GROWTH_HOSTILE) {
+            return true
+        }
+        if e.have_soil_enrich && (p.growth == PLANET_GROWTH_NORMAL) {
+            return true
+        }
+        if e.have_adv_soil_enrich && ((p.growth == PLANET_GROWTH_NORMAL) || (p.growth == PLANET_GROWTH_FERTILE)) {
+            return true
+        }
+    }
+    ((p.max_pop2 + e.have_terraform_n) > p.max_pop3) && (p.max_pop3 < game_num_max_pop)
+}
+
+func game_planet_update_home (g) {
+    loop i in g.galaxy_stars {
+        val pi = g.planet@(i).owner
+        if (pi != PLAYER_NONE) && (g.evn.home@(pi) == PLANET_NONE) {
+            set g.evn.home@(pi) = i    ;; WASBUG? MOO1 sets to 0 which affects rebellion event check
+        }
+    }
+}
+
