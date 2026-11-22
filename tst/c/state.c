@@ -13,6 +13,7 @@
 #include "game_misc.h"
 #include "game_new.h"
 #include "game_save.h"
+#include "game_tech.h"
 #include "lbx.h"
 #include "os.h"
 #include "gamedump.h"
@@ -56,6 +57,16 @@ static void do_op(const char *op)
     OP(empire_contact) { game_update_empire_contact(&g); }
     OP(visibility) { game_update_visibility(&g); }
     OP(rng_step) { game_rng_step(&g); }
+    OP(tech_util) { game_update_tech_util(&g); }
+    OP(finish_new) { game_tech_finish_new(&g, arg(op, 0)); }
+    OP(start_next) { game_tech_start_next(&g, arg(op, 0), arg(op, 1), arg(op, 2)); }
+    OP(set_to_max_bonus) { game_tech_set_to_max_bonus(&g, arg(op, 0), arg(op, 1)); }
+    OP(orion_loot) { game_tech_get_orion_loot(&g, arg(op, 0)); }
+    OP(artifact_loot) { game_tech_get_artifact_loot(&g, arg(op, 0), arg(op, 1)); }
+    OP(atmos_tform) { game_turn_atmos_tform(&g.planet[arg(op, 0)]); }
+    OP(soil_enrich) { game_turn_soil_enrich(&g.planet[arg(op, 0)], arg(op, 1), arg(op, 2)); }
+    OP(equalize_tech) { game_equalize_slider_group(g.eto[arg(op, 0)].tech.slider, TECH_FIELD_NUM, g.eto[arg(op, 0)].tech.slider_lock); }
+    OP(adjust_tech) { game_adjust_slider_group(g.eto[arg(op, 0)].tech.slider, arg(op, 1), arg(op, 2), TECH_FIELD_NUM, g.eto[arg(op, 0)].tech.slider_lock); }
     else { printf("unknown op %s\n", op); exit(1); }
 }
 

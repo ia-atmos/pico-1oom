@@ -19,3 +19,4 @@ shift
 "$DIR/game_new.sh" "$DATA"
 "$DIR/game_aux.sh" "$DATA" "$@"
 "$DIR/save.sh" "$@"
+"$DIR/state.sh" "$DATA" "$@"
