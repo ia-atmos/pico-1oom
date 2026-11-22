@@ -13,7 +13,7 @@ settled before the rule keep their old numbers (1 to 7, see "Settled").
 The initial instructions are in `ia-atmos/lang`,
 `.claude/plans/261114-pico-1oom.md` (commit `354cf19`).
 
-Last update: 2026-11-20
+Last update: 2026-11-22
 
 ## Index
 
@@ -26,7 +26,9 @@ Last update: 2026-11-20
 | #5 | `log.atm` writes errors to the standard output, and holds `hw_log_*` | remark | open, until the hardware of pico |
 | #6 | Step 1 done, and how the C becomes Atmos | report | reported 2026-11-17; he asked about the structure 2026-11-18 |
 | #7 | Work with no input (atmos-lang#95): #1, #3, #4 done without his answer | report | reported 2026-11-20 |
-| #8 | Step 3 of the port: a new game from a seed | work | next |
+| #8 | Step 3 of the port: a new game from a seed | work | done 2026-11-22 |
+| #9 | Step 4 of the port: the turn, one phase at a time | work | in course |
+| #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
 
 ## A. Decisions waiting for an answer
 
@@ -58,7 +60,21 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   `game_techtypes.h`, `game_shipdesign.c` (`tst/game_shipdesign.sh`),
   and `game_str.c` (converted by `tools/game_str.py`; `tst/game_str.sh`:
   1177 strings).
-- #8 Step 3, a new game from a seed (`game_new.c`): next.
+- #8 Step 3, a new game from a seed: **done** (2026-11-22).
+  `game_new.c`, with `rnd.c`, `comp.h`, `game_num.c` (converted by
+  `tools/game_num.py`), `lib_strcpy`, `util_trim_whitespace`, and the two
+  functions of the classic AI for a new game. `tst/game_new.sh`: 336 new
+  games (2 to 6 players, all sizes and difficulties, fixed and random
+  races and banners, one or more humans, both galaxy generators, with
+  and without nebulas, 6 seeds), each saved byte by byte as the C. The C
+  driver (`tst/c/game_new.c`) gives the same save as the init save of
+  `1oom_cmdline`. Not ported: `game_generate_load` (it throws), which is
+  only called when `game_num_update_on_load` is false (it is true).
+- #9 Step 4, the turn: `game_misc.c` first (its updates are used by the
+  load and by the turn), then the phases of `game_turn_process`.
+- #10 A test program of the port takes ~50 s for the C compiler (the
+  generated C of the tables of strings and ships); it then runs in
+  0.1 s. Not a blocker; to tell `atmos-lang` if it grows.
 - #5 `log.atm` writes the errors to the standard output (Atmos has no
   standard error), and holds `hw_log_*` until the hardware of pico.
 - Reading a file is slow (`cfile_read` takes byte by byte with
