@@ -1,0 +1,21 @@
+;; rnd.c of the port against the C (see tst/rnd.sh).
+
+include "../src/rnd.atm"
+
+pin out = []
+loop _,s in [0, 1, 0x3039, 0xfda3f, 118835000, 0x80000000, 0xffffffff, 0x38018553] {
+    pin seedp = [seed=s]
+    set out@+ = string.format("seed %d:", s)
+    loop i in 200 {
+        val n = 1 + ((i * 37) % 1000)
+        set out@+ = string.format(" %d", if (i & 1) != 0 => rnd_1_n(n, seedp) => rnd_0_nm1(n, seedp))
+    }
+    set out@+ = string.format(" -> %d\n", seedp.seed)
+}
+var i = 0
+loop {
+    while i < 70000
+    set out@+ = string.format("bitfiddle %i = %d\n", i, rnd_bitfiddle(u16(i)))
+    set i = i + 7
+}
+io.write(vector.join(out, ""))
