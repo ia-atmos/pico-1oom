@@ -70,8 +70,19 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   driver (`tst/c/game_new.c`) gives the same save as the init save of
   `1oom_cmdline`. Not ported: `game_generate_load` (it throws), which is
   only called when `game_num_update_on_load` is false (it is true).
-- #9 Step 4, the turn: `game_misc.c` first (its updates are used by the
-  load and by the turn), then the phases of `game_turn_process`.
+- #9 Step 4, the turn, in course. Done (2026-11-22): `game_tech.c` (all
+  of it) and `game_misc.c` (all of it), with two functions of
+  `game_planet.c` and `lib_sprintf`. Checked by `tst/state.sh`: on the
+  109 saves, two groups of operations (the updates of production,
+  research, waste, range, contact, visibility; and techs, sliders,
+  terraforming, loot), the whole state compared with the C after each
+  (`tools/gamedump.py` writes the dump of every field of `game_s`, also
+  those the save does not keep, in C and Atmos). Next: the rest of
+  `game_planet.c`, then the phases of `game_turn_process` that need no
+  unported module (the build of eco, industry, defense, ships; the move
+  of ships), then `game_spy`, `game_diplo`, `game_event`, and the AI.
+  Calls into what is not ported yet throw (`game_tech_research` calls the
+  AI's `tech_next` when an AI finishes a tech).
 - #10 A test program of the port takes ~50 s for the C compiler (the
   generated C of the tables of strings and ships); it then runs in
   0.1 s. Not a blocker; to tell `atmos-lang` if it grows.
