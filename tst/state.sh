@@ -23,10 +23,11 @@ for k in 1 2 3; do
 done
 "$ATMOS" -o "$TMP/atm" "$DIR/state.atm"
 OPS1="start have_reserve_fuel tech_util production total_research eco_on_waste:0:0 eco_on_waste:1:1 seen_by_orbit:0 seen_by_orbit:1 within_range empire_contact visibility reloc_dest rng_step"
+OPS3="start production adjust_percent:0:2:20:0 adjust_percent:1:3:30:1 adjust_percent2:0:4:25:0 planet_destroy:1:2 planet_destroy:2:0 update_home production"
 OPS2="start production total_research finish_new:0 start_next:1:2:5 set_to_max_bonus:0:3 equalize_tech:2 adjust_tech:0:1:40 soil_enrich:3:20:0 soil_enrich:4:40:1 atmos_tform:5 artifact_loot:7:0 orion_loot:0 tech_util"
 n=0; bad=0
 for f in "$@"; do
-    for ops in "$OPS1" "$OPS2"; do
+    for ops in "$OPS1" "$OPS2" "$OPS3"; do
         n=$((n+1))
         "$TMP/c" "$DATA" "$TMP/c.txt" load "$f" $ops > /dev/null
         "$TMP/atm" "$DATA" "$TMP/a.txt" load "$f" $ops > /dev/null

@@ -11,6 +11,7 @@
 #include "game.h"
 #include "game_aux.h"
 #include "game_misc.h"
+#include "game_planet.h"
 #include "game_new.h"
 #include "game_save.h"
 #include "game_tech.h"
@@ -57,6 +58,10 @@ static void do_op(const char *op)
     OP(empire_contact) { game_update_empire_contact(&g); }
     OP(visibility) { game_update_visibility(&g); }
     OP(rng_step) { game_rng_step(&g); }
+    OP(planet_destroy) { game_planet_destroy(&g, arg(op, 0), arg(op, 1)); }
+    OP(adjust_percent2) { game_planet_adjust_percent2(&g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3)); }
+    OP(adjust_percent) { game_planet_adjust_percent(&g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3)); }
+    OP(update_home) { game_planet_update_home(&g); }
     OP(tech_util) { game_update_tech_util(&g); }
     OP(finish_new) { game_tech_finish_new(&g, arg(op, 0)); }
     OP(start_next) { game_tech_start_next(&g, arg(op, 0), arg(op, 1), arg(op, 2)); }
