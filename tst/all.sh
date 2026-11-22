@@ -12,6 +12,7 @@ shift
 "$DIR/util_math.sh"
 "$DIR/rnd.sh"
 "$DIR/game_str.sh"
+"$DIR/game_num.sh"
 "$DIR/game_shiptech.sh"
 "$DIR/game_shipdesign.sh"
 "$DIR/lbx.sh" "$DATA"
