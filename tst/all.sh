@@ -16,5 +16,6 @@ shift
 "$DIR/game_shiptech.sh"
 "$DIR/game_shipdesign.sh"
 "$DIR/lbx.sh" "$DATA"
+"$DIR/game_new.sh" "$DATA"
 "$DIR/game_aux.sh" "$DATA" "$@"
 "$DIR/save.sh" "$@"
