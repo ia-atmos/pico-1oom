@@ -36,8 +36,7 @@ int main(int argc, char **argv)
     opt.improved_galaxy_generator = atoi(argv[7]);
     opt.nebulae = atoi(argv[8]);
     for (int i = 0; i < PLAYER_NUM; ++i) {
-        int r = (races >> (4 * i)) & 0xf, b = (banners / (i ? (int)(1e0 * 1) : 1)) ;
-        (void)b;
+        int r = (races >> (4 * i)) & 0xf;
         opt.pdata[i].race = r ? (r - 1) : RACE_RANDOM;
         opt.pdata[i].is_ai = true;
     }
