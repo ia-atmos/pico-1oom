@@ -1,0 +1,86 @@
+;; game_num.atm of the port: every number, as tst/c/game_num.c prints it.
+;; Generated with it.
+
+include "../src/game/game_num.atm"
+
+pin out = []
+
+set out@+ = string.format("game_num_deterministic = %i\n", if game_num_deterministic => 1 => 0)
+set out@+ = string.format("game_num_ai_trans_range_fix = %i\n", if game_num_ai_trans_range_fix => 1 => 0)
+set out@+ = string.format("game_num_ai_4_colony_curse_fix = %i\n", if game_num_ai_4_colony_curse_fix => 1 => 0)
+set out@+ = string.format("game_num_ai_first_tech_cost_fix = %i\n", if game_num_ai_first_tech_cost_fix => 1 => 0)
+set out@+ = string.format("game_num_bt_turn_max = %i\n", game_num_bt_turn_max)
+set out@+ = string.format("game_num_bt_wait_no_reload = %i\n", if game_num_bt_wait_no_reload => 1 => 0)
+set out@+ = string.format("game_num_bt_precap_tohit = %i\n", if game_num_bt_precap_tohit => 1 => 0)
+set out@+ = string.format("game_num_bt_no_tohit_acc = %i\n", if game_num_bt_no_tohit_acc => 1 => 0)
+set out@+ = string.format("game_num_bt_oracle_fix = %i\n", if game_num_bt_oracle_fix => 1 => 0)
+set out@+ = string.format("game_num_stargate_cost = %i\n", game_num_stargate_cost)
+set out@+ = string.format("game_num_stargate_maint = %i\n", game_num_stargate_maint)
+set out@+ = string.format("game_num_weapon_list_max = %i\n", game_num_weapon_list_max)
+set out@+ = string.format("game_num_limit_ships = %i\n", game_num_limit_ships)
+set out@+ = string.format("game_num_limit_ships_all = %i\n", game_num_limit_ships_all)
+set out@+ = string.format("game_num_max_pop = %i\n", game_num_max_pop)
+set out@+ = string.format("game_num_max_factories = %i\n", game_num_max_factories)
+set out@+ = string.format("game_num_max_inbound = %i\n", game_num_max_inbound)
+set out@+ = string.format("game_num_atmos_cost = %i\n", game_num_atmos_cost)
+set out@+ = string.format("game_num_soil_cost = %i\n", game_num_soil_cost)
+set out@+ = string.format("game_num_adv_soil_cost = %i\n", game_num_adv_soil_cost)
+set out@+ = string.format("game_num_adv_scan_range = %i\n", game_num_adv_scan_range)
+set out@+ = string.format("game_num_pop_hp = %i\n", game_num_pop_hp)
+set out@+ = string.format("game_num_fact_hp = %i\n", game_num_fact_hp)
+set out@+ = string.format("game_num_max_bomb_dmg = %i\n", game_num_max_bomb_dmg)
+set out@+ = string.format("game_num_max_bio_dmg = %i\n", game_num_max_bio_dmg)
+set out@+ = string.format("game_num_max_trans_dmg = %i\n", game_num_max_trans_dmg)
+set out@+ = string.format("game_num_max_ship_maint = %i\n", game_num_max_ship_maint)
+set out@+ = string.format("game_num_max_tribute_bc = %i\n", game_num_max_tribute_bc)
+set out@+ = string.format("game_num_event_roll = %i\n", game_num_event_roll)
+set out@+ = string.format("game_num_accident_chk_factories = %i\n", if game_num_accident_chk_factories => 1 => 0)
+set out@+ = string.format("game_num_council_years = %i\n", game_num_council_years)
+set out@+ = string.format("game_num_news_orion = %i\n", if game_num_news_orion => 1 => 0)
+set out@+ = string.format("game_num_aud_ask_break_nap = %i\n", if game_num_aud_ask_break_nap => 1 => 0)
+set out@+ = string.format("game_num_aud_bounty_give = %i\n", if game_num_aud_bounty_give => 1 => 0)
+set out@+ = string.format("game_num_aud_update_tech = %i\n", if game_num_aud_update_tech => 1 => 0)
+set out@+ = string.format("game_num_update_on_load = %i\n", if game_num_update_on_load => 1 => 0)
+set out@+ = string.format("game_num_newtech_adjust_fix = %i\n", if game_num_newtech_adjust_fix => 1 => 0)
+set out@+ = string.format("game_num_monster_rest_att = %i\n", if game_num_monster_rest_att => 1 => 0)
+set out@+ = string.format("game_num_orbital_bio_fix = %i\n", if game_num_orbital_bio_fix => 1 => 0)
+set out@+ = string.format("game_num_orbital_weap_any = %i\n", if game_num_orbital_weap_any => 1 => 0)
+set out@+ = string.format("game_num_orbital_weap_4 = %i\n", if game_num_orbital_weap_4 => 1 => 0)
+set out@+ = string.format("game_num_orbital_torpedo = %i\n", if game_num_orbital_torpedo => 1 => 0)
+set out@+ = string.format("game_num_orbital_comp_fix = %i\n", if game_num_orbital_comp_fix => 1 => 0)
+set out@+ = string.format("game_num_combat_trans_fix = %i\n", if game_num_combat_trans_fix => 1 => 0)
+set out@+ = string.format("game_num_stargate_redir_fix = %i\n", if game_num_stargate_redir_fix => 1 => 0)
+set out@+ = string.format("game_num_trans_redir_fix = %i\n", if game_num_trans_redir_fix => 1 => 0)
+set out@+ = string.format("game_num_retreat_redir_fix = %i\n", if game_num_retreat_redir_fix => 1 => 0)
+set out@+ = string.format("game_num_first_tech_rp_fix = %i\n", if game_num_first_tech_rp_fix => 1 => 0)
+set out@+ = string.format("game_num_waste_calc_fix = %i\n", if game_num_waste_calc_fix => 1 => 0)
+set out@+ = string.format("game_num_waste_adjust_fix = %i\n", if game_num_waste_adjust_fix => 1 => 0)
+set out@+ = string.format("game_num_slider_respects_locks = %i\n", if game_num_slider_respects_locks => 1 => 0)
+set out@+ = string.format("game_num_pop_tenths_fix = %i\n", if game_num_pop_tenths_fix => 1 => 0)
+set out@+ = string.format("game_num_factory_cost_fix = %i\n", if game_num_factory_cost_fix => 1 => 0)
+set out@+ = string.format("game_num_doom_stack_fix = %i\n", if game_num_doom_stack_fix => 1 => 0)
+set out@+ = string.format("game_num_eco_slider_slack = %i\n", game_num_eco_slider_slack)
+set out@+ = string.format("game_num_reset_tform_to_max = %i\n", if game_num_reset_tform_to_max => 1 => 0)
+set out@+ = string.format("game_num_soil_rounding_fix = %i\n", if game_num_soil_rounding_fix => 1 => 0)
+set out@+ = string.format("game_num_leaving_trans_fix = %i\n", if game_num_leaving_trans_fix => 1 => 0)
+set out@+ = string.format("game_num_hidden_child_labor_fix = %i\n", if game_num_hidden_child_labor_fix => 1 => 0)
+set out@+ = string.format("game_num_extended_reloc_range = %i\n", if game_num_extended_reloc_range => 1 => 0)
+set out@+ = string.format("game_num_colonized_factories_fix = %i\n", if game_num_colonized_factories_fix => 1 => 0)
+set out@+ = string.format("game_num_cond_switch_to_ind_fix = %i\n", if game_num_cond_switch_to_ind_fix => 1 => 0)
+set out@+ = string.format("game_num_slider_eco_done_fix = %i\n", if game_num_slider_eco_done_fix => 1 => 0)
+set out@+ = string.format("game_num_ship_scanner_fix = %i\n", if game_num_ship_scanner_fix => 1 => 0)
+set out@+ = string.format("game_num_ai_fleet_cheating_fix = %i\n", if game_num_ai_fleet_cheating_fix => 1 => 0)
+loop i0 in #game_num_tbl_hull_w { set out@+ = string.format("game_num_tbl_hull_w[%i] = %i\n", i0, game_num_tbl_hull_w@(i0)) }
+loop i0 in #game_num_base_hp { set out@+ = string.format("game_num_base_hp[%i] = %i\n", i0, game_num_base_hp@(i0)) }
+loop i0 in #game_num_pshield_cost { set out@+ = string.format("game_num_pshield_cost[%i] = %i\n", i0, game_num_pshield_cost@(i0)) }
+loop i0 in #game_num_tech_costmuld { set out@+ = string.format("game_num_tech_costmuld[%i] = %i\n", i0, game_num_tech_costmuld@(i0)) }
+loop i0 in #game_num_tech_costmula { set out@+ = string.format("game_num_tech_costmula[%i] = %i\n", i0, game_num_tech_costmula@(i0)) }
+set out@+ = string.format("game_num_tech_costmuld2 = %i\n", game_num_tech_costmuld2)
+set out@+ = string.format("game_num_tech_costmula2 = %i\n", game_num_tech_costmula2)
+set out@+ = string.format("game_num_tech_costmul = %i\n", game_num_tech_costmul)
+loop i0 in #game_num_tech_costmulr { loop i1 in #game_num_tech_costmulr@(i0) { set out@+ = string.format("game_num_tech_costmulr[%i][%i] = %i\n", i0, i1, game_num_tech_costmulr@(i0)@(i1)) } }
+loop i0 in #game_num_ng_tech { loop i1 in #game_num_ng_tech@(i0) { loop i2 in #game_num_ng_tech@(i0)@(i1) { set out@+ = string.format("game_num_ng_tech[%i][%i][%i] = %i\n", i0, i1, i2, game_num_ng_tech@(i0)@(i1)@(i2)) } } }
+loop i0 in #game_num_tbl_trait1 { loop i1 in #game_num_tbl_trait1@(i0) { set out@+ = string.format("game_num_tbl_trait1[%i][%i] = %i\n", i0, i1, game_num_tbl_trait1@(i0)@(i1)) } }
+loop i0 in #game_num_tbl_trait2 { loop i1 in #game_num_tbl_trait2@(i0) { set out@+ = string.format("game_num_tbl_trait2[%i][%i] = %i\n", i0, i1, game_num_tbl_trait2@(i0)@(i1)) } }
+loop i0 in #game_num_tbl_tech_autoadj { set out@+ = string.format("game_num_tbl_tech_autoadj[%i] = %i\n", i0, game_num_tbl_tech_autoadj@(i0)) }
+io.write(vector.join(out, ""))
