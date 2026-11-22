@@ -1,0 +1,45 @@
+;; Port of c/src/game/game_planet.c, in part: the functions that the logic
+;; uses so far. (The structure and the enums of game_planet.h are in
+;; game_planet.atm.)
+
+include "../comp.atm"
+include "../rnd.atm"
+include "game.atm"
+include "game_planet.atm"
+
+func game_planet_get_random (g, owner) {
+    pin tbl = carray(PLANETS_MAX)
+    var num = 0
+    loop i in g.galaxy_stars {
+        if g.planet@(i).owner == owner {
+            set tbl@(num) = i
+            set num = num + 1
+        }
+    }
+    if num == 0 => PLANET_NONE => tbl@(rnd_0_nm1(num, g))
+}
+
+;; `r_waste` is an `int *` in C: here a table that receives `.waste`, or nil.
+func game_planet_get_waste_percent (r_waste, g, p, subtract_transports) {
+    if p.owner == PLAYER_NONE {
+        return 0
+    }
+    val e = g.eto@(p.owner)
+    var fact = p.factories
+    var pop = p.pop
+    if subtract_transports {
+        set pop = pop - p.trans_num
+    }
+    set fact = SETMIN(fact, pop * game_planet_get_pop_oper_fact(g, p))
+    val waste = if e.race == RACE_SILICOID => 0 => ((((fact * e.ind_waste_scale) // 10) + p.waste) // e.have_eco_restoration_n)
+    var prod = p.prod_after_maint
+    if prod == 0 {
+        set prod = 1000
+    }
+    var w = ((waste * 100) + prod - 1) // prod
+    set w = SETRANGE(w, 0, 100)
+    if r_waste != nil {
+        set r_waste.waste = waste
+    }
+    w
+}
