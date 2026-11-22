@@ -1,0 +1,98 @@
+;; Port of c/src/game/game_ai_classic.c, in part: the two functions of a new
+;; game. The rest (the turn, the battle, the diplomacy) comes with step 5.
+;;
+;; The "Classic" AI mimics MOO1 v1.3 behaviour.
+;; Minor bug fixes are allowed.
+;; The "Classic+" AI fixes small bugs and does small improvements.
+;; Major improvements go to other game_ai_* implementations.
+
+include "../rnd.atm"
+include "../util_math.atm"
+include "game.atm"
+include "game_num.atm"
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_new_game_init (g, player, home) {
+    var n = 0
+    val p = g.planet@(home)
+    val e = g.eto@(player)
+    loop i in g.galaxy_stars {
+        val q = g.planet@(i)
+        if (q.type > (PLANET_TYPE_MINIMAL - 1)) && (util_math_dist_fast(q.x, q.y, p.x, p.y) <= 30) {
+            set n = n + 1
+        }
+    }
+    set e.ai_p3_countdown = i8(rnd_1_n(6, g) + 14)
+    set e.ai_p2_countdown = i8(rnd_1_n(10, g))
+    if n > 1 {
+        set p.slider@(PLANET_SLIDER_SHIP) = 10
+        set p.slider@(PLANET_SLIDER_DEF) = 0
+        set p.slider@(PLANET_SLIDER_IND) = 90
+        set p.slider@(PLANET_SLIDER_ECO) = 0
+        set p.slider@(PLANET_SLIDER_TECH) = 0
+        set e.tech.slider@(TECH_FIELD_COMPUTER) = 20
+        set e.tech.slider@(TECH_FIELD_CONSTRUCTION) = 20
+        set e.tech.slider@(TECH_FIELD_FORCE_FIELD) = 0
+        set e.tech.slider@(TECH_FIELD_PLANETOLOGY) = 40
+        set e.tech.slider@(TECH_FIELD_PROPULSION) = 20
+        set e.tech.slider@(TECH_FIELD_WEAPON) = 0
+    } else {
+        set e.ai_p3_countdown = i8(rnd_1_n(6, g) + 24)
+        set p.slider@(PLANET_SLIDER_SHIP) = 0
+        set p.slider@(PLANET_SLIDER_DEF) = 0
+        set p.slider@(PLANET_SLIDER_IND) = 60
+        set p.slider@(PLANET_SLIDER_ECO) = 10
+        set p.slider@(PLANET_SLIDER_TECH) = 40
+        set e.tech.slider@(TECH_FIELD_COMPUTER) = 0
+        set e.tech.slider@(TECH_FIELD_CONSTRUCTION) = 0
+        set e.tech.slider@(TECH_FIELD_FORCE_FIELD) = 0
+        set e.tech.slider@(TECH_FIELD_PLANETOLOGY) = 0
+        set e.tech.slider@(TECH_FIELD_PROPULSION) = 100
+        set e.tech.slider@(TECH_FIELD_WEAPON) = 0
+    }
+    ;; XXX these shipi values are wrong, but fixed by first next turn
+    set e.shipi_colony = 1
+    set e.shipi_bomber = 4
+}
+
+func game_ai_classic_new_game_tech (g) {
+    loop pli in g.players {
+        if IS_HUMAN(g, pli) {
+            skip
+        }
+        loop field in TECH_FIELD_NUM {
+            val rl = g.srd@(pli).researchlist@(field)@0
+            var tech
+            loop {
+                set tech = rl@(rnd_0_nm1(3, g))
+                until tech != 0
+            }
+            if game_num_ai_first_tech_cost_fix {
+                ;; game_tech_start_next comes with game_tech.c (step 4)
+                throw "game_ai_classic_new_game_tech: game_tech_start_next is not ported yet"
+            } else {
+                val e = g.eto@(pli)
+                set e.tech.project@(field) = tech
+                set e.tech.cost@(field) = u32(tech * tech * 50)
+            }
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+;; The fields of `struct game_ai_s` that are ported so far.
+pin game_ai_classic = [
+    id            = 0,      ;; GAME_AI_CLASSIC
+    name          = "Classic",
+    new_game_init = game_ai_classic_new_game_init,
+    new_game_tech = game_ai_classic_new_game_tech,
+]
+
+pin game_ai_classicplus = [
+    id            = 1,      ;; GAME_AI_CLASSICPLUS
+    name          = "Classic+",
+    new_game_init = game_ai_classic_new_game_init,
+    new_game_tech = game_ai_classic_new_game_tech,
+]
