@@ -1,6 +1,7 @@
 ;; Port of c/src/util.c: the functions on strings and paths that the port
 ;; needs so far. In C they allocate; here, paths are Atmos strings.
 
+include "lib.atm"
 include "os/unix/osdefs.atm"
 
 ;; `util_concat(s, ..., NULL)`: the strings joined.
@@ -25,3 +26,27 @@ func util_fname_split (path) {
     }
     return string.sub(path, 0, p - 1), string.sub(path, p + 1)
 }
+
+;; On a vector of bytes (a `char[]`), in place.
+func util_trim_whitespace (buf, bufsize) {
+    var i = 0
+    loop {
+        while (buf@(i) == 32) || (buf@(i) == 9)     ;; ' ' '\t'
+        set i = i + 1
+    }
+    if i > 0 {
+        lib_strcpy(buf, cstr(buf, i), bufsize)
+    }
+    set i = 0
+    loop {
+        while (i < bufsize) && (buf@(i) != 0)
+        set i = i + 1
+    }
+    set i = i - 1
+    loop {
+        while (i >= 0) && ((buf@(i) == 32) || (buf@(i) == 9))
+        set buf@(i) = 0
+        set i = i - 1
+    }
+}
+
