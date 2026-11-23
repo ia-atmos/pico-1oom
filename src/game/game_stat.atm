@@ -1,0 +1,135 @@
+;; Port of c/src/game/game_stat.c and game_stat.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "game.atm"
+include "game_misc.atm"
+include "game_num.atm"
+
+func game_stats_s () {
+    [
+        p   = carray(PLAYER_NUM),   ;; player_id_t[]
+        v   = carray2(6, PLAYER_NUM),   ;; uint8_t[][]
+        num = 0,    ;; int
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_stat_fleet (g, pi) {
+    val e = g.eto@(pi)
+    val srd = g.srd@(pi)
+    var v4
+    var va
+    var ve = 0
+    var sum = 0
+    loop i in e.shipdesigns_num {
+        set sum = sum + (srd.shipcount@(i) * game_num_tbl_hull_w@(srd.design@(i).hull))
+    }
+    set sum = SETMIN(sum, 0x319750)
+    set v4 = 0
+    set va = 125
+    loop {
+        while sum > va
+        set sum = sum - va
+        set v4 = v4 + 1
+        set ve = va
+        set va = i32(va << 1)
+    }
+    var v2 = ((sum * 10) // (va - ve)) + (v4 * 10)
+    set v2 = SETRANGE(v2, 0, 100)
+    v2
+}
+
+func game_stat_tech (g, pi) {
+    val p = g.eto@(pi).tech.percent
+    var sum = 0
+    loop f in TECH_FIELD_NUM {
+        set sum = sum + p@(f)
+    }
+    sum
+}
+
+func game_stat_prod (g, pi) {
+    var ve = 0      ;; uint32_t
+    var prod = g.eto@(pi).total_production_bc   ;; uint32_t
+    var si = 0
+    var va = 100    ;; uint32_t
+    loop {
+        while prod > va
+        set prod = prod - va
+        set si = si + 1
+        set ve = va
+        set va = u32(va << 1)
+    }
+    i32(u32(u32(prod * 10) // u32(va - ve)) + (si * 10))
+}
+
+func game_stat_pop (g, pi) {
+    var sum = 0
+    val num = g.galaxy_stars
+    loop i in num {
+        val p = g.planet@(i)
+        if p.owner == pi {
+            set sum = sum + p.pop
+        }
+    }
+    sum // (((num * 3) // 2) + 1)
+}
+
+func game_stat_planets (g, pi) {
+    var sum = 0
+    val num = g.galaxy_stars
+    loop i in num {
+        val p = g.planet@(i)
+        if p.owner == pi {
+            set sum = sum + 1
+        }
+    }
+    (sum * 100) // (num + 1)
+}
+
+func game_stats_all (g, api, d) {
+    pin sum = carray(PLAYER_NUM)    ;; int[]
+
+    game_update_production(g)
+    game_update_empire_contact(g)
+    game_update_maint_costs(g)
+
+    set d.num = 1
+    set d.p@(0) = api
+    loop pi in g.players {
+        if (pi != api) && BOOLVEC_IS1(g.eto@(api).contact, pi) {
+            set d.p@(d.num) = pi
+            set d.num = d.num + 1
+        }
+    }
+    loop i in d.num {
+        set sum@(i) = 0
+    }
+    loop s in 5 {
+        loop i in d.num {
+            val pi = d.p@(i)
+            var v = match s {
+                0 => game_stat_fleet(g, pi)
+                1 => game_stat_tech(g, pi) // 3
+                2 => game_stat_prod(g, pi)
+                3 => game_stat_pop(g, pi)
+                4 => game_stat_planets(g, pi)
+            }
+            set v = SETRANGE(v, 0, 100)
+            set d.v@(s)@(i) = v
+            set sum@(i) = sum@(i) + v
+        }
+    }
+    do {
+        var maxstats = 0
+        loop i in d.num {
+            set maxstats = SETMAX(maxstats, sum@(i))
+        }
+        loop i in d.num {
+            set d.v@(5)@(i) = if maxstats != 0 => ((sum@(i) * 100) // maxstats) => 100
+        }
+    }
+}

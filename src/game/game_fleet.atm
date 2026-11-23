@@ -1,0 +1,297 @@
+;; Port of c/src/game/game_fleet.c and game_fleet.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../log.atm"
+include "../util.atm"
+include "game.atm"
+include "game_num.atm"
+include "game_planet.atm"
+
+val FLEET_SPEED_STARGATE = 35
+
+;; ---------------------------------------------------------------------------
+
+func game_send_fleet_do (g, owner, from, dest, ships, shiptypes, numtypes, retreat) {
+    var r
+    var speed   ;; uint8_t
+    do {
+        var found = false
+        loop i in numtypes {
+            if ships@(i) != 0 {
+                set found = true
+                break
+            }
+        }
+        if !found {
+            return false
+        }
+    }
+    val pf = g.planet@(from)
+    val pt = g.planet@(dest)
+    if (pt.owner == owner) && (pf.owner == owner) && pt.have_stargate && pf.have_stargate {
+        set speed = FLEET_SPEED_STARGATE
+    } else {
+        val sd = g.srd@(owner).design
+        set speed = 100
+        loop i in numtypes {
+            if ships@(i) > 0 {
+                val st = shiptypes@(i)
+                val s = u8(sd@(st).engine + 1)
+                set speed = SETMIN(speed, s)
+            }
+        }
+    }
+    loop i in g.enroute_num {
+        set r = g.enroute@(i)
+        if (r.owner == owner) && (r.x == pf.x) && (r.y == pf.y) && (r.dest == dest) && (r.speed == speed) {
+            loop j in numtypes {
+                if ships@(j) > 0 {
+                    val st = shiptypes@(j)
+                    set r.ships@(st) = u16(ADDSATT(r.ships@(st), ships@(j), game_num_limit_ships))
+                }
+            }
+            return true
+        }
+    }
+    if g.enroute_num == FLEET_ENROUTE_MAX {
+        log_warning("fleet enroute table (size %i) full!\n", FLEET_ENROUTE_MAX)
+        return false
+    }
+    set r = g.enroute@(g.enroute_num)
+    set r.owner = owner
+    set r.x = pf.x
+    set r.y = pf.y
+    set r.dest = dest
+    set r.speed = speed
+    set r.retreat = retreat
+    loop i in NUM_SHIPDESIGNS {
+        set r.ships@(i) = 0
+    }
+    loop i in numtypes {
+        if ships@(i) > 0 {
+            val st = shiptypes@(i)
+            set r.ships@(st) = ships@(i)
+        }
+    }
+    BOOLVEC_CLEAR(r.visible, PLAYER_NUM)
+    BOOLVEC_SET1(r.visible, owner)
+    set g.enroute_num = g.enroute_num + 1
+    true
+}
+
+func game_send_fleet_from_orbit_do (g, owner, from, dest, ships, shiptypes, numtypes, retreat) {
+    if !game_send_fleet_do(g, owner, from, dest, ships, shiptypes, numtypes, retreat) {
+        return false
+    }
+    do {
+        val o = g.eto@(owner).orbit@(from)
+        var found = false
+        loop i in numtypes {
+            set o.ships@(shiptypes@(i)) = u16(o.ships@(shiptypes@(i)) - ships@(i))
+        }
+        loop i in NUM_SHIPDESIGNS {
+            if o.ships@(i) > 0 {
+                set found = true
+                break
+            }
+        }
+        if !found {
+            BOOLVEC_CLEAR(o.visible, PLAYER_NUM)
+        }
+    }
+    true
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_send_fleet_from_orbit (g, owner, from, dest, ships, shiptypes, numtypes) {
+    if dest == from {
+        return false
+    }
+    game_send_fleet_from_orbit_do(g, owner, from, dest, ships, shiptypes, numtypes, false)
+}
+
+func game_send_fleet_retreat (g, owner, from, dest, ships, shiptypes, numtypes) {
+    game_send_fleet_from_orbit_do(g, owner, from, dest, ships, shiptypes, numtypes, true)
+}
+
+func game_send_fleet_reloc (g, owner, from, dest, si, shipnum) {
+    pin ships = carray(NUM_SHIPDESIGNS)        ;; shipcount_t[]
+    pin shiptypes = carray(NUM_SHIPDESIGNS)    ;; uint8_t[]
+    set ships@(0) = shipnum
+    set shiptypes@(0) = si
+    game_send_fleet_do(g, owner, from, dest, ships, shiptypes, 1, false)
+}
+
+func game_send_transport (g, pf) {
+    if g.transport_num == TRANSPORT_MAX {
+        log_warning("transport table (size %i) full, could not send!\n", TRANSPORT_MAX)
+        return false
+    }
+    val pt = g.planet@(pf.trans_dest)
+    val owner = pf.owner
+    val r = g.transport@(g.transport_num)
+    set r.owner = owner
+    set r.x = pf.x
+    set r.y = pf.y
+    set r.dest = pf.trans_dest
+    do {
+        var speed = g.eto@(owner).have_engine  ;; uint8_t
+        if (pt.owner == owner) && pt.have_stargate && pf.have_stargate {
+            set speed = FLEET_SPEED_STARGATE
+        }
+        set r.speed = speed
+    }
+    do {
+        val n = pf.trans_num    ;; uint16_t
+        set r.pop = n
+        set pf.pop = i16(pf.pop - n)
+        set pf.pop = SETMAX(pf.pop, 1)
+        set pf.rebels = SUBSAT0(pf.rebels, (n // 2) + 1)
+    }
+    set pf.trans_num = 0
+    set g.transport_num = g.transport_num + 1
+    true
+}
+
+func game_remove_empty_fleets (g) {
+    var i = 0
+    loop {
+        while i < g.enroute_num
+        val r = g.enroute@(i)
+        var is_empty = true
+        loop j in NUM_SHIPDESIGNS {
+            if r.ships@(j) != 0 {
+                set is_empty = false
+                break
+            }
+        }
+        if is_empty {
+            util_table_remove_item_any_order(i, g.enroute, g.enroute_num)
+            set g.enroute_num = g.enroute_num - 1
+            set i = i - 1
+        }
+        set i = i + 1
+    }
+    set i = 0
+    loop {
+        while i < g.transport_num
+        val r = g.transport@(i)
+        if r.pop == 0 {
+            util_table_remove_item_any_order(i, g.transport, g.transport_num)
+            set g.transport_num = g.transport_num - 1
+            set i = i - 1
+        }
+        set i = i + 1
+    }
+}
+
+func game_remove_player_fleets (g, owner) {
+    var i = 0
+    loop {
+        while i < g.enroute_num
+        val r = g.enroute@(i)
+        if r.owner == owner {
+            util_table_remove_item_any_order(i, g.enroute, g.enroute_num)
+            set g.enroute_num = g.enroute_num - 1
+            set i = i - 1
+        }
+        set i = i + 1
+    }
+    set i = 0
+    loop {
+        while i < g.transport_num
+        val r = g.transport@(i)
+        if r.owner == owner {
+            util_table_remove_item_any_order(i, g.transport, g.transport_num)
+            set g.transport_num = g.transport_num - 1
+            set i = i - 1
+        }
+        set i = i + 1
+    }
+    loop _,o in g.eto@(owner).orbit {
+        BOOLVEC_CLEAR(o.visible, PLAYER_NUM)
+        loop si in NUM_SHIPDESIGNS {
+            set o.ships@(si) = 0
+        }
+    }
+}
+
+func game_fleet_any_dest_player (g, owner, target) {
+    loop i in g.enroute_num {
+        val r = g.enroute@(i)
+        if (r.owner == owner) && (g.planet@(r.dest).owner == target) {
+            return true
+        }
+    }
+    false
+}
+
+func game_fleet_unrefuel (g) {
+    loop pi in g.players {
+        val srd = g.srd@(pi)
+        val e = g.eto@(pi)
+        loop pli in g.galaxy_stars {
+            val p = g.planet@(pli)
+            val wr = p.within_frange@(pi)   ;; uint8_t
+            if wr != 1 {
+                val r = e.orbit@(pli)
+                var unfueled = false
+                loop si in e.shipdesigns_num {
+                    if (r.ships@(si) != 0) && ((wr == 0) || ((wr == 2) && (!srd.have_reserve_fuel@(si)))) {
+                        set unfueled = true
+                        set r.ships@(si) = 0
+                    }
+                }
+                if unfueled {
+                    BOOLVEC_SET1(p.unrefuel, pi)
+                }
+            }
+        }
+    }
+}
+
+func game_fleet_get_speed (g, r, pfrom, pto) {
+    if game_num_stargate_redir_fix && ((r.speed == FLEET_SPEED_STARGATE) || (pfrom != PLANET_NONE)) {
+        val owner = r.owner
+        val pt = g.planet@(pto)
+        val pf = if pfrom != PLANET_NONE => g.planet@(pfrom) => nil
+        if ((pt.owner == owner) && pt.have_stargate) && ((r.speed == FLEET_SPEED_STARGATE) || ((pf != nil) && (pf.owner == owner) && pf.have_stargate)) {
+            FLEET_SPEED_STARGATE
+        } else {
+            val sd = g.srd@(owner).design
+            var speed = 100     ;; uint8_t
+            loop i in NUM_SHIPDESIGNS {
+                if r.ships@(i) > 0 {
+                    val s = u8(sd@(i).engine + 1)
+                    set speed = SETMIN(speed, s)
+                }
+            }
+            speed
+        }
+    } else {
+        r.speed
+    }
+}
+
+func game_fleet_redirect (g, r, pfrom, pto) {
+    if (pfrom != PLANET_NONE) && (pfrom == pto) {
+        val os = g.eto@(r.owner).orbit@(pto).ships
+        loop i in NUM_SHIPDESIGNS {
+            set os@(i) = u16(os@(i) + r.ships@(i))
+        }
+        ;; `r - g->enroute`: the index of `r` in the table
+        var ri = 0
+        loop {
+            while g.enroute@(ri) != r
+            set ri = ri + 1
+        }
+        util_table_remove_item_any_order(ri, g.enroute, g.enroute_num)
+        set g.enroute_num = g.enroute_num - 1
+    } else {
+        set r.dest = pto
+        set r.speed = game_fleet_get_speed(g, r, pfrom, pto)
+    }
+}
