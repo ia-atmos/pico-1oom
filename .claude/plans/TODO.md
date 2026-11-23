@@ -72,31 +72,32 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   driver (`tst/c/game_new.c`) gives the same save as the init save of
   `1oom_cmdline`. Not ported: `game_generate_load` (it throws), which is
   only called when `game_num_update_on_load` is false (it is true).
-- #9 Step 4, the turn, in course. Done (2026-11-22): `game_tech.c` (all
-  of it) and `game_misc.c` (all of it), with two functions of
-  `game_planet.c` and `lib_sprintf`. Done (2026-11-23): the logic of
-  `game_planet.c`; `game_fleet.c`, `game_stat.c`, `game_design.c` and
-  `game_diplo.c` (all of them); the ship names (`game_str_shipnames.c`);
-  and these phases of `game_turn.c`: limit_ships, countdown_ceasefire,
-  update_mood_blunder, init_z_finished, send_transport, build_eco,
-  update_trade, diplo_adjust, build_def, build_ship, reserve, the finished
-  sliders, build_ind, move_ships, explore, transport_shoot, transport,
-  coup, update_have_met. `src/ui.atm` holds the functions of `ui.h` that
-  the logic calls (`ui_turn_msg`, `ui_explore`, the map of the moves, ...):
-  each is a `var` that an interface sets; unset, it throws (by the
-  session, reversible). Checked by `tst/state.sh`: on the 109 saves, seven
-  groups of operations (the updates of `game_misc`; techs, sliders,
-  terraforming, loot; planets; the build phases; fleets, stats and the
-  tables of the design screen; diplomacy; moves, transports, exploration,
-  coups), the whole state and what the operations print compared with
-  the C after each. The C driver includes `game_turn.c` to reach its
-  static phases, and has its own interface that prints each call.
-  Next: the rest of `game_turn.c` (check_end, audiences, contact_broken,
-  update_seen, claim, final_war, and `game_turn_process`), which needs
-  `game_spy`, `game_event`, `game_election`, `game_battle`, `game_ground`,
-  `game_bomb`, `game_news`, `game_audience`, `game_end`, and the AI.
-  Calls into what is not ported yet throw (`game_tech_research` calls the
-  AI's `tech_next` when an AI finishes a tech).
+- #9 Step 4, the turn, in course. Done (2026-11-22): `game_tech.c` and
+  `game_misc.c` (all of them), with two functions of `game_planet.c` and
+  `lib_sprintf`. Done (2026-11-23): the logic of `game_planet.c`; all of
+  `game_fleet.c`, `game_stat.c`, `game_design.c`, `game_diplo.c`,
+  `game_spy.c`, `game_bomb.c`, `game_ground.c`, `game_news.c`,
+  `game_election.c`, `game_event.c`, `game_audience.c`, `game_end.h`, the
+  ship names (`game_str_shipnames.c`), `strbuild` and `lib_strcat`; and
+  every phase of `game_turn.c` but `game_turn_process` itself. `src/ui.atm`
+  holds the functions of `ui.h` that the logic calls: each is a `var` that
+  an interface sets; unset, it throws (by the session, reversible).
+  Checked by `tst/state.sh`: on the 109 saves, sixteen groups of
+  operations (updates, techs, planets, the build phases, fleets, stats and
+  the design screen, diplomacy, moves and transports, contacts and sliders,
+  spies, espionage, bombs and ground combat, news and the election, random
+  events at two years, the end of the game, audiences), the whole state
+  and what the operations print compared with the C after each. The C
+  driver includes `game_turn.c` to reach its static phases. Both drivers
+  have an interface that prints each call and answers by fixed rules, and
+  replace the functions of the AI that are not ported yet (bomb, ground,
+  tech_next, vote, the events, the audiences) by fixed answers: the logic
+  around the AI is checked before the AI itself. Where C reads memory that
+  was never set (the stack of an earlier call, a pointer to a stack that
+  is gone), the checks leave that value out of what they print.
+  Next: `game_battle.c` and `game_battle_human.c`, then the AI
+  (`game_ai_classic.c`, 4500 lines), then `game_turn_process`, which needs
+  all of them.
 - #11 In `game_turn_transport`, when the owner of the transports has
   combat transporters and the planet has no owner, C reads
   `g->eto[p->owner].have_sub_space_int` with `p->owner == PLAYER_NONE`,
