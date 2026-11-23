@@ -9,6 +9,7 @@ include "../src/game/game_save.atm"
 include "../src/game/game_design.atm"
 include "../src/game/game_diplo.atm"
 include "../src/game/game_fleet.atm"
+include "../src/game/game_spy.atm"
 include "../src/game/game_stat.atm"
 include "../src/game/game_turn.atm"
 include "gamedump.atm"
@@ -27,6 +28,7 @@ func arg (op, k) {
 }
 
 pin outs = []
+pin spy_st = spy_turn_s()
 func out (fmt, ...) {
     set outs@+ = string.format(fmt, ...)
 }
@@ -107,6 +109,33 @@ set ui_turn_msg = func (g_, pi, str) {
 
 set ui_newtech = func (g_, pi) {
     out("newtech %d\n", pi)
+}
+set ui_spy_steal = func (g_, spy, target, flags_field) {
+    var f = 0
+    loop {
+        while (f < TECH_FIELD_NUM) && ((flags_field & (1 << f)) == 0)
+        set f = f + 1
+    }
+    out("steal %d %d %d -> %d\n", spy, target, flags_field, f)
+    f
+}
+set ui_spy_stolen = func (g_, pi, spy, field, tech) {
+    out("stolen %d %d %d %d\n", pi, spy, field, tech)
+}
+set ui_spy_sabotage_ask = func (g_, spy, target) {
+    var pl = 0
+    loop i in g_.galaxy_stars {
+        if g_.planet@(i).owner == target {
+            set pl = i
+            break
+        }
+    }
+    out("sabotage_ask %d %d -> %d %d\n", spy, target, (spy + target) % 4, pl)
+    return ((spy + target) % 4, pl)
+}
+set ui_spy_sabotage_done = func (g_, pi, spy, target, act, other1, other2, planet, snum) {
+    out("sabotage_done %d %d %d %d %d %d %d %d\n", pi, spy, target, act, other1, other2, planet, snum)
+    other1
 }
 set ui_gmap_basic_init = func (g_, show_player_switch) { nil }
 set ui_gmap_basic_start_player = func (ctx, pi) { nil }
@@ -248,6 +277,18 @@ func do_op (op) {
         "final_war" => game_turn_update_final_war(g)
         "set_end" => { set g.end = arg(op, 0) }
         "set_refuse" => { set g.refuse@(0) = arg(op, 0) }
+        "set_spy" => {
+            val e = g.eto@(arg(op, 0))
+            val t = arg(op, 1)
+            set e.spying@(t) = arg(op, 2)
+            set e.spymode@(t) = arg(op, 3)
+            set e.spies@(t) = arg(op, 4)
+        }
+        "spy_build" => game_spy_build(g)
+        "spy_report" => game_spy_report(g)
+        "spy_turn" => game_spy_turn(g, spy_st)
+        "spy_esp_human" => game_spy_esp_human(g, spy_st)
+        "spy_sab_human" => game_spy_sab_human(g)
         "move_ships" => game_turn_move_ships(g)
         "explore" => game_turn_explore(g)
         "transport" => game_turn_transport(g)

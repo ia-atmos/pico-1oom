@@ -22,6 +22,7 @@
 #include "game_design.h"
 #include "game_diplo.h"
 #include "game_fleet.h"
+#include "game_spy.h"
 #include "game_stat.h"
 #include "gamedump.h"
 #include "../../c/src/game/game_turn.c"
@@ -42,6 +43,27 @@ void ui_landing(struct game_s *g_, int pi, uint8_t planet_i) { printf("landing %
 void ui_turn_msg(struct game_s *g_, int pi, const char *str) { printf("msg %d %s\n", pi, str); }
 
 void ui_newtech(struct game_s *g_, int pi) { printf("newtech %d\n", pi); }
+int ui_spy_steal(struct game_s *g_, int spy, int target, uint8_t flags_field)
+{
+    int f = 0;
+    while ((f < TECH_FIELD_NUM) && !(flags_field & (1 << f))) { ++f; }
+    printf("steal %d %d %d -> %d\n", spy, target, flags_field, f);
+    return f;
+}
+void ui_spy_stolen(struct game_s *g_, int pi, int spy, int field, uint8_t tech) { printf("stolen %d %d %d %d\n", pi, spy, field, tech); }
+ui_sabotage_t ui_spy_sabotage_ask(struct game_s *g_, int spy, int target, uint8_t *planetptr)
+{
+    int pl = 0;
+    for (int i = 0; i < g_->galaxy_stars; ++i) { if (g_->planet[i].owner == target) { pl = i; break; } }
+    *planetptr = pl;
+    printf("sabotage_ask %d %d -> %d %d\n", spy, target, (spy + target) % 4, pl);
+    return (spy + target) % 4;
+}
+int ui_spy_sabotage_done(struct game_s *g_, int pi, int spy, int target, ui_sabotage_t act, int other1, int other2, uint8_t planet, int snum)
+{
+    printf("sabotage_done %d %d %d %d %d %d %d %d\n", pi, spy, target, act, other1, other2, planet, snum);
+    return other1;
+}
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
 void ui_gmap_basic_start_player(void *ctx, int pi) { }
 void ui_gmap_basic_start_frame(void *ctx, int pi) { }
@@ -50,6 +72,7 @@ void ui_gmap_basic_finish_frame(void *ctx, int pi) { }
 void ui_gmap_basic_shutdown(void *ctx) { }
 
 static struct game_s g;
+static struct spy_turn_s spy_st;
 static struct game_aux_s gaux;
 
 static int arg(const char *op, int k)
@@ -215,6 +238,16 @@ static void do_op(const char *op)
     OP(final_war) { game_turn_update_final_war(&g); }
     OP(set_end) { g.end = arg(op, 0); }
     OP(set_refuse) { g.refuse[0] = arg(op, 0); }
+    OP(set_spy) {
+        empiretechorbit_t *e = &g.eto[arg(op, 0)];
+        int t = arg(op, 1);
+        e->spying[t] = arg(op, 2); e->spymode[t] = arg(op, 3); e->spies[t] = arg(op, 4);
+    }
+    OP(spy_build) { game_spy_build(&g); }
+    OP(spy_report) { game_spy_report(&g); }
+    OP(spy_turn) { game_spy_turn(&g, &spy_st); }
+    OP(spy_esp_human) { game_spy_esp_human(&g, &spy_st); }
+    OP(spy_sab_human) { game_spy_sab_human(&g); }
     OP(move_ships) { game_turn_move_ships(&g); }
     OP(explore) { game_turn_explore(&g); }
     OP(transport) { game_turn_transport(&g); }
