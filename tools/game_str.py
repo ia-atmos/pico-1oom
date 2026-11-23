@@ -1,22 +1,24 @@
 # Converts c/src/game/game_str.c into Atmos (src/game/game_str.atm), and
 # writes the two dumps that check it (tst/c/game_str.c, tst/game_str.atm).
 # usage: python3 tools/game_str.py c/src/game/game_str.c src/game/game_str.atm tst/c/game_str.c tst/game_str.atm
+# (also for game_str_shipnames.c, with its own four names)
 import re, sys
 src = open(sys.argv[1]).read()
+base = sys.argv[2].split('/')[-1][:-4]   # game_str, game_str_shipnames
 body = re.sub(r'/\*.*?\*/', '', src, flags=re.S)
 decls = re.findall(r'const char \*(\w+)(\[[^\]]*\])?\s*=\s*(.*?);', body, flags=re.S)
 lit = re.compile(r'"((?:[^"\\]|\\.)*)"')
-atm = [';; Port of c/src/game/game_str.c: the strings of the game.',
+atm = [';; Port of c/src/game/%s.c: the strings of the game.' % base,
        ';; Generated from the C by a converter, which also writes the check',
        ';; (tst/game_str.sh). In C each is a `const char *`, which a PBX file may',
        ';; replace: here a `var`, or a vector of strings.', '']
-cdump = ['/* The oracle of tst/game_str.atm: every string of c/src/game/game_str.c.',
+cdump = ['/* The oracle of tst/%s.atm: every string of c/src/game/%s.c.' % (base, base),
          '   Generated with it. Not part of the port. */',
          '#include <stdio.h>', '#include "game_str.h"', '',
          'static void p(const char *n, int i, const char *s) { printf("%s[%i] = %s\\n", n, i, s ? s : "(null)"); }',
          '', 'int main(void)', '{']
-adump = [';; game_str.atm of the port: every string, as tst/c/game_str.c prints it.',
-         ';; Generated with it.', '', 'include "../src/game/game_str.atm"', '',
+adump = [';; %s.atm of the port: every string, as tst/c/%s.c prints it.' % (base, base),
+         ';; Generated with it.', '', 'include "../src/game/%s.atm"' % base, '',
          'pin out = []', 'func p (n, i, s) {', '    set out@+ = string.format("%s[%i] = %s\\n", n, i, if s == nil => "(null)" => s)', '}', '']
 for name, arr, init in decls:
     if arr:

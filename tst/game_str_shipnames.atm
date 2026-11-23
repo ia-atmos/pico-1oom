@@ -1,0 +1,12 @@
+;; game_str_shipnames.atm of the port: every string, as tst/c/game_str_shipnames.c prints it.
+;; Generated with it.
+
+include "../src/game/game_str_shipnames.atm"
+
+pin out = []
+func p (n, i, s) {
+    set out@+ = string.format("%s[%i] = %s\n", n, i, if s == nil => "(null)" => s)
+}
+
+loop i in #game_str_tbl_ship_names { p("game_str_tbl_ship_names", i, game_str_tbl_ship_names@(i)) }
+io.write(vector.join(out, ""))
