@@ -1,0 +1,1062 @@
+;; Port of c/src/game/game_event.c and game_event.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../rnd.atm"
+include "../ui.atm"
+include "../util.atm"
+include "../util_math.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_aux.atm"
+include "game_design.atm"
+include "game_diplo.atm"
+include "game_end.atm"
+include "game_fleet.atm"
+include "game_misc.atm"
+include "game_new.atm"
+include "game_news.atm"
+include "game_num.atm"
+include "game_planet_c.atm"
+include "game_shiptech.atm"
+include "game_stat.atm"
+include "game_str.atm"
+include "game_tech.atm"
+
+;; ---------------------------------------------------------------------------
+
+var game_opt_skip_random_news = false
+
+;; ---------------------------------------------------------------------------
+
+func game_event_new_get_victim (g) {
+    pin tbl_planets = carray(PLAYER_NUM)    ;; int[]
+    var min_planets = 10000
+    var sum = 0
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        if p.owner != PLAYER_NONE {
+            set tbl_planets@(p.owner) = tbl_planets@(p.owner) + 1
+        }
+    }
+    loop i in g.players {
+        if tbl_planets@(i) < 4 {
+            set tbl_planets@(i) = 0
+        } else {
+            if IS_HUMAN(g, i) {
+                set tbl_planets@(i) = tbl_planets@(i) * 5
+            }
+        }
+    }
+    loop i in PLAYER_NUM {  ;; FIXME BUG? on < 6 players min is always 0
+        set min_planets = SETMIN(min_planets, tbl_planets@(i))
+    }
+    set min_planets = SETMAX(min_planets, 5)
+    loop i in PLAYER_NUM {
+        set tbl_planets@(i) = tbl_planets@(i) // min_planets
+        if i < g.players {
+            set tbl_planets@(i) = SETMAX(tbl_planets@(i), 1)
+            set sum = sum + tbl_planets@(i)
+        }
+    }
+    var r = rnd_0_nm1(sum, g)
+    var player = PLAYER_0
+    loop {
+        while (r >= 0) && (player < (g.players - 1))
+        set r = r - tbl_planets@(player)
+        if r >= 0 {
+            set player = player + 1
+        }
+    }
+    player
+}
+
+func game_event_new_get_trader (g, player) {
+    val e = g.eto@(player)
+    var trader = PLAYER_NONE
+    loop i in g.players {
+        if (i != player) && BOOLVEC_IS1(e.contact, i) && (e.trade_bc@(i) != 0) {
+            set trader = i
+        }
+    }
+    trader
+}
+
+func game_monster_set_start (g, m) {
+    var x
+    var y
+    var v
+    var dest    ;; uint8_t
+    match rnd_0_nm1(4, g) {
+        0 => {
+            set v = rnd_0_nm1(g.galaxy_h, g)
+            set dest = u8(v * g.galaxy_w)
+            set x = 0
+            set y = ((v - 1) * 32) + rnd_1_n(12, g) + 10
+        }
+        1 => {
+            set v = rnd_0_nm1(g.galaxy_w, g)
+            set dest = u8(v)
+            set x = ((v - 1) * 28) + rnd_1_n(12, g) + 30
+            set y = 0
+        }
+        2 => {
+            set v = rnd_0_nm1(g.galaxy_h, g)
+            set dest = u8(((v + 1) * g.galaxy_w) - 1)
+            set x = g.galaxy_w * 28
+            set y = ((v - 1) * 32) + rnd_1_n(12, g) + 10
+        }
+        else => {
+            set v = rnd_0_nm1(g.galaxy_w, g)
+            set dest = u8(((g.galaxy_h - 1) * g.galaxy_w) + v)
+            set x = ((v - 1) * 28) + rnd_1_n(12, g) + 30
+            set y = g.galaxy_h * 32
+        }
+    }
+    set m.x = i16(x)
+    set m.y = i16(y)
+    set m.dest = dest
+}
+
+func game_monster_set_next_dest (g, m) {
+    val olddest = m.dest    ;; uint8_t
+    var dest = olddest
+    val w = g.galaxy_w
+    val h = g.galaxy_h
+    loop {
+        while dest == olddest
+        val x = olddest % w
+        if x == 0 {
+            set dest = dest + rnd_0_nm1(2, g)
+        } else {
+            ;; 7da47
+            set dest = dest + rnd_1_n(if x == (w - 1) => 2 => 3, g) - 2
+        }
+        ;; 7da6a
+        if olddest < w {
+            set dest = dest + (rnd_0_nm1(2, g) * w)
+        } else {
+            ;; 7da86
+            set dest = dest + (rnd_1_n(if ((w * h) - w - 1) < olddest => 2 => 3, g) * w) - (w * 2)
+        }
+        ;; 7dab3
+        if (dest < 0) || (dest >= g.galaxy_stars) || (g.planet@(dest).type == PLANET_TYPE_NOT_HABITABLE) || (dest == g.evn.planet_orion_i) {
+            set dest = olddest
+        }
+    }
+    set m.dest = u8(dest)
+}
+
+func game_event_kill_player (g, pi) {
+    set g.evn.home@(pi) = PLANET_NONE
+    game_remove_player_fleets(g, pi)
+    BOOLVEC_SET0(g.refuse, pi)
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_event_new (g) {
+    val v = g.evn
+    if g.gaux.flag_cheat_events || (game_num_event_roll == 0) {
+        set v.have_plague = 0
+        set v.have_quake = false
+        set v.have_nova = 0
+        set v.have_accident = 0
+        set v.have_assassin = false
+        set v.have_virus = false
+        set v.have_comet = 0
+        set v.have_pirates = 0
+        set v.have_derelict = false
+        set v.crystal.exists = 0
+        set v.amoeba.exists = 0
+        set v.have_enviro = false
+        set v.have_rich = false
+        set v.have_support = false
+        set v.have_poor = false
+        return nil
+    }
+    var chance = if v.year > g.year => 0 => (g.year - v.year)
+    ;; eb0c
+    match g.difficulty {
+        DIFFICULTY_SIMPLE => { set chance = chance // 2 }
+        DIFFICULTY_EASY => { set chance = (chance * 2) // 3 }
+        DIFFICULTY_AVERAGE => { set chance = (chance * 3) // 4 }
+        DIFFICULTY_HARD => { set chance = (chance * 4) // 5 }
+        else => nil
+    }
+    if rnd_1_n(game_num_event_roll, g) > chance {
+        return nil
+    }
+    val player = game_event_new_get_victim(g)
+    if (player < PLAYER_0) || (player >= g.players) {
+        return nil
+    }
+    val e = g.eto@(player)
+    val planet = game_planet_get_random(g, player)
+    if (planet == v.planet_orion_i) || (planet == PLANET_NONE) {
+        return nil
+    }
+    val p = g.planet@(planet)
+    var type_ = GAME_EVENT_NONE
+    var loops = 0
+    loop {
+        while (loops < 5) && (type_ == GAME_EVENT_NONE)
+        set type_ = rnd_1_n(GAME_EVENT_NUM - 1, g)
+        val t = type_
+        if BOOLVEC_IS1(v.done, t)
+          || ((t == GAME_EVENT_REBELLION) && ((!IS_HUMAN(g, player)) || (v.home@(player) == planet)))
+          || ((t == GAME_EVENT_QUAKE) && (p.pop < 50))
+          || (((t == GAME_EVENT_CRYSTAL) || (t == GAME_EVENT_AMOEBA)) && (g.year < 200))
+          || (((t == GAME_EVENT_CRYSTAL) || (t == GAME_EVENT_AMOEBA)) && ((v.crystal.exists != 0) || (v.amoeba.exists != 0)))
+          || ((t == GAME_EVENT_DERELICT) && IS_HUMAN(g, player))
+          || ((t == GAME_EVENT_ASSASSIN) && (g.end != GAME_END_NONE))
+          || ((t == GAME_EVENT_COMET) && (g.year < 100))
+          || ((t == GAME_EVENT_PIRATES) && (game_event_new_get_trader(g, player) == PLAYER_NONE))
+          || (((t == GAME_EVENT_ACCIDENT) || (t == GAME_EVENT_PLAGUE)) && (e.race == RACE_SILICOID))
+          ;; The OSG claims that the industrial accident event only happens on
+          ;; planets with at least 30 factories. This is not true for MOO 1.3,
+          ;; but we optionally check for it if accident_chk_factories is set in
+          ;; a pbx file.
+          || ((t == GAME_EVENT_ACCIDENT) && game_num_accident_chk_factories && (p.factories < 30))
+          || ((t == GAME_EVENT_ENVIRO) && (p.type < PLANET_TYPE_MINIMAL))
+          || ((t == GAME_EVENT_ENVIRO) && ((p.growth >= PLANET_GROWTH_FERTILE) || (p.special > PLANET_SPECIAL_NORMAL)))
+          || ((t == GAME_EVENT_RICH) && (p.special > PLANET_SPECIAL_NORMAL))
+          || ((t == GAME_EVENT_RICH) && (p.special == PLANET_SPECIAL_ARTIFACTS))
+          || ((t == GAME_EVENT_POOR) && (p.special < PLANET_SPECIAL_NORMAL))
+          || ((t == GAME_EVENT_POOR) && (p.special == PLANET_SPECIAL_ARTIFACTS)) {
+            set type_ = GAME_EVENT_NONE
+        }
+        if type_ == GAME_EVENT_ASSASSIN {
+            var found = false
+            loop i in g.players {
+                if (i != player) && IS_AI(g, i) && (e.treaty@(i) >= TREATY_NONAGGRESSION) && (e.treaty@(i) <= TREATY_ALLIANCE) {
+                    set found = true
+                }
+            }
+            if !found {
+                set type_ = GAME_EVENT_NONE
+            }
+        }
+        set loops = loops + 1
+    }
+    ;; edef
+    if type_ == GAME_EVENT_NONE {
+        return nil
+    }
+    set v.year = g.year
+    BOOLVEC_SET1(v.done, type_)
+    ;; (a switch on the difficulty is #if 0 in C: its result is unused)
+    match type_ {
+        GAME_EVENT_PLAGUE => {
+            set v.have_plague = 1
+            set v.plague_player = player
+            set v.plague_planet_i = planet
+            set v.plague_val = (rnd_1_n(8, g) + (g.difficulty * 2)) * p.prod_after_maint
+        }
+        GAME_EVENT_QUAKE => {
+            set v.have_quake = true
+            set v.quake_player = player
+            set v.quake_planet_i = planet
+        }
+        GAME_EVENT_NOVA => {
+            set v.have_nova = 1
+            set v.nova_player = player
+            set v.nova_planet_i = planet
+            set v.nova_years = i8(rnd_1_n(5, g) + 10 - g.difficulty)
+            set v.nova_val = (rnd_1_n(5, g) + 10 - g.difficulty) * p.prod_after_maint
+        }
+        GAME_EVENT_ACCIDENT => {
+            set v.have_accident = 1
+            set v.accident_player = player
+            set v.accident_planet_i = planet
+        }
+        GAME_EVENT_ASSASSIN => {
+            set v.have_assassin = true
+            set v.assassin_player = player
+            var player2 = PLAYER_NONE
+            loop i in g.players {
+                if (i != player) && IS_AI(g, i) && (e.treaty@(i) >= TREATY_NONAGGRESSION) && (e.treaty@(i) <= TREATY_ALLIANCE) {
+                    set player2 = i
+                }
+            }
+            set v.assassin_player2 = player2
+        }
+        GAME_EVENT_VIRUS => {
+            set v.have_virus = true
+            set v.virus_player = player
+            set v.virus_field = match rnd_0_nm1(4, g) {
+                0 => TECH_FIELD_COMPUTER
+                1 => TECH_FIELD_FORCE_FIELD
+                2 => TECH_FIELD_PROPULSION
+                else => TECH_FIELD_WEAPON
+            }
+        }
+        GAME_EVENT_COMET => {
+            set v.have_comet = 1
+            set v.comet_player = player
+            set v.comet_planet_i = planet
+            set v.comet_years = u8(rnd_1_n(5, g) + 10 - g.difficulty)
+            set v.comet_hp = u16((rnd_1_n(5, g) + 10 + g.difficulty) * 25)
+            set v.comet_dmg = 0
+        }
+        GAME_EVENT_PIRATES => {
+            set v.have_pirates = 1
+            set v.pirates_planet_i = rnd_0_nm1(g.galaxy_stars, g)
+            set v.pirates_hp = u16((rnd_1_n(5, g) + 10 + g.difficulty) * 30)
+        }
+        GAME_EVENT_DERELICT => {
+            set v.have_derelict = true
+            set v.derelict_player = player
+        }
+        GAME_EVENT_REBELLION => {
+            set p.rebels = p.pop // 2
+            set p.unrest = PLANET_UNREST_REBELLION
+            set p.unrest_reported = false
+        }
+        GAME_EVENT_CRYSTAL => game_event_new_monster(g, v.crystal)
+        GAME_EVENT_AMOEBA => game_event_new_monster(g, v.amoeba)
+        GAME_EVENT_ENVIRO => {
+            set v.have_enviro = true
+            set v.enviro_planet_i = planet
+        }
+        GAME_EVENT_RICH => {
+            set v.have_rich = true
+            set v.rich_planet_i = planet
+        }
+        GAME_EVENT_SUPPORT => {
+            set v.have_support = true
+            set v.support_player = player
+        }
+        GAME_EVENT_POOR => {
+            set v.have_poor = true
+            set v.poor_planet_i = planet
+        }
+        else => nil
+    }
+}
+
+;; The monster of the crystal or the amoeba, in `game_event_new`.
+func game_event_new_monster (g, m) {
+    set m.exists = 1
+    set m.counter = 2
+    set m.nuked = 0
+    set m.killer = PLAYER_NONE
+    game_monster_set_start(g, m)
+}
+
+;; The subtype of the news of an event that lasts (plague, nova, comet,
+;; pirates): 1 for the start, 2 while it lasts (shown or not), 3 at its end.
+;; Each case of the switch of C is a function here.
+
+func game_event_run (g, ge) {
+    ;; `struct news_s ns` of C: one for all the news of the turn, its fields
+    ;; kept from one to the next.
+    pin ns = news_s()
+    var any_news = false
+    val v = g.evn
+    ui_news_start()
+    if v.have_plague != 0 {
+        val pli = v.plague_planet_i
+        val p = g.planet@(pli)
+        val player = v.plague_player
+        if p.owner == player {
+            val e = g.eto@(player)
+            if v.have_plague != 1 {
+                var x = game_get_tech_prod(p.prod_after_maint, p.slider@(PLANET_SLIDER_TECH), e.race, p.special)
+                set v.plague_val = v.plague_val - x
+                set x = ((rnd_1_n(6, g) + 4) * p.pop) // 100
+                set x = SETMIN(x, p.pop)
+                set p.pop = i16(p.pop - x)
+                set ns.num1 = x
+            } else {
+                set ns.num1 = 0     ;; WASBUG MOO1 uses uninitialized stack variable
+            }
+            set ns.num2 = v.plague_val
+            set ns.type = GAME_NEWS_PLAGUE
+            set ns.planet_i = pli
+            set ns.race = e.race
+            if v.plague_val <= 0 {
+                set v.have_plague = 3
+            }
+            set ns.subtype = match v.have_plague {
+                1 => if IS_HUMAN(g, player) => 0 => 4
+                2 => if IS_HUMAN(g, player) && ((rnd_0_nm1(10, g) == 0) || g.gaux.flag_cheat_news) => 1 => -1
+                3 => if IS_HUMAN(g, player) => 2 => 5
+                else => -1
+            }
+            ;; f48e
+            if v.have_plague == 1 {
+                set v.have_plague = 2
+            }
+            if v.have_plague == 3 {
+                set v.have_plague = 0
+            }
+            if ns.subtype != -1 {
+                ui_news(g, ns)
+                set any_news = true
+            }
+            if IS_AI(g, player) {
+                game_ai.plague(g, pli)
+            }
+        } else {
+            set v.have_plague = 0
+        }
+    }
+    ;; f4ec
+    if v.have_quake {
+        val pli = v.quake_planet_i
+        val p = g.planet@(pli)
+        val player = v.quake_player
+        set ns.planet_i = pli
+        var vp = ((rnd_1_n(10, g) + 20) * p.pop) // 100
+        var vf = ((rnd_1_n(50, g) + 30) * p.factories) // 100
+        set vp = SETMIN(vp, p.pop)
+        set vf = SETMIN(vf, p.factories)
+        set ns.num1 = vp
+        set ns.num2 = vf
+        set ns.type = GAME_NEWS_QUAKE
+        set ns.planet_i = pli
+        set ns.race = g.eto@(p.owner).race
+        set v.have_quake = false
+        set p.pop = i16(p.pop - vp)
+        set p.factories = i16(p.factories - vf)
+        set ns.subtype = if IS_HUMAN(g, player) => 0 => 4
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; f662
+    if v.have_nova != 0 {
+        val pli = v.nova_planet_i
+        val p = g.planet@(pli)
+        val player = p.owner
+        if (v.have_nova != 1) && (player != PLAYER_NONE) {
+            val e = g.eto@(player)
+            val x = game_get_tech_prod(p.prod_after_maint, p.slider@(PLANET_SLIDER_TECH), e.race, p.special)
+            set v.nova_val = v.nova_val - x
+            if v.nova_val <= 0 {
+                set v.have_nova = 3
+            }
+            set v.nova_years = i8(v.nova_years - 1)
+        }
+        ;; f718
+        if (v.nova_years <= 0) && (v.have_nova != 3) {
+            ;; f734
+            var x = rnd_1_n(10, g) + 10
+            set p.max_pop2 = x
+            set p.max_pop3 = x
+            set p.type = PLANET_TYPE_RADIATED
+            set p.growth = PLANET_GROWTH_HOSTILE
+            set x = rnd_1_n(x, g)
+            set p.pop = SETMIN(p.pop, x)
+            if player == PLAYER_NONE {
+                set p.pop = 0
+            }
+            set x = ((rnd_1_n(3, g) + 1) * p.factories) // 20
+            set p.factories = SETMIN(p.factories, x)
+            set v.have_nova = 3
+        }
+        ;; f878
+        set ns.num1 = v.nova_years
+        set ns.num2 = v.nova_val
+        set ns.type = GAME_NEWS_NOVA
+        set ns.planet_i = pli
+        set ns.race = if player != PLAYER_NONE => g.eto@(player).race => RACE_HUMAN   ;; WASBUG MOO1 does not check for none, taking race from eto[-1]
+        set ns.subtype = match v.have_nova {
+            1 => if IS_HUMAN(g, player) => 0 => 4
+            2 => if IS_HUMAN(g, player) && ((rnd_0_nm1(10, g) == 0) || (v.nova_years < 3) || g.gaux.flag_cheat_news) => 1 => -1
+            3 => (if IS_HUMAN(g, player) => 2 => 5) + (if v.nova_val > 0 => 1 => 0)
+            else => -1
+        }
+        if v.have_nova == 1 {
+            set v.have_nova = 2
+        }
+        if v.have_nova == 3 {
+            set v.have_nova = 0
+        }
+        if ns.subtype != -1 {
+            ui_news(g, ns)
+            set any_news = true
+        }
+        if IS_AI(g, player) {
+            game_ai.nova(g, pli)
+        }
+    }
+    ;; f986
+    if v.have_accident != 0 {
+        val pli = v.accident_planet_i
+        val p = g.planet@(pli)
+        val player = v.accident_player
+        set ns.planet_i = pli
+        set ns.type = GAME_NEWS_ACCIDENT
+        set ns.race = g.eto@(player).race
+        if v.have_accident == 1 {
+            set p.max_pop3 = p.max_pop3 // 2
+            set p.max_pop2 = SETMIN(p.max_pop2, p.max_pop3)
+            set p.waste = i16(p.max_pop3 - 10)
+            set p.type = PLANET_TYPE_RADIATED
+            set p.growth = PLANET_GROWTH_HOSTILE
+            set ns.subtype = if IS_HUMAN(g, player) => 0 => 4
+            ui_news(g, ns)
+            set any_news = true
+            set v.have_accident = 2
+        } else {
+            if p.waste == 0 {
+                ;; fac7
+                set ns.subtype = if IS_HUMAN(g, player) => 1 => 5
+                set v.have_accident = 0
+                ui_news(g, ns)
+                set any_news = true
+            }
+        }
+    }
+    ;; fb20
+    if v.have_assassin {
+        val player = v.assassin_player
+        val player2 = v.assassin_player2
+        val e = g.eto@(player)
+        set ns.type = GAME_NEWS_ASSASSIN
+        set ns.race = e.race
+        set ns.num1 = player2
+        game_diplo_start_war(g, player2, player)
+        if IS_HUMAN(g, player) {
+            set e.diplo_type@(player2) = 13
+            set e.diplo_val@(player2) = 100
+        }
+        set v.have_assassin = false
+        set ns.subtype = 0
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; fba9
+    if v.have_virus {
+        val player = v.virus_player
+        val e = g.eto@(player)
+        set ns.type = GAME_NEWS_VIRUS
+        set ns.race = e.race
+        set ns.num1 = v.virus_field
+        set ns.num2 = i32(e.tech.investment@(v.virus_field))   ;; int = uint32_t
+        ;; MOO1 limits the shown loss to 32000 and also sets it to 100 if 0
+        set e.tech.investment@(v.virus_field) = 0
+        set v.have_virus = false
+        set ns.subtype = 4
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; fc6e
+    if v.have_comet != 0 {
+        val pli = v.comet_planet_i
+        val p = g.planet@(pli)
+        val player = p.owner
+        var dmg = 0
+        if player != PLAYER_NONE {  ;; BUG? only colonized planets can fight off comets
+            val e = g.eto@(player)
+            val sd = g.srd@(player).design@(0)
+            loop i in e.shipdesigns_num {
+                set dmg = dmg + (rnd_1_n(game_num_tbl_hull_w@(sd.hull), g) * e.orbit@(pli).ships@(i))
+            }
+            set ns.race = e.race
+        } else {
+            set ns.race = RACE_HUMAN    ;; WASBUG MOO1 does not check for none, taking race from eto[-1]
+        }
+        if (v.have_comet != 1) && (player != PLAYER_NONE) {
+            set dmg = dmg + v.comet_dmg
+            if dmg > v.comet_hp {
+                set v.comet_dmg = v.comet_hp
+                set v.have_comet = 3
+            } else {
+                set v.comet_dmg = u16(dmg)
+            }
+            set v.comet_years = u8(v.comet_years - 1)
+        }
+        if (v.comet_years <= 0) && (v.have_comet != 3) {
+            game_planet_destroy(g, pli, PLAYER_NONE)
+            set p.type = PLANET_TYPE_NOT_HABITABLE
+            set p.growth = PLANET_GROWTH_HOSTILE
+            set v.have_comet = 3
+        }
+        ;; fde3
+        set ns.num1 = v.comet_years
+        set ns.num2 = (v.comet_dmg * 100) // v.comet_hp
+        set ns.type = GAME_NEWS_COMET
+        set ns.planet_i = pli
+        set ns.subtype = match v.have_comet {
+            1 => if IS_HUMAN(g, player) => 0 => 4
+            2 => if IS_HUMAN(g, player) && ((rnd_0_nm1(10, g) == 0) || (v.comet_years < 3) || g.gaux.flag_cheat_news) => 1 => -1
+            3 => (if IS_HUMAN(g, player) => 2 => 5) + (if v.comet_dmg < v.comet_hp => 1 => 0)
+            else => -1
+        }
+        if v.have_comet == 1 {
+            set v.have_comet = 2
+        }
+        if v.have_comet == 3 {
+            set v.have_comet = 0
+        }
+        if ns.subtype != -1 {
+            ui_news(g, ns)
+            set any_news = true
+        }
+        if IS_AI(g, p.owner) {
+            game_ai.comet(g, pli)
+        }
+    }
+    ;; ff19
+    if v.have_pirates != 0 {
+        val pli = v.pirates_planet_i
+        val p = g.planet@(pli)
+        var dmg = 0
+        loop i in (MONSTER_CRYSTAL, MONSTER_AMOEBA) {
+            val m = if i == MONSTER_CRYSTAL => v.crystal => v.amoeba
+            if (m.exists != 0) && (m.x == p.x) && (m.y == p.y) && (m.killer == PLAYER_NONE) {
+                set dmg = 32000
+            }
+        }
+        loop player in g.players {
+            val e = g.eto@(player)
+            val sd = g.srd@(player).design@(0)
+            loop i in e.shipdesigns_num {
+                set dmg = dmg + (rnd_1_n(game_num_tbl_hull_w@(sd.hull), g) * e.orbit@(pli).ships@(i))
+            }
+            set dmg = SETMIN(dmg, 32000)
+        }
+        set v.pirates_hp = SUBSAT0(v.pirates_hp, dmg)
+        set ns.planet_i = pli
+        val setback = v.pirates_hp // 6
+        set ns.num1 = setback
+        if v.pirates_hp == 0 {
+            set v.have_pirates = 3
+        }
+        loop p1 in g.players {
+            val e1 = g.eto@(p1)
+            if p.within_frange@(p1) != 1 {
+                skip
+            }
+            loop p2 in g.players {
+                val e2 = g.eto@(p2)
+                if p1 == p2 {
+                    skip
+                }
+                set e1.trade_percent@(p2) = i16((e1.trade_percent@(p2) * (100 - setback)) // 100)
+                set e2.trade_percent@(p1) = i16((e2.trade_percent@(p1) * (100 - setback)) // 100)
+            }
+        }
+        set ns.type = GAME_NEWS_PIRATES
+        set ns.subtype = match v.have_pirates {
+            1 => 0
+            2 => if rnd_0_nm1(10, g) == 0 => 1 => -1
+            3 => 2
+            else => -1
+        }
+        if v.have_pirates == 1 {
+            set v.have_pirates = 2
+        }
+        if v.have_pirates == 3 {
+            set v.have_pirates = 0
+        }
+        if ns.subtype != -1 {
+            ui_news(g, ns)
+            set any_news = true
+        }
+        game_ai.pirates(g, pli)
+    }
+    ;; 10244
+    if v.have_derelict {
+        val player = v.derelict_player
+        val e = g.eto@(player)
+        val rl = g.srd@(player).researchlist
+        set ns.type = GAME_NEWS_DERELICT
+        set ns.race = e.race
+        pin ftbl = [ TECH_FIELD_WEAPON, TECH_FIELD_FORCE_FIELD ]
+        loop fi in 2 {
+            val field = ftbl@(fi)
+            val tier = e.tech.percent@(field) // 5
+            var i = 0
+            loop {
+                while (i < (tier + 2)) && (i < TECH_TIER_NUM)
+                game_tech_get_new(g, player, field, rl@(field)@(i)@(0), TECHSOURCE_RESEARCH, 0, ns.race, false)   ;; BUG? ns.race makes no sense but is unused
+                set i = i + 1
+            }
+        }
+        set ns.subtype = 0
+        ui_news(g, ns)
+        set any_news = true
+        set v.have_derelict = false
+    }
+    ;; 10364,10470
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        if (p.owner == PLAYER_NONE) || p.unrest_reported {
+            skip
+        }
+        if p.unrest == PLANET_UNREST_REBELLION {
+            val player = p.owner
+            val e = g.eto@(player)
+            set ns.planet_i = pli
+            set ns.race = e.race
+            set ns.type = GAME_NEWS_REBELLION
+            set ns.subtype = 0
+            set ns.num1 = p.rebels
+            do {
+                var n = 0
+                var i = 0
+                loop {
+                    while (i < g.galaxy_stars) && (n < 2)  ;; WASBUG MOO1 loops while i < g->players
+                    val p2 = g.planet@(i)
+                    if (p2.owner == player) && (p2.unrest == PLANET_UNREST_REBELLION) {
+                        set n = n + 1
+                    }
+                    set i = i + 1
+                }
+                if n > 1 {
+                    set ns.subtype = ns.subtype + 1
+                }
+            }
+            if IS_AI(g, player) {
+                set ns.subtype = ns.subtype + 3
+            }
+            ui_news(g, ns)
+            set any_news = true
+            set p.unrest_reported = true
+        } else {
+            if p.unrest == PLANET_UNREST_RESOLVED {
+                val player = p.owner
+                val e = g.eto@(player)
+                set ns.planet_i = pli
+                set ns.race = e.race
+                set ns.type = GAME_NEWS_REBELLION
+                set ns.subtype = 2
+                if IS_AI(g, player) {
+                    set ns.subtype = ns.subtype + 3
+                }
+                ui_news(g, ns)
+                set any_news = true
+                set p.unrest = PLANET_UNREST_NORMAL
+                set p.unrest_reported = true
+            }
+        }
+    }
+    ;; 10530
+    loop i in (MONSTER_CRYSTAL, MONSTER_AMOEBA) {
+        val m = if i == MONSTER_CRYSTAL => v.crystal => v.amoeba
+        if m.exists != 0 {
+            val p = g.planet@(m.dest)
+            var flag_colony = false
+            var flag_last_planet = false
+            var flag_new_dest = false
+            val owner = p.owner
+            if (m.nuked > 4) || (m.killer != PLAYER_NONE) {
+                set m.exists = 3
+            }
+            if m.killer != PLAYER_NONE {    ;; WASBUG MOO1 does not check for none, taking race from eto[-1]
+                set ns.race = g.eto@(m.killer).race
+            } else {
+                if owner != PLAYER_NONE {
+                    set ns.race = g.eto@(owner).race
+                } else {
+                    set ns.race = RACE_HUMAN
+                }
+            }
+            if (m.x == p.x) && (m.y == p.y) && (m.killer == PLAYER_NONE) && (m.counter <= 0) {
+                if (p.pop > 0) && (owner != PLAYER_NONE) {
+                    set flag_colony = true
+                }
+                set ns.planet_i = m.dest
+                set p.pop = 0
+                if i == MONSTER_AMOEBA {
+                    set p.factories = p.factories // 10
+                    set p.type = PLANET_TYPE_RADIATED
+                    set p.max_pop2 = (rnd_1_n(3, g) * 5) + 5
+                    set p.max_pop3 = p.max_pop2
+                    game_planet_destroy(g, ns.planet_i, PLAYER_NONE)
+                } else {
+                    set p.waste = i16(p.max_pop3 - 10)
+                }
+                set m.nuked = i8(m.nuked + 1)
+                game_monster_set_next_dest(g, m)
+                set m.counter = 4
+                set flag_new_dest = true
+                set m.exists = 3
+                if owner != PLAYER_NONE {
+                    set flag_last_planet = true
+                    var pli = 0
+                    loop {
+                        while (pli < g.galaxy_stars) && flag_last_planet
+                        val p2 = g.planet@(pli)
+                        if (pli != ns.planet_i) && (p2.owner == owner) {
+                            set flag_last_planet = false
+                        }
+                        set pli = pli + 1
+                    }
+                }
+            } else {
+                set m.counter = i8(m.counter - 1)
+            }
+            match m.exists {
+                1 => { set ns.subtype = 0 }
+                2 => { set ns.subtype = -1 }
+                3 => {
+                    if flag_new_dest {
+                        set ns.subtype = if flag_colony => 3 => -1
+                        set m.exists = 2
+                    } else {
+                        set ns.subtype = if m.killer == PLAYER_NONE => 2 => 1
+                    }
+                }
+                else => { set ns.subtype = -1 }
+            }
+            if m.exists == 1 {
+                set m.exists = 2
+            }
+            if m.exists == 3 {
+                set m.exists = 0
+            }
+            set ns.type = if i == MONSTER_CRYSTAL => GAME_NEWS_CRYSTAL => GAME_NEWS_AMOEBA
+            if (ns.subtype == 3) && flag_last_planet {
+                set ns.subtype = 6
+            }
+            if flag_last_planet {
+                game_event_kill_player(g, owner)
+            }
+            if ns.subtype != -1 {
+                ui_news(g, ns)
+                set any_news = true
+            }
+        }
+    }
+    ;; 10c37
+    if v.have_enviro {
+        val pli = v.enviro_planet_i
+        val p = g.planet@(pli)
+        val player = p.owner
+        var terraf = 0
+        if player != PLAYER_NONE {
+            set terraf = g.eto@(player).have_terraform_n
+        }
+        set ns.planet_i = pli
+        set ns.race = if player != PLAYER_NONE => g.eto@(player).race => RACE_HUMAN   ;; WASBUG MOO1 does not check for none, taking race from eto[-1]
+        game_turn_soil_enrich(p, terraf, false)
+        set v.have_enviro = false
+        set ns.type = GAME_NEWS_ENVIRO
+        set ns.subtype = if IS_HUMAN(g, player) => 0 => 4
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; 10dfb
+    if v.have_rich {
+        val pli = v.rich_planet_i
+        val p = g.planet@(pli)
+        val player = p.owner
+        set ns.planet_i = pli
+        set ns.race = if player != PLAYER_NONE => g.eto@(player).race => RACE_HUMAN   ;; WASBUG MOO1 does not check for none, taking race from eto[-1]
+        set p.special = PLANET_SPECIAL_RICH
+        set v.have_rich = false
+        set ns.type = GAME_NEWS_RICH
+        set ns.subtype = if IS_HUMAN(g, player) => 0 => 4
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; 10e80
+    if v.have_support {
+        val player = v.support_player
+        val e = g.eto@(player)
+        set ns.race = e.race
+        var x = ((g.year * 10) // 100) * 100
+        set x = SETMAX(x, 500)
+        set e.reserve_bc = u32(e.reserve_bc + x)
+        set ns.num1 = x
+        set v.have_support = false
+        set ns.type = GAME_NEWS_SUPPORT
+        set ns.subtype = if IS_HUMAN(g, player) => 0 => 4
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; 10f1e
+    if v.have_poor {
+        val pli = v.poor_planet_i
+        val p = g.planet@(pli)
+        val player = p.owner
+        set ns.planet_i = pli
+        set ns.race = if player != PLAYER_NONE => g.eto@(player).race => RACE_HUMAN   ;; WASBUG MOO1 does not check for none, taking race from eto[-1]
+        set p.special = PLANET_SPECIAL_POOR
+        set v.have_poor = false
+        set ns.type = GAME_NEWS_POOR
+        set ns.subtype = if IS_HUMAN(g, player) => 0 => 4
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; 10ff3
+    set ns.type = GAME_NEWS_GENOCIDE
+    set ns.subtype = 0
+    do {
+        var num_humans = 0
+        pin num_planets = carray(PLAYER_NUM)    ;; uint8_t[]
+        loop pli in g.galaxy_stars {
+            val p = g.planet@(pli)
+            if p.owner != PLAYER_NONE {
+                set num_planets@(p.owner) = u8(num_planets@(p.owner) + 1)
+            }
+        }
+        loop i in g.players {
+            if IS_HUMAN(g, i) && IS_ALIVE(g, i) {
+                set num_humans = num_humans + 1
+            }
+        }
+        loop i in g.players {
+            if (num_planets@(i) == 0) && IS_ALIVE(g, i) && (IS_AI(g, i) || (num_humans > 1)) {
+                var killer = PLAYER_NONE
+                var j = PLAYER_0
+                loop {
+                    while (j < g.players) && (killer == PLAYER_NONE)
+                    val e = g.eto@(j)
+                    loop pli in g.galaxy_stars {
+                        val p = g.planet@(pli)
+                        if p.claim == i {
+                            var any_ships = false
+                            loop k in e.shipdesigns_num {
+                                if e.orbit@(pli).ships@(k) > 0 {
+                                    set any_ships = true
+                                    break
+                                }
+                            }
+                            if any_ships || (p.owner == j) {
+                                set killer = j
+                            }
+                        }
+                    }
+                    set j = j + 1
+                }
+                if killer != PLAYER_NONE {
+                    set ns.race = g.eto@(i).race
+                    set ns.num2 = killer
+                    ui_news(g, ns)
+                    set any_news = true
+                    loop k in g.players {
+                        if (k != i) && (k != killer) {
+                            game_diplo_act(g, -36, killer, k, 0, 0, 0)
+                        }
+                    }
+                }
+                game_event_kill_player(g, i)
+                if IS_HUMAN(g, i) {
+                    set num_humans = num_humans - 1
+                }
+            }
+        }
+    }
+    ;; 1124f
+    loop player in g.players {
+        if BOOLVEC_IS0(v.coup, player) || (!IS_ALIVE(g, player)) {
+            skip
+        }
+        val e = g.eto@(player)
+        var num_humans = 0
+        set ns.type = GAME_NEWS_COUP
+        set ns.race = e.race
+        loop i in g.players {
+            if IS_HUMAN(g, i) && IS_ALIVE(g, i) {
+                set num_humans = num_humans + 1
+            }
+        }
+        if IS_HUMAN(g, player) && (num_humans == 1) {
+            set ns.subtype = 2
+            set ns.num1 = player
+            ui_news(g, ns)
+            set any_news = true
+            set ge.type = GAME_END_LOST_FUNERAL
+            loop i in g.players {
+                if (i != player) && IS_ALIVE(g, i) {
+                    set ge.race = g.eto@(i).banner
+                    break
+                }
+            }
+            set ge.banner_dead = e.banner
+            return true
+        } else {
+            ;; 11304
+            if IS_AI(g, player) {
+                game_new_generate_other_emperor_name(g, player)
+            }
+            set ns.subtype = rnd_0_nm1(2, g)
+            set ns.num1 = e.trait1
+            set ns.num2 = e.trait2
+            var any_in_range = IS_HUMAN(g, player)
+            var i = PLAYER_0
+            loop {
+                while (i < g.players) && (!any_in_range)
+                val e2 = g.eto@(i)
+                if IS_HUMAN(g, i) && BOOLVEC_IS1(e2.contact, player) && IS_ALIVE(g, i) {
+                    set any_in_range = true
+                }
+                set i = i + 1
+            }
+            if any_in_range {
+                ui_news(g, ns)
+                set any_news = true
+                ;; WASBUG If multiple coups happen in one turn, MOO1 reports only one.
+            }
+            ;; TODO What about multiplayer? Set overthrown player to AI?
+        }
+    }
+    ;; 11383
+    do {
+        var top_player = PLAYER_0
+        val half = u8(g.galaxy_stars // 2)
+        var max_pl = 0  ;; uint8_t
+        pin num_planets = carray(PLAYER_NUM)    ;; uint8_t[]
+        loop pli in g.galaxy_stars {
+            val p = g.planet@(pli)
+            if p.owner != PLAYER_NONE {
+                set num_planets@(p.owner) = u8(num_planets@(p.owner) + 1)
+            }
+        }
+        loop i in g.players {
+            if num_planets@(i) > max_pl {
+                set max_pl = num_planets@(i)
+                set top_player = i
+            }
+        }
+        if ((((v.report_stars + 1) * half) // 4) <= max_pl) || ((v.report_stars == 3) && ((half - 2) <= max_pl) && (max_pl < half) && (g.end == GAME_END_NONE)) {
+            set ns.type = GAME_NEWS_STARS
+            set ns.subtype = v.report_stars
+            set v.report_stars = u8(v.report_stars + 1)
+            if ns.subtype < 4 {
+                set ns.num1 = max_pl
+                set ns.race = g.eto@(top_player).race
+                ui_news(g, ns)
+                set any_news = true
+            }
+        }
+    }
+    ;; 114b2
+    if g.guardian_killer != PLAYER_NONE {
+        val player = g.guardian_killer
+        set ns.type = GAME_NEWS_GUARDIAN
+        set ns.subtype = if IS_HUMAN(g, player) => 0 => 1
+        set ns.race = g.eto@(player).race
+        ui_news(g, ns)
+        set any_news = true
+        game_tech_get_orion_loot(g, player)
+        set g.guardian_killer = PLAYER_NONE
+    }
+    ;; MOO1 has the following way before the guardian news which gives a strange news order
+    if (v.have_orion_conquer != 0) && BOOLVEC_IS0(v.done, 17) {
+        val player = v.have_orion_conquer - 1
+        val e = g.eto@(player)
+        BOOLVEC_SET1(v.done, 17)
+        set ns.race = e.race
+        set ns.num1 = player
+        set ns.type = GAME_NEWS_ORION
+        set ns.subtype = 0  ;; WASBUG MOO1 does not set this here
+        ui_news(g, ns)
+        set any_news = true
+    }
+    ;; 114fb
+    if (!game_opt_skip_random_news) && (!any_news) && (rnd_0_nm1(40, g) == 0) && (g.year > 25) && (g.end == GAME_END_NONE) {
+        set ns.type = GAME_NEWS_STATS
+        set ns.subtype = rnd_0_nm1(4, g)
+        ui_news(g, ns)
+    }
+    ;; 11538
+    ui_news_end()
+    false
+}

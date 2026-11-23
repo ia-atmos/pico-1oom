@@ -1,0 +1,15 @@
+;; Port of c/src/game/game_end.h.
+
+include "game_types.atm"
+
+;; `name` is a string (or the vector of an emperor name), or nil for the
+;; `0` of C.
+func game_end_s () {
+    [
+        type        = GAME_END_NONE,    ;; game_end_type_t
+        race        = 0,    ;; int (or banner_live)
+        banner_dead = 0,    ;; int
+        name        = nil,  ;; const char *
+        varnum      = 0,    ;; int
+    ]
+}

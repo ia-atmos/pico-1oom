@@ -56,3 +56,8 @@ var ui_election_delay = func (el, delay) { ui_not_set("ui_election_delay") }
 var ui_election_vote = func (el, player_i) { ui_not_set("ui_election_vote") }
 var ui_election_accept = func (el, player_i) { ui_not_set("ui_election_accept") }
 var ui_election_end = func (el) { ui_not_set("ui_election_end") }
+
+;; The news (`ns` is a `struct news_s`).
+var ui_news_start = func () { ui_not_set("ui_news_start") }
+var ui_news = func (g, ns) { ui_not_set("ui_news") }
+var ui_news_end = func () { ui_not_set("ui_news_end") }
