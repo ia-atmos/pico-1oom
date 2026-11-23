@@ -1,0 +1,30 @@
+;; Port of c/src/ui.h: what the logic calls of the interface. In C each
+;; interface (classic, cmdline, nop) defines these functions; here each one is
+;; a `var` that an interface sets to its own function (`set ui_turn_msg =
+;; func (g, pi, str) { ... }`). Until it is set, a call throws. Only the
+;; functions that the ported logic calls so far are here.
+
+include "ctypes.atm"
+
+val UI_STRBUF_SIZE = 1024
+
+;; Not set by an interface: what C would do with no interface (a link error).
+func ui_not_set (name) {
+    throw "ui: " ++ name ++ " is not set by an interface"
+}
+
+;; The buffer of `ui_get_strbuf`, as every interface of 1oom has it.
+pin ui_strbuf = carray(UI_STRBUF_SIZE)  ;; char[]
+var ui_get_strbuf = func () { ui_strbuf }
+
+var ui_explore = func (g, pi, planet_i, by_scanner, flag_colony_ship) { ui_not_set("ui_explore") }
+var ui_landing = func (g, pi, planet_i) { ui_not_set("ui_landing") }
+var ui_turn_msg = func (g, pi, str) { ui_not_set("ui_turn_msg") }
+
+;; The map while the ships move (`ctx` is what `ui_gmap_basic_init` gives).
+var ui_gmap_basic_init = func (g, show_player_switch) { ui_not_set("ui_gmap_basic_init") }
+var ui_gmap_basic_start_player = func (ctx, pi) { ui_not_set("ui_gmap_basic_start_player") }
+var ui_gmap_basic_start_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_start_frame") }
+var ui_gmap_basic_draw_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_draw_frame") }
+var ui_gmap_basic_finish_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_finish_frame") }
+var ui_gmap_basic_shutdown = func (ctx) { ui_not_set("ui_gmap_basic_shutdown") }
