@@ -1,0 +1,935 @@
+;; Port of c/src/game/game_design.c and game_design.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "../rnd.atm"
+include "../util.atm"
+include "game.atm"
+include "game_fleet.atm"
+include "game_misc.atm"
+include "game_shipdesign.atm"
+include "game_shiptech.atm"
+include "game_str.atm"
+include "game_str_shipnames.atm"
+include "game_tech.atm"
+
+func game_design_s () {
+    [
+        sd                  = shipdesign_t(),
+        names               = carray2(SHIP_HULL_NUM, SHIP_NAME_LEN + 1),  ;; char[][]
+        percent             = carray(TECH_FIELD_NUM),   ;; uint8_t[]
+        player_i            = 0,    ;; player_id_t
+        lookbase            = 0,    ;; int
+        sd_num              = 0,    ;; int
+        tbl_shiplook        = carray(NUM_SHIPDESIGNS),  ;; uint8_t[]
+        tbl_shiplook_hull   = carray(SHIP_HULL_NUM),    ;; uint8_t[]
+    ]
+}
+
+val DESIGN_SLOT_COMP = 0
+val DESIGN_SLOT_SHIELD = 1
+val DESIGN_SLOT_JAMMER = 2
+val DESIGN_SLOT_ARMOR = 3
+val DESIGN_SLOT_ENGINE = 4
+val DESIGN_SLOT_MAN = 5
+val DESIGN_SLOT_SPECIAL1 = 6
+val DESIGN_SLOT_SPECIAL2 = 7
+val DESIGN_SLOT_SPECIAL3 = 8
+val DESIGN_SLOT_WEAPON1 = 9
+val DESIGN_SLOT_WEAPON2 = 10
+val DESIGN_SLOT_WEAPON3 = 11
+val DESIGN_SLOT_WEAPON4 = 12
+
+val WEAPON_GROUP_ALL = 0
+val WEAPON_GROUP_BEAMS = 1
+val WEAPON_GROUP_KINETIC = 2
+val WEAPON_GROUP_BOMBS = 3
+val WEAPON_GROUP_MISSILES = 4
+val WEAPON_GROUP_BIOLOGICAL = 5
+val WEAPON_GROUP_SPECIAL = 6
+val WEAPON_GROUP_NUM = 7
+
+func design_data_s () {
+    [
+        g                       = nil,  ;; struct game_s *
+        gd                      = nil,  ;; struct game_design_s *
+        api                     = 0,    ;; player_id_t
+        last_avail_tech_weap    = 0,    ;; weapon_t
+        last_avail_tech_special = 0,    ;; ship_special_t
+        flag_disable_cspeed     = false,
+        flag_disable_comp       = false,
+        flag_disable_jammer     = false,
+        flag_disable_shield     = false,
+        flag_disable_armor      = false,
+        flag_disable_engine     = false,
+        flag_tbl_weapon         = carray(WEAPON_SLOT_NUM, false),   ;; bool[]
+        flag_tbl_special        = carray(SPECIAL_SLOT_NUM, false),  ;; bool[]
+        flag_tbl_hull           = carray(SHIP_HULL_NUM, false),     ;; bool[]
+        flag_tbl_weap_up        = carray(WEAPON_SLOT_NUM),  ;; int16_t[]
+        flag_tbl_weap_dn        = carray(WEAPON_SLOT_NUM),  ;; int16_t[]
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_get_random_shipnames (g, player, shipnames) {
+    pin name_unused = BOOLVEC_DECLARE(SHIP_NAME_NUM)
+    val e = g.eto@(player)
+    val srd = g.srd@(player)
+    val nbase = e.race * SHIP_NAME_NUM  ;; names = &game_str_tbl_ship_names[nbase]
+    loop n in SHIP_NAME_NUM {
+        BOOLVEC_SET1(name_unused, n)
+        loop sdi in e.shipdesigns_num {
+            if cstr(srd.design@(sdi).name) == game_str_tbl_ship_names@(nbase + n) {
+                BOOLVEC_SET0(name_unused, n)
+                break
+            }
+        }
+    }
+    ;; game_get_random_unused_shipnames
+    loop i in SHIP_HULL_NUM {
+        set shipnames@(i)@(0) = 0
+    }
+    var i = SHIP_HULL_NUM - 1
+    loop {
+        while i >= 0
+        var flag_unused = false
+        var namei = (i * 3) + rnd_0_nm1(3, g)
+        if BOOLVEC_IS1(name_unused, namei) {
+            set flag_unused = true
+        } else {
+            loop {
+                while (!flag_unused) && (namei < SHIP_NAME_NUM)
+                if BOOLVEC_IS1(name_unused, namei) {
+                    set flag_unused = true
+                } else {
+                    set namei = namei + 1
+                }
+            }
+            if !flag_unused {
+                set namei = namei - 1
+                loop {
+                    while (!flag_unused) && (namei >= 0)
+                    if BOOLVEC_IS1(name_unused, namei) {
+                        set flag_unused = true
+                    } else {
+                        set namei = namei - 1
+                    }
+                }
+            }
+            if !flag_unused {
+                set namei = 0
+            }
+        }
+        if (namei >= 0) && (namei < SHIP_NAME_NUM) {
+            BOOLVEC_SET0(name_unused, namei)
+        }
+        lib_strcpy(shipnames@(i), game_str_tbl_ship_names@(nbase + namei), SHIP_NAME_LEN + 1)  ;; TODO weird that the strcpy is not inside the previous if
+        set i = i - 1
+    }
+}
+
+func game_design_look_add (gd, ld) {
+    val sd = gd.sd
+    val hull = sd.hull
+    var numlook = 0
+    var look = sd.look + ld
+    val lookbase = (SHIP_LOOK_PER_HULL * hull) + gd.lookbase
+    loop i in gd.sd_num {
+        val l = gd.tbl_shiplook@(i)
+        if (l >= lookbase) && (l < (lookbase + SHIP_LOOK_PER_HULL)) {
+            set numlook = numlook + 1
+        }
+    }
+    if look < lookbase {
+        set look = lookbase + SHIP_LOOK_PER_HULL - 1
+    } else {
+        if look >= (lookbase + SHIP_LOOK_PER_HULL) {
+            set look = lookbase
+        }
+    }
+    if numlook < SHIP_LOOK_PER_HULL {
+        var i = 0
+        loop {
+            while i < gd.sd_num
+            if look == gd.tbl_shiplook@(i) {
+                set look = look + ld
+                if look < lookbase {
+                    set look = lookbase + SHIP_LOOK_PER_HULL - 1
+                } else {
+                    if look >= (lookbase + SHIP_LOOK_PER_HULL) {
+                        set look = lookbase
+                    }
+                }
+                set i = -1
+            }
+            set i = i + 1
+        }
+    }
+    set sd.look = u8(look)
+    set gd.tbl_shiplook_hull@(hull) = u8(look)
+}
+
+;; `tm` of an item: the tech level of its field over the level of the item,
+;; from 0 to 50.
+func design_tm (v) {
+    SETRANGE(v, 0, 50)
+}
+
+func game_design_calc_cost_item_do (gd, slot, i) {
+    val sd = gd.sd
+    var cost = 0
+    if (slot == DESIGN_SLOT_WEAPON1) || (slot == DESIGN_SLOT_WEAPON2) || (slot == DESIGN_SLOT_WEAPON3) || (slot == DESIGN_SLOT_WEAPON4) {
+        val w = tbl_shiptech_weap@(i)
+        var tm = if w.is_bio => gd.percent@(TECH_FIELD_PLANETOLOGY) => gd.percent@(TECH_FIELD_WEAPON)
+        set tm = design_tm(tm - w.tech_i)
+        set cost = (w.cost * tech_reduce_50percent_per_10pts@(tm)) // 100
+    } else {
+        if slot == DESIGN_SLOT_ENGINE {
+            val tm = design_tm(gd.percent@(TECH_FIELD_PROPULSION) - tbl_shiptech_engine@(i).tech_i)
+            set cost = (tbl_shiptech_engine@(i).cost * tech_reduce_50percent_per_10pts@(tm)) // 100
+        } else {
+            if slot == DESIGN_SLOT_COMP {
+                val tm = design_tm(gd.percent@(TECH_FIELD_COMPUTER) - tbl_shiptech_comp@(i).tech_i)
+                set cost = (tbl_shiptech_comp@(i).cost@(sd.hull) * tech_reduce_50percent_per_10pts@(tm)) // 100
+            } else {
+                if slot == DESIGN_SLOT_JAMMER {
+                    val tm = design_tm(gd.percent@(TECH_FIELD_COMPUTER) - tbl_shiptech_jammer@(i).tech_i)
+                    set cost = (tbl_shiptech_jammer@(i).cost@(sd.hull) * tech_reduce_50percent_per_10pts@(tm)) // 100
+                } else {
+                    if slot == DESIGN_SLOT_SHIELD {
+                        val tm = design_tm(gd.percent@(TECH_FIELD_FORCE_FIELD) - tbl_shiptech_shield@(i).tech_i)
+                        set cost = (tbl_shiptech_shield@(i).cost@(sd.hull) * tech_reduce_50percent_per_10pts@(tm)) // 100
+                    } else {
+                        if slot == DESIGN_SLOT_ARMOR {
+                            val tm = design_tm(gd.percent@(TECH_FIELD_CONSTRUCTION) - tbl_shiptech_armor@(i).tech_i)
+                            set cost = (tbl_shiptech_armor@(i).cost@(sd.hull) * tech_reduce_50percent_per_10pts@(tm)) // 100
+                        } else {
+                            if (slot == DESIGN_SLOT_SPECIAL1) || (slot == DESIGN_SLOT_SPECIAL2) || (slot == DESIGN_SLOT_SPECIAL3) {
+                                val fi = tbl_shiptech_special@(i).field
+                                val tm = design_tm(gd.percent@(fi) - tbl_shiptech_special@(i).tech_i)
+                                set cost = (tbl_shiptech_special@(i).cost@(sd.hull) * tech_reduce_50percent_per_10pts@(tm)) // 100
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    cost
+}
+
+func game_design_prepare_do (g, gd, player, sd) {
+    val e = g.eto@(player)
+    set gd.player_i = player
+    set gd.sd_num = e.shipdesigns_num
+    game_get_random_shipnames(g, gd.player_i, gd.names)
+    if sd != nil {
+        cstruct_copy(gd.sd, sd)
+    } else {
+        cstruct_copy(gd.sd, shipdesign_t())
+    }
+    loop f in TECH_FIELD_NUM {
+        set gd.percent@(f) = e.tech.percent@(f)
+    }
+}
+
+func game_design_get_weapon_group (g, w) {
+    if w.tech_i > 50 {
+        return WEAPON_GROUP_SPECIAL
+    }
+    val field = if w.is_bio => TECH_FIELD_PLANETOLOGY => TECH_FIELD_WEAPON
+    val group = game_tech_get_group(g.gaux, field, w.tech_i)
+    if group == TECH_GROUP_SINGULAR {
+        if w.is_bio {
+            return WEAPON_GROUP_BIOLOGICAL
+        }
+        if w.is_bomb {
+            return WEAPON_GROUP_BOMBS
+        }
+        if w.halveshield {
+            return WEAPON_GROUP_KINETIC
+        }
+        if w.damagemin != w.damagemax {
+            return WEAPON_GROUP_BEAMS
+        }
+        return WEAPON_GROUP_MISSILES
+    }
+    match group {
+        TECH_GROUP_BEAMS => WEAPON_GROUP_BEAMS
+        TECH_GROUP_PENETRATING_BEAMS => WEAPON_GROUP_KINETIC
+        TECH_GROUP_BIO_WEAPONS => WEAPON_GROUP_BIOLOGICAL
+        TECH_GROUP_BOMBS => WEAPON_GROUP_BOMBS
+        TECH_GROUP_ROCKETS => WEAPON_GROUP_MISSILES
+        else => WEAPON_GROUP_NUM
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_design_prepare (g, gd, player, sd) {
+    val e = g.eto@(player)
+    pin lookused = BOOLVEC_DECLARE(SHIP_LOOK_PER_BANNER)
+    BOOLVEC_CLEAR(lookused, SHIP_LOOK_PER_BANNER)
+    game_design_prepare_do(g, gd, player, sd)
+    set gd.lookbase = e.banner * SHIP_LOOK_PER_BANNER
+    loop i in gd.sd_num {
+        val look = g.srd@(player).design@(i).look
+        set gd.tbl_shiplook@(i) = look
+        BOOLVEC_SET1(lookused, look - gd.lookbase)
+    }
+    ;; from ui_design
+    loop hull in SHIP_HULL_NUM {
+        var look = u8(SHIP_LOOK_PER_HULL * hull)
+        loop i in SHIP_LOOK_PER_HULL {
+            if BOOLVEC_IS0(lookused, look + i) {
+                set look = u8(look + i)
+                break
+            }
+        }
+        set gd.tbl_shiplook_hull@(hull) = u8(look + gd.lookbase)
+    }
+}
+
+func game_design_prepare_ai (g, gd, player, hull, look) {
+    val sd = gd.sd
+    game_design_prepare_do(g, gd, player, nil)
+    set sd.hull = hull
+    set sd.look = look
+    lib_strcpy(sd.name, gd.names@(hull), SHIP_NAME_LEN)
+    game_design_update_engines(sd)
+    set sd.space = u16(game_design_calc_space(gd))
+    set sd.cost = u16(game_design_calc_cost(gd))
+}
+
+func game_design_update_engines (sd) {
+    var power = 0   ;; uint32_t
+    loop i in WEAPON_SLOT_NUM {
+        if sd.wpnt@(i) != 0 {
+            set power = u32(power + (sd.wpnn@(i) * tbl_shiptech_weap@(sd.wpnt@(i)).power))
+        }
+    }
+    set power = u32(power + (tbl_shiptech_hull@(sd.hull).power * (sd.man + 1)))
+    loop i in SPECIAL_SLOT_NUM {
+        set power = u32(power + tbl_shiptech_special@(sd.special@(i)).power@(sd.hull))
+    }
+    set power = u32(power + tbl_shiptech_comp@(sd.comp).power@(sd.hull))
+    set power = u32(power + tbl_shiptech_jammer@(sd.jammer).power@(sd.hull))
+    set power = u32(power + tbl_shiptech_shield@(sd.shield).power@(sd.hull))
+    var engines = power // (tbl_shiptech_engine@(sd.engine).power // 10)    ;; uint32_t
+    set engines = SETMAX(engines, 1)
+    set sd.engines = engines
+}
+
+func game_design_get_hull_space (gd) {
+    ;; MOO1 also has some additional variable here, but it is always 0
+    val space = tbl_shiptech_hull@(gd.sd.hull).space
+    space + ((space * gd.percent@(TECH_FIELD_CONSTRUCTION)) // 50)
+}
+
+func game_design_calc_space_item (gd, slot, i) {
+    val sd = gd.sd
+    var space = 0
+    if (slot == DESIGN_SLOT_WEAPON1) || (slot == DESIGN_SLOT_WEAPON2) || (slot == DESIGN_SLOT_WEAPON3) || (slot == DESIGN_SLOT_WEAPON4) {
+        val w = tbl_shiptech_weap@(i)
+        var tm = if w.is_bio => gd.percent@(TECH_FIELD_PLANETOLOGY) => gd.percent@(TECH_FIELD_WEAPON)
+        set tm = design_tm(tm - w.tech_i)
+        set space = (w.space * tech_reduce_50percent_per_10pts@(tm)) // 100
+    } else {
+        if slot == DESIGN_SLOT_ENGINE {
+            val tm = design_tm(gd.percent@(TECH_FIELD_PROPULSION) - tbl_shiptech_engine@(i).tech_i)
+            set space = (tbl_shiptech_engine@(i).space * tech_reduce_25percent_per_10pts@(tm)) // 100
+        } else {
+            if slot == DESIGN_SLOT_COMP {
+                val tm = design_tm(gd.percent@(TECH_FIELD_COMPUTER) - tbl_shiptech_comp@(i).tech_i)
+                set space = (tbl_shiptech_comp@(i).space@(sd.hull) * tech_reduce_25percent_per_10pts@(tm)) // 100
+            } else {
+                if slot == DESIGN_SLOT_JAMMER {
+                    val tm = design_tm(gd.percent@(TECH_FIELD_COMPUTER) - tbl_shiptech_jammer@(i).tech_i)
+                    set space = (tbl_shiptech_jammer@(i).space@(sd.hull) * tech_reduce_25percent_per_10pts@(tm)) // 100
+                } else {
+                    if slot == DESIGN_SLOT_SHIELD {
+                        val tm = design_tm(gd.percent@(TECH_FIELD_FORCE_FIELD) - tbl_shiptech_shield@(i).tech_i)
+                        set space = (tbl_shiptech_shield@(i).space@(sd.hull) * tech_reduce_25percent_per_10pts@(tm)) // 100
+                    } else {
+                        if slot == DESIGN_SLOT_ARMOR {
+                            val tm = design_tm(gd.percent@(TECH_FIELD_CONSTRUCTION) - tbl_shiptech_armor@(i).tech_i)
+                            set space = (tbl_shiptech_armor@(i).space@(sd.hull) * tech_reduce_25percent_per_10pts@(tm)) // 100
+                        } else {
+                            if (slot == DESIGN_SLOT_SPECIAL1) || (slot == DESIGN_SLOT_SPECIAL2) || (slot == DESIGN_SLOT_SPECIAL3) {
+                                val fi = tbl_shiptech_special@(i).field
+                                val tm = design_tm(gd.percent@(fi) - tbl_shiptech_special@(i).tech_i)
+                                set space = (tbl_shiptech_special@(i).space@(sd.hull) * tech_reduce_25percent_per_10pts@(tm)) // 100
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if i != 0 {
+        set space = SETMAX(space, 1)
+    }
+    space
+}
+
+func game_design_calc_space (gd) {
+    val sd = gd.sd
+    var s
+    var space = game_design_get_hull_space(gd)
+    loop i in WEAPON_SLOT_NUM {
+        val wi = sd.wpnt@(i)
+        if (wi != WEAPON_NONE) && (sd.wpnn@(i) != 0) {
+            set s = game_design_calc_space_item(gd, DESIGN_SLOT_WEAPON1, wi)
+            set s = s * sd.wpnn@(i)
+            set space = space - s
+        }
+    }
+    if sd.engines != 0 {
+        set s = game_design_calc_space_item(gd, DESIGN_SLOT_ENGINE, sd.engine)
+        set s = i32((s * sd.engines) // 10)    ;; int * uint32_t
+        set space = space - s
+    }
+    if sd.comp != 0 {
+        set s = game_design_calc_space_item(gd, DESIGN_SLOT_COMP, sd.comp)
+        set space = space - s
+    }
+    if sd.jammer != 0 {
+        set s = game_design_calc_space_item(gd, DESIGN_SLOT_JAMMER, sd.jammer)
+        set space = space - s
+    }
+    if sd.shield != 0 {
+        set s = game_design_calc_space_item(gd, DESIGN_SLOT_SHIELD, sd.shield)
+        set space = space - s
+    }
+    if sd.armor != 0 {
+        set s = game_design_calc_space_item(gd, DESIGN_SLOT_ARMOR, sd.armor)
+        set space = space - s
+    }
+    loop i in SPECIAL_SLOT_NUM {
+        val si = sd.special@(i)
+        if si != 0 {
+            set s = game_design_calc_space_item(gd, DESIGN_SLOT_SPECIAL1, si)
+            set space = space - s
+        }
+    }
+    space
+}
+
+func game_design_calc_cost_item (gd, slot, i) {
+    var cost = game_design_calc_cost_item_do(gd, slot, i)
+    if (cost < 5) && (i != 0) {
+        set cost = 5
+    }
+    set cost = (cost + 5) // 10
+    if (cost < 1) && (i != 0) {
+        set cost = 1
+    }
+    cost
+}
+
+func game_design_calc_cost (gd) {
+    val sd = gd.sd
+    var s   ;; uint32_t
+    var cost = tbl_shiptech_hull@(sd.hull).cost     ;; uint32_t
+    loop i in WEAPON_SLOT_NUM {
+        val wi = sd.wpnt@(i)
+        if (wi != WEAPON_NONE) && (sd.wpnn@(i) != 0) {
+            set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_WEAPON1, wi))
+            set s = SETMAX(s, 5)
+            set s = u32(s * sd.wpnn@(i))
+            set cost = u32(cost + s)
+        }
+    }
+    if sd.engines != 0 {
+        set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_ENGINE, sd.engine))
+        set s = SETMAX(s, 5)
+        set cost = u32(cost + (u32(s * sd.engines) // 10))
+    }
+    if sd.comp != 0 {
+        set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_COMP, sd.comp))
+        set s = SETMAX(s, 1)
+        set cost = u32(cost + s)
+    }
+    if sd.jammer != 0 {
+        set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_JAMMER, sd.jammer))
+        set s = SETMAX(s, 1)
+        set cost = u32(cost + s)
+    }
+    if sd.shield != 0 {
+        set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_SHIELD, sd.shield))
+        set s = SETMAX(s, 5)
+        set cost = u32(cost + s)
+    }
+    if sd.armor != 0 {
+        set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_ARMOR, sd.armor))
+        set s = SETMAX(s, 5)
+        set cost = u32(cost + s)
+    }
+    loop i in SPECIAL_SLOT_NUM {
+        val si = sd.special@(i)
+        if si != 0 {
+            set s = u32(game_design_calc_cost_item_do(gd, DESIGN_SLOT_SPECIAL1, si))
+            set s = SETMAX(s, 5)
+            set cost = u32(cost + s)
+        }
+    }
+    set cost = u32(cost + 5) // 10
+    set cost = SETMAX(cost, 1)
+    i32(cost)
+}
+
+func game_design_clear (gd) {
+    val sd = gd.sd
+    pin name = carray(SHIP_NAME_LEN + 1)   ;; char[]
+    val look = sd.look
+    val hull = sd.hull
+    lib_strcpy(name, sd.name, #name)
+    cstruct_copy(sd, shipdesign_t())
+    set sd.look = look
+    set sd.hull = hull
+    lib_strcpy(sd.name, name, SHIP_NAME_LEN)
+    game_design_update_engines(sd)
+    set sd.space = u16(game_design_calc_space(gd))
+    set sd.cost = u16(game_design_calc_cost(gd))
+}
+
+func game_design_look_next (gd) {
+    game_design_look_add(gd, 1)
+}
+
+func game_design_look_prev (gd) {
+    game_design_look_add(gd, -1)
+}
+
+func game_design_look_fix (g, pi, sd) {
+    val e = g.eto@(pi)
+    var need_fix = false
+    var look = sd.look
+    val lookbase = (SHIP_LOOK_PER_HULL * sd.hull) + (e.banner * SHIP_LOOK_PER_BANNER)
+    pin lookused = BOOLVEC_DECLARE(SHIP_LOOK_PER_HULL)
+    BOOLVEC_CLEAR(lookused, SHIP_LOOK_PER_HULL)
+    loop i in e.shipdesigns_num {
+        val l = g.srd@(pi).design@(i).look
+        if (l >= lookbase) && (l < (lookbase + SHIP_LOOK_PER_HULL)) {
+            BOOLVEC_SET1(lookused, l - lookbase)
+            if l == look {
+                set need_fix = true
+            }
+        }
+    }
+    if need_fix {
+        loop i in SHIP_LOOK_PER_HULL {
+            if BOOLVEC_IS0(lookused, i) {
+                set look = lookbase + i
+                break
+            }
+        }
+        set sd.look = u8(look)
+    }
+}
+
+;; 1 (HAVE) if the design fits, 0 (NOPE) if not.
+func design_fits (gd) {
+    if game_design_calc_space(gd) >= 0 => 1 => 0
+}
+
+;; The `build_tbl_fit` of a slot with one item (comp, shield, jammer, armor):
+;; the field of its tech and its table.
+func design_build_tbl_fit_one (g, gd, buf, key, field, tbl, num) {
+    val sd = gd.sd
+    val act = sd@(key)
+    var last = 0
+    set buf@(0) = 1     ;; HAVE
+    loop i in (1, num - 1) {
+        if game_tech_player_has_tech(g, field, tbl@(i).tech_i, gd.player_i) != 0 {
+            set sd@(key) = i
+            game_design_update_engines(sd)
+            set buf@(i) = design_fits(gd)
+            set last = i
+        } else {
+            set buf@(i) = -1    ;; NO_TECH
+        }
+    }
+    set sd@(key) = act
+    game_design_update_engines(sd)
+    last
+}
+
+func game_design_build_tbl_fit_comp (g, gd, buf) {
+    design_build_tbl_fit_one(g, gd, buf, "comp", TECH_FIELD_COMPUTER, tbl_shiptech_comp, SHIP_COMP_NUM)
+}
+
+func game_design_build_tbl_fit_shield (g, gd, buf) {
+    design_build_tbl_fit_one(g, gd, buf, "shield", TECH_FIELD_FORCE_FIELD, tbl_shiptech_shield, SHIP_SHIELD_NUM)
+}
+
+func game_design_build_tbl_fit_jammer (g, gd, buf) {
+    design_build_tbl_fit_one(g, gd, buf, "jammer", TECH_FIELD_COMPUTER, tbl_shiptech_jammer, SHIP_JAMMER_NUM)
+}
+
+func game_design_build_tbl_fit_armor (g, gd, buf) {
+    design_build_tbl_fit_one(g, gd, buf, "armor", TECH_FIELD_CONSTRUCTION, tbl_shiptech_armor, SHIP_ARMOR_NUM)
+}
+
+func game_design_build_tbl_fit_engine (g, gd, buf) {
+    val sd = gd.sd
+    val actengine = sd.engine
+    var last = 0
+    set buf@(0) = 1     ;; HAVE
+    loop i in SHIP_ENGINE_NUM {
+        if game_tech_player_has_tech(g, TECH_FIELD_PROPULSION, tbl_shiptech_engine@(i).tech_i, gd.player_i) != 0 {
+            set sd.engine = i
+            game_design_update_engines(sd)
+            set buf@(i) = design_fits(gd)
+            set last = i
+        } else {
+            set buf@(i) = -1    ;; NO_TECH
+        }
+    }
+    set sd.engine = actengine
+    game_design_update_engines(sd)
+    last
+}
+
+func game_design_build_tbl_fit_man (g, gd, buf) {
+    val sd = gd.sd
+    val actman = sd.man
+    loop i in (0, sd.engine) {
+        set sd.man = i
+        game_design_update_engines(sd)
+        set buf@(i) = design_fits(gd)
+    }
+    set sd.man = actman
+    game_design_update_engines(sd)
+    sd.engine
+}
+
+func game_design_build_tbl_fit_weapon (g, gd, buf, wslot, wgroup) {
+    val sd = gd.sd
+    val actwpnt = sd.wpnt@(wslot)
+    val actwpnn = sd.wpnn@(wslot)
+    var last = 0
+    set buf@(0) = 1     ;; HAVE
+    loop i in (1, WEAPON_NUM - 1) {
+        val w = tbl_shiptech_weap@(i)
+        val fi = if w.is_bio => TECH_FIELD_PLANETOLOGY => TECH_FIELD_WEAPON
+        val group = game_design_get_weapon_group(g, w)
+        val match_ = (wgroup == WEAPON_GROUP_ALL) || (wgroup == group)
+        if (game_tech_player_has_tech(g, fi, w.tech_i, gd.player_i) != 0) && match_ {
+            set sd.wpnt@(wslot) = i
+            ;; TODO use binary search
+            var n = 1   ;; uint8_t
+            loop {
+                while n < 100
+                set sd.wpnn@(wslot) = n
+                game_design_update_engines(sd)
+                if game_design_calc_space(gd) < 0 {
+                    break
+                }
+                set n = n + 1
+            }
+            set buf@(i) = i8(n - 1)
+            set last = i
+        } else {
+            set buf@(i) = -1    ;; NO_TECH
+        }
+    }
+    set sd.wpnt@(wslot) = actwpnt
+    set sd.wpnn@(wslot) = actwpnn
+    game_design_update_engines(sd)
+    last
+}
+
+func game_design_build_tbl_fit_special (g, gd, buf, sslot) {
+    val sd = gd.sd
+    val actspec = sd.special@(sslot)
+    var last = 0
+    pin othertype = carray(SPECIAL_SLOT_NUM - 1)   ;; uint8_t[]
+    do {
+        var n = 0
+        loop j in SPECIAL_SLOT_NUM {
+            if j != sslot {
+                set othertype@(n) = tbl_shiptech_special@(sd.special@(j)).type
+                set n = n + 1
+            }
+        }
+    }
+    set buf@(0) = 1     ;; HAVE
+    loop i in (1, SHIP_SPECIAL_NUM - 1) {
+        val s = tbl_shiptech_special@(i)
+        if game_tech_player_has_tech(g, s.field, s.tech_i, gd.player_i) != 0 {
+            var flag_check = true
+            val thistype = s.type
+            loop j in SPECIAL_SLOT_NUM - 1 {
+                if thistype == othertype@(j) {
+                    set flag_check = false
+                    set buf@(i) = 0     ;; NOPE
+                    break
+                }
+            }
+            if flag_check {
+                set sd.special@(sslot) = i
+                game_design_update_engines(sd)
+                set buf@(i) = design_fits(gd)
+            }
+            set last = i
+        } else {
+            set buf@(i) = -1    ;; NO_TECH
+        }
+    }
+    set sd.special@(sslot) = actspec
+    game_design_update_engines(sd)
+    last
+}
+
+func game_design_compact_slots (sd) {
+    loop _ in SPECIAL_SLOT_NUM {
+        loop i in SPECIAL_SLOT_NUM - 1 {
+            if sd.special@(i) == 0 {
+                set sd.special@(i) = sd.special@(i + 1)
+                set sd.special@(i + 1) = 0
+            }
+        }
+    }
+    loop i in WEAPON_SLOT_NUM {
+        if (sd.wpnt@(i) == 0) || (sd.wpnn@(i) == 0) {
+            set sd.wpnt@(i) = 0
+            set sd.wpnn@(i) = 0
+        }
+    }
+    loop _ in WEAPON_SLOT_NUM {
+        loop i in WEAPON_SLOT_NUM - 1 {
+            if sd.wpnt@(i) == 0 {
+                set sd.wpnt@(i) = sd.wpnt@(i + 1)
+                set sd.wpnn@(i) = sd.wpnn@(i + 1)
+                set sd.wpnt@(i + 1) = 0
+                set sd.wpnn@(i + 1) = 0
+            }
+        }
+    }
+}
+
+func game_design_scrap (g, player, shipi, flag_for_new) {
+    val e = g.eto@(player)
+    val srd = g.srd@(player)
+    game_update_maint_costs(g)
+    if (e.shipdesigns_num <= 1) || (shipi >= e.shipdesigns_num) {
+        return nil
+    }
+    loop i in (shipi, NUM_SHIPDESIGNS - 2) {
+        set srd.year@(i) = srd.year@(i + 1)
+    }
+    loop i in g.galaxy_stars {
+        val r = e.orbit@(i)
+        loop j in (shipi, NUM_SHIPDESIGNS - 2) {
+            set r.ships@(j) = r.ships@(j + 1)
+        }
+        set r.ships@(NUM_SHIPDESIGNS - 1) = 0
+    }
+    loop i in g.enroute_num {
+        val r = g.enroute@(i)
+        if r.owner == player {
+            loop j in (shipi, NUM_SHIPDESIGNS - 2) {
+                set r.ships@(j) = r.ships@(j + 1)
+            }
+            set r.ships@(NUM_SHIPDESIGNS - 1) = 0
+        }
+    }
+    set e.reserve_bc = u32(e.reserve_bc + (u32(srd.shipcount@(shipi) * srd.design@(shipi).cost) // 4))
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        var bs = p.buildship
+        if (p.owner == player) && (bs != BUILDSHIP_STARGATE) {
+            if bs == shipi {
+                if (!IS_HUMAN(g, player)) || (!flag_for_new) {
+                    set p.buildship = 0
+                } else {
+                    set p.buildship = e.shipdesigns_num - 1
+                }
+            } else {
+                if bs > shipi {
+                    set bs = bs - 1
+                    set p.buildship = bs
+                }
+            }
+        }
+    }
+    util_table_remove_item_keep_order(shipi, srd.design, NUM_SHIPDESIGNS)
+    game_remove_empty_fleets(g)
+    game_update_visibility(g)
+    set e.shipdesigns_num = e.shipdesigns_num - 1
+    game_update_maint_costs(g)
+    game_update_have_reserve_fuel(g)
+}
+
+func game_design_add (g, player, sd, update_reserve_fuel) {
+    val e = g.eto@(player)
+    var num = e.shipdesigns_num
+    if num < NUM_SHIPDESIGNS {
+        val srd = g.srd@(player)
+        cstruct_copy(srd.design@(num), sd)
+        set srd.year@(num) = g.year
+        set num = num + 1
+        set e.shipdesigns_num = num
+        if update_reserve_fuel {
+            game_update_have_reserve_fuel(g)
+        }
+        true
+    } else {
+        false
+    }
+}
+
+func game_design_set_hp (sd) {
+    set sd.hp = u16((tbl_shiptech_hull@(sd.hull).hits * tbl_shiptech_armor@(sd.armor).armor) // 100)
+}
+
+;; The part of `game_design_update_haveflags` for a slot with one item: true
+;; if no better item of `tbl` fits.
+func design_haveflag_one (d, key, field, tbl, num) {
+    val sd = d.gd.sd
+    val act = sd@(key)
+    var v = act
+    var flag = true
+    loop {
+        set v = v + 1
+        while v < num
+        if game_tech_player_has_tech(d.g, field, tbl@(v).tech_i, d.gd.player_i) != 0 {
+            set sd@(key) = v
+            game_design_update_engines(sd)
+            if game_design_calc_space(d.gd) >= 0 {
+                set flag = false
+                break
+            }
+        }
+    }
+    set sd@(key) = act
+    flag
+}
+
+func game_design_update_haveflags (d) {
+    val sd = d.gd.sd
+    set sd.man = SETRANGE(sd.man, 0, sd.engine)
+    game_design_update_engines(sd)
+    set sd.cost = u16(game_design_calc_cost(d.gd))
+    set sd.space = u16(game_design_calc_space(d.gd))
+    game_design_set_hp(sd)
+    set d.flag_disable_cspeed = true
+    if sd.man < sd.engine {
+        set sd.man = sd.man + 1
+        game_design_update_engines(sd)
+        if game_design_calc_space(d.gd) >= 0 {
+            set d.flag_disable_cspeed = false
+        }
+        set sd.man = sd.man - 1
+    }
+    set d.flag_disable_comp = design_haveflag_one(d, "comp", TECH_FIELD_COMPUTER, tbl_shiptech_comp, SHIP_COMP_NUM)
+    set d.flag_disable_jammer = design_haveflag_one(d, "jammer", TECH_FIELD_COMPUTER, tbl_shiptech_jammer, SHIP_JAMMER_NUM)
+    set d.flag_disable_shield = design_haveflag_one(d, "shield", TECH_FIELD_FORCE_FIELD, tbl_shiptech_shield, SHIP_SHIELD_NUM)
+    set d.flag_disable_armor = design_haveflag_one(d, "armor", TECH_FIELD_CONSTRUCTION, tbl_shiptech_armor, SHIP_ARMOR_NUM)
+    set d.flag_disable_engine = design_haveflag_one(d, "engine", TECH_FIELD_PROPULSION, tbl_shiptech_engine, SHIP_ENGINE_NUM)
+    loop i in WEAPON_SLOT_NUM {
+        val actwi = sd.wpnt@(i)
+        var wi = actwi
+        val wn = sd.wpnn@(i)
+        set d.flag_tbl_weap_dn@(i) = if (wn == 0) || (wi == WEAPON_NONE) => 1 => 0
+        set d.flag_tbl_weap_up@(i) = 1
+        if (wi != WEAPON_NONE) && (wn < 99) {
+            set sd.wpnn@(i) = wn + 1
+            game_design_update_engines(sd)
+            if game_design_calc_space(d.gd) >= 0 {
+                set d.flag_tbl_weap_up@(i) = 0
+            }
+            set sd.wpnn@(i) = wn
+        }
+        set d.flag_tbl_weapon@(i) = true
+        loop {
+            set wi = wi + 1
+            while wi <= d.last_avail_tech_weap
+            val fi = if tbl_shiptech_weap@(wi).is_bio => TECH_FIELD_PLANETOLOGY => TECH_FIELD_WEAPON
+            if game_tech_player_has_tech(d.g, fi, tbl_shiptech_weap@(wi).tech_i, d.gd.player_i) != 0 {
+                set sd.wpnt@(i) = wi
+                set sd.wpnn@(i) = 1
+                game_design_update_engines(sd)
+                if game_design_calc_space(d.gd) >= 0 {
+                    set d.flag_tbl_weapon@(i) = false
+                    break
+                }
+            }
+        }
+        set sd.wpnt@(i) = actwi
+        set sd.wpnn@(i) = wn
+    }
+    loop i in SPECIAL_SLOT_NUM {
+        pin otherspecial = carray(SPECIAL_SLOT_NUM - 1)    ;; ship_special_t[]
+        val actsi = sd.special@(i)
+        var si = actsi
+        do {
+            var n = 0
+            loop j in SPECIAL_SLOT_NUM {
+                if i != j {
+                    set otherspecial@(n) = sd.special@(j)
+                    set n = n + 1
+                }
+            }
+        }
+        set d.flag_tbl_special@(i) = true
+        loop {
+            set si = si + 1
+            while si <= d.last_avail_tech_special
+            var flag_check = true
+            loop j in SPECIAL_SLOT_NUM - 1 {
+                val osi = otherspecial@(j)
+                if (si == osi) || (tbl_shiptech_special@(si).type == tbl_shiptech_special@(osi).type) {
+                    set flag_check = false
+                    break
+                }
+            }
+            if flag_check && (game_tech_player_has_tech(d.g, tbl_shiptech_special@(si).field, tbl_shiptech_special@(si).tech_i, d.gd.player_i) != 0) {
+                set sd.special@(i) = si
+                game_design_update_engines(sd)
+                if game_design_calc_space(d.gd) >= 0 {
+                    set d.flag_tbl_special@(i) = false
+                    break
+                }
+            }
+        }
+        set sd.special@(i) = actsi
+    }
+    do {
+        val acthull = sd.hull
+        loop i in SHIP_HULL_NUM {
+            set sd.hull = i
+            game_design_update_engines(sd)
+            set d.flag_tbl_hull@(i) = game_design_calc_space(d.gd) < 0
+        }
+        set sd.hull = acthull
+    }
+    game_design_update_engines(sd)
+}
+
+func game_design_init_maxtech_haveflags (d) {
+    do {
+        var j = 0
+        loop wi in (WEAPON_NUCLEAR_BOMB, WEAPON_NUM - 1) {
+            val fi = if tbl_shiptech_weap@(wi).is_bio => TECH_FIELD_PLANETOLOGY => TECH_FIELD_WEAPON
+            if game_tech_player_has_tech(d.g, fi, tbl_shiptech_weap@(wi).tech_i, d.gd.player_i) != 0 {
+                set j = wi
+            }
+        }
+        set d.last_avail_tech_weap = j
+    }
+    do {
+        var j = 0
+        loop si in (SHIP_SPECIAL_RESERVE_FUEL_TANKS, SHIP_SPECIAL_NUM - 1) {
+            if game_tech_player_has_tech(d.g, tbl_shiptech_special@(si).field, tbl_shiptech_special@(si).tech_i, d.gd.player_i) != 0 {
+                set j = si
+            }
+        }
+        set d.last_avail_tech_special = j
+    }
+    game_design_update_haveflags(d)
+}
