@@ -21,7 +21,9 @@
 #include "os.h"
 #include "game_ai.h"
 #include "game_design.h"
+#include "game_election.h"
 #include "game_ground.h"
+#include "game_news.h"
 #include "game_diplo.h"
 #include "game_fleet.h"
 #include "game_spy.h"
@@ -80,11 +82,23 @@ void ui_ground(struct game_s *g_, struct ground_s *gr)
     printf("\n");
 }
 
+static void el_print(const char *what, struct election_s *el)
+{
+    printf("%s %d %d %d %d %d %d %d %d %d %d %d '%s'\n", what, el->num, el->candidate[0], el->candidate[1], el->total_votes, el->got_votes[0], el->got_votes[1], el->first_human, el->last_human, el->cur_i, el->flag_show_votes, el->ui_delay, el->str ? el->str : "(null)");
+}
+void ui_election_start(struct election_s *el) { el_print("el_start", el); }
+void ui_election_show(struct election_s *el) { el_print("el_show", el); }
+void ui_election_delay(struct election_s *el, int delay) { printf("el_delay %d\n", delay); el_print("el_delay", el); }
+int ui_election_vote(struct election_s *el, int player_i) { el_print("el_vote", el); return (player_i + 1) % 3; }
+bool ui_election_accept(struct election_s *el, int player_i) { el_print("el_accept", el); return (player_i & 1) == 0; }
+void ui_election_end(struct election_s *el) { el_print("el_end", el); }
+
 /* The functions of the AI that are not ported yet, replaced by fixed
    answers that print each call. */
 static bool test_ai_bomb(struct game_s *g_, player_id_t player, uint8_t planet, int pop_inbound) { printf("ai_bomb %d %d %d\n", player, planet, pop_inbound); return ((planet + player) & 1) == 0; }
 static void test_ai_ground(struct game_s *g_, player_id_t def, player_id_t att, uint8_t planet, int pop_killed, bool owner_changed) { printf("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, owner_changed); }
 static uint8_t test_ai_tech_next(struct game_s *g_, player_id_t player, tech_field_t field, uint8_t *tbl, int num) { printf("ai_tech_next %d %d %d\n", player, field, num); return tbl[(player + field) % num]; }
+static int test_ai_vote(struct election_s *el, player_id_t player) { printf("ai_vote %d\n", player); return (player + el->g->year) % 3; }
 static struct game_ai_s test_ai;
 
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
@@ -273,6 +287,18 @@ static void do_op(const char *op)
     OP(spy_sab_human) { game_spy_sab_human(&g); }
     OP(bomb) { game_turn_bomb(&g); }
     OP(ground) { const uint8_t *buf = game_turn_ground_resolve_all(&g); printf("ground_show %d\n", game_turn_ground_show_all(&g, buf)); }
+    OP(election) { game_election(&g); }
+    OP(news) {
+        /* the message of a news item: type subtype num1 num2 race planet */
+        struct news_s ns;
+        char buf[0x200];
+        memset(&ns, 0, sizeof(ns));
+        ns.type = arg(op, 0); ns.subtype = arg(op, 1); ns.num1 = arg(op, 2); ns.num2 = arg(op, 3); ns.race = arg(op, 4); ns.planet_i = arg(op, 5);
+        game_news_get_msg(&g, &ns, buf, sizeof(buf));
+        printf("news '%s' %d", buf, ns.statsnum);
+        for (int i = 0; i < ns.statsnum; ++i) { printf(" %s", ns.stats[i]); }
+        printf("\n");
+    }
     OP(move_ships) { game_turn_move_ships(&g); }
     OP(explore) { game_turn_explore(&g); }
     OP(transport) { game_turn_transport(&g); }
@@ -289,6 +315,7 @@ int main(int argc, char **argv)
     test_ai.bomb = test_ai_bomb;
     test_ai.ground = test_ai_ground;
     test_ai.tech_next = test_ai_tech_next;
+    test_ai.vote = test_ai_vote;
     game_ai = &test_ai;
     os_set_path_data(argv[1]);
     lbxfile_init();
