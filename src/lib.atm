@@ -81,3 +81,61 @@ func lib_strcat (dst, src, dst_bufsize) {
     set dst@(combined_len) = 0
     dst
 }
+
+;; `strbuild_*`: build up strings piece by piece, checking the buffer size.
+;; The `struct strbuild_s` is a table: the buffer (a vector of bytes), the
+;; positions of the start and the end of the current string, and what
+;; remains of the buffer.
+
+func strbuild_fatal_too_small (str) {
+    log_fatal_and_die("string buffer too small for: \"%s...\"\n", cstr(str.buf, str.str_start))
+}
+
+func strbuild_init (buf, bufsize) {
+    if bufsize > 0 {
+        set buf@(0) = 0
+    }
+    [ buf = buf, str_start = 0, str_end = 0, remaining = bufsize ]
+}
+
+;; Return the string being built (its position) and start a new one after
+;; it, storing multiple strings in the same buffer.
+func strbuild_finish (str) {
+    val old_str = str.str_start
+    if str.remaining > 0 {
+        set str.str_end = str.str_end + 1
+        set str.buf@(str.str_end) = 0
+        set str.remaining = str.remaining - 1
+    }
+    set str.str_start = str.str_end
+    ;; If str->remaining was 0, we will log_fatal_and_die when anything
+    ;; more is written to this string.
+    old_str
+}
+
+func strbuild_append_char (str, c) {
+    if str.remaining > 0 {
+        set str.buf@(str.str_end) = c
+        set str.str_end = str.str_end + 1
+        set str.buf@(str.str_end) = 0
+        set str.remaining = str.remaining - 1
+    } else {
+        strbuild_fatal_too_small(str)
+    }
+}
+
+;; Print text at the end of the current string.
+func strbuild_catf (str, fmt, ...) {
+    val s = string.format(fmt, ...)
+    val bytes_added = #s
+    if bytes_added >= str.remaining {
+        ;; Truncated
+        strbuild_fatal_too_small(str)
+    }
+    loop i in bytes_added {
+        set str.buf@(str.str_end + i) = string.byte(s, i)
+    }
+    set str.buf@(str.str_end + bytes_added) = 0
+    set str.str_end = str.str_end + bytes_added
+    set str.remaining = str.remaining - bytes_added
+}
