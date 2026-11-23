@@ -1,0 +1,427 @@
+;; Port of c/src/game/game_diplo.c and game_diplo.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../rnd.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_num.atm"
+include "game_planet.atm"
+include "game_planet_c.atm"
+
+pin game_diplo_tbl_reldiff = [ -50, -30, -20, 0, 10, 20 ]   ;; int16_t[6]
+
+;; ---------------------------------------------------------------------------
+
+func game_diplo_act (g, dv0, pi, pi2, dtype, pli1, dp2) {
+    val e = g.eto@(pi)
+    val e2 = g.eto@(pi2)
+    var dv = dv0
+    if g.end == GAME_END_FINAL_WAR {
+        if IS_AI(g, pi) && (dv < 0) && IS_HUMAN(g, pi2) && BOOLVEC_IS1(g.refuse, pi2) && (rnd_1_n(100, g) <= (dv // -10)) {
+            val i = g.winner
+            set e2.diplo_val@(i) = 100
+            set e2.diplo_type@(i) = 59
+            set e2.diplo_p2@(i) = dp2
+            set e2.diplo_p1@(i) = pli1
+        }
+        return nil
+    }
+    if (pi >= g.players) || (pi2 >= g.players) || (pi == pi2) || (dv == 0) || IS_HUMAN(g, pi2) || (e.treaty@(pi2) == TREATY_FINAL_WAR) {
+        return nil
+    }
+    if dv == -10000 {
+        if IS_HUMAN(g, pi) && (dtype != 0) {
+            set e.diplo_val@(pi2) = 10000
+            set e.diplo_type@(pi2) = u8(dtype)
+            set e.diplo_p2@(pi2) = dp2
+            set e.diplo_p1@(pi2) = pli1
+        }
+        return nil
+    }
+    if dv > 0 {
+        if e2.relation1@(pi) < 0 {
+            set dv = dv * 2
+            if (e2.relation1@(pi) + dv) > 10 {
+                set dv = 10 - e2.relation1@(pi)
+            }
+        } else {
+            var v4 = (e2.relation1@(pi) // 25) + 1
+            if v4 == 0 {
+                set v4 = 1
+            }
+            set dv = dv // v4
+        }
+    } else {
+        if e2.relation1@(pi) > 0 {
+            set dv = dv * 2
+        } else {
+            var v4 = (e2.relation1@(pi) // -25) + 1
+            if v4 == 0 {
+                set v4 = 1
+            }
+            set dv = dv // v4
+        }
+    }
+    if (e2.trait1 == TRAIT1_HONORABLE) && (dv < 0) {
+        set dv = dv * 2
+    }
+    if (e2.trait1 == TRAIT1_XENOPHOBIC) && (dv < 0) {
+        set dv = (dv * 3) // 2
+    }
+    if (e2.trait1 == TRAIT1_XENOPHOBIC) && (dv > 0) {
+        set dv = (dv * 3) // 4
+    }
+    val v1 = dv
+    if (e.race == RACE_HUMAN) && (dv > 0) {
+        set dv = dv * 2
+    }
+    if (e2.treaty@(pi) == TREATY_WAR) && (dtype >= 4) && (dtype <= 12) && (dv < 0) {
+        if IS_HUMAN(g, pi) {
+            set e2.mood_peace@(pi) = i16(e2.mood_peace@(pi) + (dv // 4))
+            set e.mood_peace@(pi2) = i16(e.mood_peace@(pi2) - (dv // 4))
+        }
+        set dv = 0
+    }
+    if IS_AI(g, pi) && IS_AI(g, pi2) && (g.year > 100) {
+        if dv > 0 {
+            set dv = dv * 2
+        }
+        if dv < 0 {
+            set dv = dv // ((g.difficulty // 2) + 1)
+        }
+    }
+    if dv != 0 {
+        var v = e2.relation1@(pi)
+        set v = v + dv
+        set v = SETRANGE(v, -100, 100)
+        set e2.relation1@(pi) = v
+        set e2.mood_treaty@(pi) = i16(e2.mood_treaty@(pi) + dv)
+        set e.mood_treaty@(pi2) = e2.mood_treaty@(pi)
+        set e2.mood_trade@(pi) = i16(e2.mood_trade@(pi) + dv)
+        set e.mood_trade@(pi2) = e2.mood_trade@(pi)
+        set e2.mood_tech@(pi) = i16(e2.mood_tech@(pi) + dv)
+        set e.mood_tech@(pi2) = e2.mood_tech@(pi)
+        if v1 < 0 {
+            set e.mood_peace@(pi2) = i16(e.mood_peace@(pi2) - (v1 // 4))
+            set e2.mood_peace@(pi) = i16(e2.mood_peace@(pi) + (v1 // 4))
+        } else {
+            set e2.mood_peace@(pi) = i16(e2.mood_peace@(pi) + v1)
+        }
+        if IS_HUMAN(g, pi) && (dtype != 0) && (math.abs(dv) > math.abs(e.diplo_val@(pi2))) {
+            set e.diplo_val@(pi2) = i16(dv)
+            set e.diplo_type@(pi2) = u8(dtype)
+            set e.diplo_p2@(pi2) = dp2
+            set e.diplo_p1@(pi2) = pli1
+        }
+    }
+    if e2.treaty@(pi) >= TREATY_WAR {
+        set e2.relation1@(pi) = SETMAX(e2.relation1@(pi), -25)
+    }
+    if e2.treaty@(pi) != TREATY_ALLIANCE {
+        set e2.relation1@(pi) = SETMIN(e2.relation1@(pi), 65)
+    }
+    set e.relation1@(pi2) = e2.relation1@(pi)
+}
+
+func game_diplo_break_treaty (g, breaker, victim) {
+    if (breaker >= PLAYER_NUM) || (victim >= PLAYER_NUM) {
+        return nil
+    }
+    val eb = g.eto@(breaker)
+    val ev = g.eto@(victim)
+    if ev.treaty@(breaker) >= TREATY_WAR {
+        return nil
+    }
+    var w = 0
+    if eb.treaty@(victim) == TREATY_NONAGGRESSION {
+        set w = -10
+    }
+    if eb.treaty@(victim) == TREATY_ALLIANCE {
+        set w = -20
+    }
+    if g.ai_id != GAME_AI_CLASSIC {
+        set w = -w
+    }
+    if eb.trait1 == TRAIT1_HONORABLE {
+        set w = w * 2
+    }
+    set eb.trust@(victim) = i16(eb.trust@(victim) - w)
+    if eb.treaty@(victim) == TREATY_ALLIANCE {
+        var v = eb.relation2@(victim)
+        set v = v - w
+        set v = SETMAX(v, -100)
+        set eb.relation2@(victim) = i16(v)
+        set ev.relation2@(breaker) = i16(v)
+    }
+    if w != 0 {
+        set eb.broken_treaty@(victim) = eb.treaty@(victim)
+        if g.ai_id == GAME_AI_CLASSIC {
+            ;; WASBUG MOO1 blames both parties for breaking treaties
+            set ev.broken_treaty@(breaker) = eb.treaty@(victim)
+        }
+        var v = eb.relation1@(victim) - rnd_1_n(20, g)
+        set v = SETMAX(v, -100)
+        set eb.relation1@(victim) = v
+        set ev.relation1@(breaker) = v
+    }
+    set eb.treaty@(victim) = TREATY_NONE
+    set ev.treaty@(breaker) = TREATY_NONE
+    set eb.attack_bounty@(victim) = PLAYER_NONE
+    set ev.attack_bounty@(breaker) = PLAYER_NONE
+    set eb.mood_treaty@(victim) = -200
+    set eb.mood_trade@(victim) = -200
+    set eb.mood_tech@(victim) = -200
+    set eb.mood_peace@(victim) = -200
+    set ev.mood_treaty@(breaker) = -200
+    set ev.mood_trade@(breaker) = -200
+    set ev.mood_tech@(breaker) = -200
+    set ev.mood_peace@(breaker) = -200
+}
+
+func game_diplo_start_war (g, pi, pi2) {
+    if (pi >= PLAYER_NUM) || (pi2 >= PLAYER_NUM) {
+        return nil
+    }
+    val e = g.eto@(pi)
+    val e2 = g.eto@(pi2)
+    if IS_HUMAN(g, pi) && (e.have_met@(pi2) == 0) {
+        set e.have_met@(pi2) = 1
+    }
+    if IS_HUMAN(g, pi2) && (e2.have_met@(pi) == 0) {
+        set e2.have_met@(pi) = 1
+    }
+    if e.treaty@(pi2) >= TREATY_WAR {
+        return nil
+    }
+    ;; 6165b
+    game_diplo_break_trade(g, pi, pi2)
+    game_diplo_break_treaty(g, pi, pi2)
+    set e.relation2@(pi2) = i16(e.relation2@(pi2) - 5)
+    set e2.relation2@(pi) = i16(e2.relation2@(pi) - 5)
+    val r = i16(-75 - rnd_1_n(25, g))
+    set e.relation1@(pi2) = r
+    set e2.relation1@(pi) = r
+    set e.treaty@(pi2) = TREATY_WAR
+    set e2.treaty@(pi) = TREATY_WAR
+    set e.mood_treaty@(pi2) = -200
+    set e.mood_trade@(pi2) = -200
+    set e.mood_tech@(pi2) = -200
+    set e.mood_peace@(pi2) = -130
+    set e2.mood_treaty@(pi) = -200
+    set e2.mood_trade@(pi) = -200
+    set e2.mood_tech@(pi) = -200
+    set e2.mood_peace@(pi) = -130
+}
+
+func game_diplo_start_war_swap (g, pi, pi2) {
+    if g.ai_id != GAME_AI_CLASSIC {
+        ;; WASBUG? game_diplo_start_war is called in a few places using odd order of parameters
+        game_diplo_start_war(g, pi2, pi)
+    } else {
+        game_diplo_start_war(g, pi, pi2)
+    }
+}
+
+func game_diplo_break_trade (g, pi, pi2) {
+    if (pi >= PLAYER_NUM) || (pi2 >= PLAYER_NUM) {
+        return nil
+    }
+    val e = g.eto@(pi)
+    val e2 = g.eto@(pi2)
+    set e.trade_bc@(pi2) = 0
+    set e2.trade_bc@(pi) = 0
+    set e.trade_established_bc@(pi2) = 0
+    set e2.trade_established_bc@(pi) = 0
+    set e.trade_percent@(pi2) = 0
+    set e2.trade_percent@(pi) = 0
+    set e.attack_bounty@(pi2) = PLAYER_NONE
+    set e2.attack_bounty@(pi) = PLAYER_NONE
+    set e.relation1@(pi2) = SETMAX(e.relation1@(pi2), -100)
+    set e2.relation1@(pi) = e.relation1@(pi2)
+}
+
+func game_diplo_annoy (g, p1, p2, n0) {
+    val e1 = g.eto@(p1)
+    val n = n0 * 10
+    set e1.mood_trade@(p2) = i16(e1.mood_trade@(p2) - n)
+    set e1.mood_treaty@(p2) = i16(e1.mood_treaty@(p2) - n)
+    set e1.mood_tech@(p2) = i16(e1.mood_tech@(p2) - n)
+    set e1.mood_peace@(p2) = i16(e1.mood_peace@(p2) - n)
+}
+
+func game_diplo_battle_finish (g, def, att, popdiff0, app_def, biodamage0, app_att, planet_i) {
+    var side_z
+    var side_ai
+    var app_ai  ;; uint32_t
+    if (att >= PLAYER_NUM) || (def >= PLAYER_NUM) {
+        return nil
+    }
+    val p = g.planet@(planet_i)
+    val claim = p.claim
+    if (claim == PLAYER_NONE) || ((claim != att) && (claim != def)) {
+        if IS_AI(g, att) {
+            set side_z = def
+            set side_ai = att
+            set app_ai = app_att
+        } else {
+            set side_z = att
+            set side_ai = def
+            set app_ai = app_def
+        }
+    } else {
+        if claim == att {
+            set side_z = def
+            set side_ai = att
+            set app_ai = app_att
+        } else {
+            set side_z = att
+            set side_ai = def
+            set app_ai = app_def
+        }
+    }
+    if biodamage0 != 0 {
+        loop i in g.players {
+            if (i != side_z) && IS_AI(g, i) {
+                game_diplo_act(g, -10, side_z, i, 11, planet_i, 0)
+            }
+        }
+    }
+    val popdiff = popdiff0 * 5
+    set app_ai = SETMIN(app_ai, 50)
+    val biodamage = u16(biodamage0 * 10)    ;; uint16_t
+    ;; MAX(int, uint32_t) compares without sign: a negative popdiff wins
+    var offense = if u32(popdiff) > app_ai => popdiff => app_ai
+    set offense = SETMAX(offense, biodamage)
+    if IS_AI(g, side_ai) {
+        val extra = if biodamage > 0 => 11 => (if popdiff > 0 => 10 => 9)
+        game_diplo_act(g, -offense, side_z, side_ai, extra, planet_i, 0)
+    }
+    if (offense >= 30) && IS_HUMAN(g, side_z) {
+        val ea = g.eto@(side_ai)
+        val ez = g.eto@(side_z)
+        loop i in g.players {
+            if (i != side_z) && (i != side_ai) && IS_AI(g, i) && ((ea.treaty@(i) >= TREATY_WAR) || (ez.bounty_collect@(i) == side_ai)) {  ;; FIXME BUG? should be attack_bounty?
+                if ez.attack_bounty@(i) == side_ai {
+                    set ez.bounty_collect@(i) = i
+                } else {
+                    if game_planet_get_random(g, side_ai) == PLANET_NONE {
+                        game_diplo_act(g, offense, side_z, i, 3, planet_i, 0)
+                    }
+                }
+            }
+        }
+    }
+}
+
+func game_diplo_set_treaty (g, p1, p2, treaty) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    set e1.treaty@(p2) = treaty
+    set e2.treaty@(p1) = treaty
+}
+
+func game_diplo_set_trade (g, p1, p2, bc) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    var v
+    if bc == 0 {
+        return nil
+    }
+    if e1.trade_established_bc@(p2) < bc {
+        set v = ((e1.trade_percent@(p2) * e1.trade_established_bc@(p2)) - (bc * 30)) // (e1.trade_established_bc@(p2) + bc)
+    } else {
+        set v = e1.trade_percent@(p2)
+    }
+    set v = SETMIN(v, 100)
+    set e1.trade_bc@(p2) = u16(bc)
+    set e1.trade_established_bc@(p2) = u16(bc)    ;; FIXME BUG? should be < bc to make the variable have a purpose
+    set e1.trade_percent@(p2) = i16(v)
+    set e2.trade_bc@(p1) = u16(bc)
+    set e2.trade_established_bc@(p1) = u16(bc)
+    set e2.trade_percent@(p1) = i16(v)
+}
+
+func game_diplo_stop_war (g, p1, p2) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    game_diplo_set_treaty(g, p1, p2, TREATY_NONE)
+    set e1.relation1@(p2) = ADDSATT(e1.relation1@(p2), 40, 100)
+    set e2.relation1@(p1) = e1.relation1@(p2)
+    if IS_HUMAN(g, p1) {    ;; && IS_AI(g, p2)
+        set g.evn.ceasefire@(p1)@(p2) = rnd_0_nm1(6, g) + 8
+    }
+    if IS_HUMAN(g, p2) {    ;; && IS_AI(g, p1)
+        set g.evn.ceasefire@(p2)@(p1) = rnd_0_nm1(6, g) + 8
+    }
+}
+
+func game_diplo_esp_frame (g, framed, victim) {
+    val a = rnd_1_n(12, g)
+    val v = -(a + rnd_1_n(12, g))
+    game_diplo_act(g, v, framed, victim, 5, 0, 0)
+}
+
+func game_diplo_limit_mood_treaty (g) {
+    loop p1 in g.players {
+        val e = g.eto@(p1)
+        loop p2 in g.players {
+            if p1 != p2 {
+                set e.mood_treaty@(p2) = SETRANGE(e.mood_treaty@(p2), -200, 120)
+            }
+        }
+    }
+}
+
+func game_diplo_mood_relax (g) {
+    loop p1 in g.players {
+        val e = g.eto@(p1)
+        loop p2 in g.players {
+            if p1 != p2 {
+                if e.mood_treaty@(p2) < 100 {
+                    set e.mood_treaty@(p2) = e.mood_treaty@(p2) + 10
+                }
+                if e.mood_trade@(p2) < 100 {
+                    set e.mood_trade@(p2) = e.mood_trade@(p2) + 10
+                }
+                if e.mood_tech@(p2) < 100 {
+                    set e.mood_tech@(p2) = e.mood_tech@(p2) + 10
+                }
+                if e.mood_peace@(p2) < 100 {
+                    set e.mood_peace@(p2) = e.mood_peace@(p2) + 10
+                }
+            }
+        }
+    }
+}
+
+func game_diplo_get_mood (g, p1, p2) {
+    if g.end == GAME_END_FINAL_WAR {
+        0
+    } else {
+        val e = g.eto@(p1)
+        var vmin = e.mood_treaty@(p2)
+        var v = e.mood_trade@(p2)
+        set vmin = SETMIN(vmin, v)
+        set v = e.mood_tech@(p2)
+        set vmin = SETMIN(vmin, v)
+        set v = e.mood_peace@(p2)
+        set vmin = SETMIN(vmin, v)
+        vmin
+    }
+}
+
+func game_diplo_is_gone (g, api, pi) {
+    if IS_HUMAN(g, pi) {
+        return false    ;; FIXME remote multiplayer
+    } else {
+        val e = g.eto@(api)
+        val vr = game_diplo_get_mood(g, api, pi)
+        val v = i16(e.trust@(pi) + vr + game_diplo_tbl_reldiff@(g.eto@(pi).trait1))  ;; + e->relation1[pi]
+        if (v <= -100) || (vr <= -100) {    ;; v - e->relation1[pi]
+            return true
+        }
+    }
+    false
+}
