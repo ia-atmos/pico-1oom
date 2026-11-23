@@ -1,0 +1,310 @@
+;; Port of c/src/game/game_election.c and game_election.h.
+
+include "../boolvec.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "../ui.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_aux.atm"
+include "game_diplo.atm"
+include "game_str.atm"
+include "game_tech.atm"
+
+;; `str` is a string, the buffer `buf` (a vector of bytes), or nil for the
+;; `0` of C.
+func election_s () {
+    [
+        g               = nil,  ;; struct game_s *
+        uictx           = nil,  ;; void *
+        buf             = nil,  ;; char *
+        str             = nil,  ;; const char *
+        num             = 0,    ;; int
+        tbl_ei          = carray(PLAYER_NUM),   ;; player_id_t[]
+        tbl_votes       = carray(PLAYER_NUM),   ;; uint8_t[]
+        candidate       = carray(2),            ;; player_id_t[]
+        total_votes     = 0,    ;; uint16_t
+        got_votes       = carray(2),            ;; uint16_t[]
+        first_human     = 0,    ;; player_id_t
+        last_human      = 0,    ;; player_id_t
+        cur_i           = 0,    ;; int
+        flag_show_votes = false,
+        ui_delay        = 0,    ;; int
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_election_prepare (el) {
+    val g = el.g
+    pin tbl_votes = carray(PLAYER_NUM)  ;; uint16_t[]
+    pin tbl_ei = carray(PLAYER_NUM)     ;; player_id_t[]
+    var num = 0
+    var total_votes = 0
+    do {
+        var found_human = false
+        loop i in g.players {
+            if IS_ALIVE(g, i) {
+                if IS_HUMAN(g, i) {
+                    set el.last_human = i
+                    if !found_human {
+                        set found_human = true
+                        set el.first_human = i
+                        skip
+                    }
+                }
+                set el.tbl_ei@(num) = i
+                set num = num + 1
+            }
+        }
+    }
+    set el.tbl_ei@(num) = el.first_human
+    set el.num = num
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if (p.owner != PLAYER_NONE) && (p.unrest != PLANET_UNREST_REBELLION) {
+            set tbl_votes@(p.owner) = u16(tbl_votes@(p.owner) + p.pop)
+        }
+    }
+    loop i in g.players {
+        var v = tbl_votes@(i)   ;; uint16_t
+        set v = u16((v // 100) + cint((v % 100) != 0))
+        set tbl_votes@(i) = v
+        set total_votes = total_votes + v
+    }
+    set el.total_votes = u16(total_votes)
+    loop i in PLAYER_NUM {
+        set tbl_ei@(i) = i
+        set el.tbl_votes@(i) = u8(tbl_votes@(i))
+    }
+    loop in g.players {
+        loop i in g.players - 1 {
+            val v0 = tbl_votes@(i)
+            val v1 = tbl_votes@(i + 1)
+            if v0 < v1 {
+                set tbl_votes@(i + 1) = v0
+                set tbl_votes@(i) = v1
+                val e0 = tbl_ei@(i)
+                set tbl_ei@(i) = tbl_ei@(i + 1)
+                set tbl_ei@(i + 1) = e0
+            }
+        }
+    }
+    if IS_AI(g, tbl_ei@(0)) && IS_HUMAN(g, tbl_ei@(1)) {
+        set el.candidate@(0) = tbl_ei@(1)
+        set el.candidate@(1) = tbl_ei@(0)
+    } else {
+        set el.candidate@(0) = tbl_ei@(0)
+        set el.candidate@(1) = tbl_ei@(1)
+    }
+    set el.flag_show_votes = false
+    set el.got_votes@(0) = 0
+    set el.got_votes@(1) = 0
+    set el.str = game_str_el_start
+    set el.cur_i = PLAYER_NONE
+}
+
+func game_election_accept (el) {
+    val g = el.g
+    BOOLVEC_CLEAR(g.refuse, PLAYER_NUM)
+    loop ph in (el.first_human, el.last_human) {
+        if IS_AI(g, ph) || (!IS_ALIVE(g, ph)) {
+            skip
+        }
+        if el.first_human == el.last_human {
+            set el.str = game_str_el_accept
+        } else {
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "(%s) %s", cstr(g.emperor_names@(ph)), game_str_el_accept)
+            set el.str = el.buf
+        }
+        if !ui_election_accept(el, ph) {
+            BOOLVEC_SET1(g.refuse, ph)
+        }
+    }
+    if !BOOLVEC_IS_CLEAR(g.refuse, PLAYER_NUM) {
+        loop p1 in g.players {
+            if BOOLVEC_IS1(g.refuse, p1) {
+                skip
+            }
+            loop ph in (el.first_human, el.last_human) {
+                if BOOLVEC_IS0(g.refuse, ph) {
+                    skip
+                }
+                game_diplo_break_trade(g, ph, p1)
+                game_diplo_set_treaty(g, ph, p1, TREATY_FINAL_WAR)
+            }
+            loop p2 in (p1, g.players - 1) {
+                if BOOLVEC_IS1(g.refuse, p2) {
+                    skip
+                }
+                game_diplo_set_treaty(g, p1, p2, TREATY_ALLIANCE)
+            }
+        }
+        loop i in el.num {
+            if el.tbl_ei@(i) == el.candidate@(1) {
+                set el.cur_i = i
+                break
+            }
+        }
+        do {
+            pin str = strbuild_init(el.buf, UI_STRBUF_SIZE)
+            strbuild_catf(str, "%s", game_str_el_sobeit)
+            if g.end == GAME_END_WON_GOOD {
+                set g.winner = el.candidate@(1)
+                strbuild_catf(str, " %s %s %s", game_str_el_emperor, cstr(g.emperor_names@(g.winner)), game_str_el_isnow)
+            }
+        }
+        game_tech_final_war_share(g)
+        set el.str = el.buf
+        set el.ui_delay = 3
+        ui_election_show(el)
+        set g.end = GAME_END_FINAL_WAR
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_election_print_votes (n, buf, bufsize) {
+    if n == 0 {
+        lib_sprintf(buf, bufsize, "%s %s", game_str_el_no, game_str_el_votes)
+    } else {
+        lib_sprintf(buf, bufsize, "%i %s", n, if n == 1 => game_str_el_vote => game_str_el_votes)
+    }
+    cstr(buf)
+}
+
+func game_election (g) {
+    pin el = election_s()
+    pin vbuf = carray(0x20)     ;; char[]
+    set el.g = g
+    set el.buf = ui_get_strbuf()
+    game_election_prepare(el)
+    ui_election_start(el)
+    set el.ui_delay = 3
+    ui_election_show(el)
+    val c0 = el.candidate@(0)
+    val c1 = el.candidate@(1)
+    lib_sprintf(el.buf, UI_STRBUF_SIZE, "%s %s %s %s %s %s %s %s %s %s",
+        game_str_el_emperor, cstr(g.emperor_names@(c0)), game_str_el_ofthe, game_str_tbl_races@(g.eto@(c0).race),
+        game_str_el_and,
+        game_str_el_emperor, cstr(g.emperor_names@(c1)), game_str_el_ofthe, game_str_tbl_races@(g.eto@(c1).race),
+        game_str_el_nomin)
+    set el.str = el.buf
+    set el.ui_delay = 2
+    ui_election_show(el)
+    set el.flag_show_votes = true
+    loop i in el.num {
+        var votefor
+        set el.cur_i = i
+        val player = el.tbl_ei@(i)
+        set el.str = nil
+        set el.ui_delay = 2
+        ui_election_delay(el, 5)
+        val n = el.tbl_votes@(player)
+        if IS_AI(g, player) {
+            set votefor = game_ai.vote(el, player)
+        } else {
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "%s (%s%s", cstr(g.emperor_names@(player)), game_election_print_votes(n, vbuf, #vbuf), game_str_el_dots)
+            set el.str = el.buf
+            set votefor = ui_election_vote(el, player)
+        }
+        if n == 0 {
+            set votefor = 0
+        }
+        if votefor == 0 {
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "%s %s %s%s%s",
+                game_str_el_abs1, game_str_tbl_races@(g.eto@(player).race), game_str_el_abs2,
+                game_election_print_votes(n, vbuf, #vbuf), game_str_el_dots)
+            set g.evn.voted@(player) = PLAYER_NONE
+            game_diplo_act(g, -6, player, el.candidate@(1), 0, 0, 0)
+            game_diplo_act(g, -6, player, el.candidate@(0), 0, 0, 0)
+        } else {
+            val pfor = el.candidate@(votefor - 1)
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "%i %s %s %s, %s %s %s",
+                n, if n == 1 => game_str_el_vote => game_str_el_votes, game_str_el_for,
+                cstr(g.emperor_names@(pfor)), game_str_el_emperor, game_str_el_ofthe,
+                game_str_tbl_races@(g.eto@(pfor).race))
+            set el.got_votes@(votefor - 1) = u16(el.got_votes@(votefor - 1) + n)
+            set g.evn.voted@(player) = pfor
+            game_diplo_act(g, 24, player, pfor, 0, 0, 0)
+            game_diplo_act(g, -12, player, el.candidate@((votefor - 1) ^ 1), 0, 0, 0)
+        }
+        set el.str = el.buf
+        set el.ui_delay = 3
+        ui_election_show(el)
+    }
+    do {
+        var votefor
+        val player = el.first_human
+        set el.str = nil
+        set el.ui_delay = 2
+        ui_election_delay(el, 5)
+        val n = el.tbl_votes@(player)
+        if g.gaux.local_players > 1 {
+            set el.cur_i = el.num
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "%s (%s%s", cstr(g.emperor_names@(player)), game_election_print_votes(n, vbuf, #vbuf), game_str_el_dots)
+        } else {
+            set el.cur_i = PLAYER_NONE
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "%s%s%s", game_str_el_your, game_election_print_votes(n, vbuf, #vbuf), game_str_el_dots)
+        }
+        set el.str = el.buf
+        set votefor = ui_election_vote(el, player)
+        if n == 0 {
+            set votefor = 0
+        }
+        if votefor == 0 {
+            set g.evn.voted@(player) = PLAYER_NONE
+            game_diplo_act(g, -6, player, el.candidate@(1), 0, 0, 0)
+            game_diplo_act(g, -6, player, el.candidate@(0), 0, 0, 0)
+        } else {
+            val pfor = el.candidate@(votefor - 1)
+            val pnot = el.candidate@((votefor - 1) ^ 1)
+            set el.got_votes@(votefor - 1) = u16(el.got_votes@(votefor - 1) + n)
+            set g.evn.voted@(player) = pfor
+            if el.candidate@(0) == player {
+                game_diplo_act(g, 24, player, pfor, 0, 0, 0)
+                game_diplo_act(g, -12, player, pnot, 0, 0, 0)
+            } else {
+                game_diplo_act(g, 24, player, pfor, 80, 0, pfor)
+                game_diplo_act(g, -12, player, pnot, 79, 0, pfor)
+            }
+        }
+    }
+    do {
+        var winner = 0
+        loop {
+            while winner < 2
+            if (((el.total_votes + 1) * 2) // 3) <= el.got_votes@(winner) {
+                break
+            }
+            set winner = winner + 1
+        }
+        if winner < 2 {
+            set g.winner = el.candidate@(winner)
+            lib_sprintf(el.buf, UI_STRBUF_SIZE, "%s %i%s %s %s %s %s",
+                game_str_el_chose1, g.year + YEAR_BASE, game_str_el_chose2,
+                cstr(g.emperor_names@(g.winner)), game_str_el_ofthe, game_str_tbl_races@(g.eto@(g.winner).race),
+                game_str_el_chose3)     ;; WASBUG MOO1 has the last period missing if second candidate won
+            set el.str = el.buf
+            set el.cur_i = PLAYER_NONE
+            if IS_AI(g, g.winner) || (g.gaux.local_players > 1) {
+                loop i in el.num + 1 {
+                    if el.tbl_ei@(i) == g.winner {
+                        set el.cur_i = i
+                        break
+                    }
+                }
+            }
+            set g.end = if IS_HUMAN(g, g.winner) => GAME_END_WON_GOOD => GAME_END_LOST_EXILE
+        } else {
+            set el.str = game_str_el_neither
+            set el.cur_i = PLAYER_NONE
+        }
+        set el.ui_delay = 3
+        ui_election_show(el)
+    }
+    if g.end != GAME_END_NONE {
+        game_election_accept(el)
+    }
+    ui_election_end(el)
+}

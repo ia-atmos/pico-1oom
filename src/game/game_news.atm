@@ -1,0 +1,144 @@
+;; Port of c/src/game/game_news.c and game_news.h.
+
+include "../comp.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "game.atm"
+include "game_aux.atm"
+include "game_stat.atm"
+include "game_str.atm"
+include "game_tech.atm"
+
+;; order in eventmsg.lbx
+val GAME_NEWS_NONE = 0
+val GAME_NEWS_PLAGUE = 1
+val GAME_NEWS_QUAKE = 2
+val GAME_NEWS_NOVA = 3
+val GAME_NEWS_ACCIDENT = 4
+val GAME_NEWS_ASSASSIN = 5
+val GAME_NEWS_VIRUS = 6
+val GAME_NEWS_COMET = 7
+val GAME_NEWS_PIRATES = 8
+val GAME_NEWS_DERELICT = 9
+val GAME_NEWS_REBELLION = 10
+val GAME_NEWS_CRYSTAL = 11
+val GAME_NEWS_AMOEBA = 12
+val GAME_NEWS_ENVIRO = 13
+val GAME_NEWS_RICH = 14
+val GAME_NEWS_SUPPORT = 15
+val GAME_NEWS_POOR = 16
+val GAME_NEWS_ORION = 17
+val GAME_NEWS_COUP = 18
+val GAME_NEWS_STARS = 19
+val GAME_NEWS_STATS = 20
+val GAME_NEWS_GENOCIDE = 21
+val GAME_NEWS_GUARDIAN = 22
+
+;; `stats` holds strings, or `false` for the `0` of C (a vector holds no nil).
+func news_s () {
+    [
+        type     = 0,   ;; news_type_t
+        subtype  = 0,   ;; int
+        statsnum = 0,   ;; int
+        num1     = 0,   ;; int
+        num2     = 0,   ;; int
+        race     = 0,   ;; race_t
+        stats    = carray(PLAYER_NUM, false),   ;; const char *[]
+        planet_i = 0,   ;; uint8_t
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_news_get_msg (g, ns, buf, buf_size) {
+    val msg = g.gaux.eventmsg
+    val m0 = EVENTMSG_PTR(g.gaux, ns.type, ns.subtype)
+    pin strbuild = strbuild_init(buf, buf_size)
+    var i = 0
+    loop {
+        while (i < EVENTMSG_LEN) && (msg@(m0 + i) != 0)
+        val c = msg@(m0 + i)
+        ;; Fill in placeholders.
+        if (c & 0x80) != 0 {
+            pin techname = carray(64)   ;; char[]
+            match c & 0x7f {
+                0 => strbuild_catf(strbuild, "%s", cstr(g.planet@(ns.planet_i).name))
+                1 => strbuild_catf(strbuild, "%i", ns.num1)
+                2 => strbuild_catf(strbuild, "%i", ns.num2)
+                3 => {
+                    if ns.num1 != 1 {
+                        strbuild_append_char(strbuild, string.byte("s", 0))
+                    }
+                }
+                0xe => {
+                    if (ns.num1 == 2) || (ns.num1 == 3) {
+                        strbuild_append_char(strbuild, string.byte("n", 0))
+                    }
+                    strbuild_append_char(strbuild, string.byte(" ", 0))
+                }
+                0xd => {
+                    if ns.num1 == 1 {
+                        strbuild_append_char(strbuild, string.byte("s", 0))
+                    }
+                }
+                4 => strbuild_catf(strbuild, "%s", game_str_tbl_race@(ns.race))
+                5 => strbuild_catf(strbuild, "%s", game_str_tbl_race@(g.eto@(ns.num2).race))
+                6 => strbuild_catf(strbuild, "%s", game_str_tbl_te_field@(ns.num1))
+                7 => {
+                    game_tech_get_name(g.gaux, ns.num2 // 50, ns.num2 % 50, techname, 64)
+                    strbuild_catf(strbuild, "%s", cstr(techname))
+                }
+                8 => strbuild_catf(strbuild, "%s", game_str_tbl_trait1@(ns.num1))
+                9 => strbuild_catf(strbuild, "%s", game_str_tbl_trait2@(ns.num2))
+                0xc => strbuild_catf(strbuild, "%s", cstr(g.emperor_names@(ns.num1)))
+                else => strbuild_append_char(strbuild, c)
+            }
+        } else {
+            strbuild_append_char(strbuild, c)
+        }
+        set i = i + 1
+    }
+    if ns.type == GAME_NEWS_STATS {
+        var num = 0
+        pin tbl_player = carray(PLAYER_NUM)     ;; int[]
+        pin tbl_stat = carray(PLAYER_NUM)       ;; int[]
+        loop k in PLAYER_NUM {
+            set ns.stats@(k) = false
+        }
+        loop k in g.players {
+            if g.evn.home@(k) != PLANET_NONE {
+                set tbl_player@(num) = k
+                val v = match ns.subtype {
+                    0 => SETMAX(game_stat_prod(g, k), 1)
+                    1 => SETMAX(game_stat_pop(g, k), 1)
+                    2 => SETMAX(game_stat_tech(g, k), 1)
+                    3 => SETMAX(game_stat_fleet(g, k), 1)
+                    else => 0
+                }
+                set tbl_stat@(num) = v
+                if v != 0 {
+                    set num = num + 1
+                }
+            }
+        }
+        set ns.statsnum = num
+        loop in num {
+            loop k in num - 1 {
+                val v0 = tbl_stat@(k)
+                val v1 = tbl_stat@(k + 1)
+                if v0 < v1 {
+                    set tbl_stat@(k) = v1
+                    set tbl_stat@(k + 1) = v0
+                    val p0 = tbl_player@(k)
+                    set tbl_player@(k) = tbl_player@(k + 1)
+                    set tbl_player@(k + 1) = p0
+                }
+            }
+        }
+        loop k in num {
+            set ns.stats@(k) = game_str_tbl_race@(g.eto@(tbl_player@(k)).race)
+        }
+    } else {
+        set ns.statsnum = 0
+    }
+}
