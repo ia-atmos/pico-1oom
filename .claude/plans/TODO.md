@@ -30,6 +30,7 @@ Last update: 2026-11-23
 | #9 | Step 4 of the port: the turn, one phase at a time | work | in course |
 | #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
 | #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C; the port throws there | remark | open |
+| #12 | The enums of C are unsigned (gcc): a negative `int` with an enum is unsigned arithmetic | remark | open: a check to keep doing |
 
 ## A. Decisions waiting for an answer
 
@@ -103,6 +104,14 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   `srd[0]`). The port throws there instead of guessing. Not met in the
   checks yet. To decide when it is met (it may be a bug to report to the
   original project, which is not done: nothing goes upstream).
+- #12 gcc gives an enum with no negative value the type `unsigned int`
+  (`player_id_t`, `difficulty_t`, `treaty_t`, ...). An `int` that may be
+  negative, divided by or compared with such a field, is converted to
+  unsigned. Met twice: `game_diplo_act` (`dv /= (g->difficulty / 2 + 1)`
+  with `dv < 0` gives a huge positive `dv`: relations go to 65 instead of
+  down), and `-1` kept in a `player_id_t` (`sabotage_spy`), which reads
+  back as `0xffffffff`. Both reproduced in the port (`u32`, `i32`). To
+  look for in every module still to port (the AI above all).
 - #10 A test program of the port takes ~50 s for the C compiler (the
   generated C of the tables of strings and ships); it then runs in
   0.1 s. Not a blocker; to tell `atmos-lang` if it grows.
