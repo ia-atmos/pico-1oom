@@ -41,6 +41,7 @@ bool ui_explore(struct game_s *g_, int pi, uint8_t planet_i, bool by_scanner, bo
 void ui_landing(struct game_s *g_, int pi, uint8_t planet_i) { printf("landing %d %d\n", pi, planet_i); }
 void ui_turn_msg(struct game_s *g_, int pi, const char *str) { printf("msg %d %s\n", pi, str); }
 
+void ui_newtech(struct game_s *g_, int pi) { printf("newtech %d\n", pi); }
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
 void ui_gmap_basic_start_player(void *ctx, int pi) { }
 void ui_gmap_basic_start_frame(void *ctx, int pi) { }
@@ -207,6 +208,13 @@ static void do_op(const char *op)
             }
         }
     }
+    OP(contact_broken) { BOOLVEC_DECLARE(bv, PLAYER_NUM); bv[0] = arg(op, 1); game_turn_contact_broken(&g, arg(op, 0), bv); }
+    OP(update_seen) { game_turn_update_seen(&g); }
+    OP(finished_slider) { game_turn_finished_slider(&g); }
+    OP(claim) { game_turn_claim(&g); }
+    OP(final_war) { game_turn_update_final_war(&g); }
+    OP(set_end) { g.end = arg(op, 0); }
+    OP(set_refuse) { g.refuse[0] = arg(op, 0); }
     OP(move_ships) { game_turn_move_ships(&g); }
     OP(explore) { game_turn_explore(&g); }
     OP(transport) { game_turn_transport(&g); }

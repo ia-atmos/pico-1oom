@@ -105,6 +105,9 @@ set ui_turn_msg = func (g_, pi, str) {
     out("msg %d %s\n", pi, cstr(str))
 }
 
+set ui_newtech = func (g_, pi) {
+    out("newtech %d\n", pi)
+}
 set ui_gmap_basic_init = func (g_, show_player_switch) { nil }
 set ui_gmap_basic_start_player = func (ctx, pi) { nil }
 set ui_gmap_basic_start_frame = func (ctx, pi) { nil }
@@ -234,6 +237,17 @@ func do_op (op) {
                 }
             }
         }
+        "contact_broken" => {
+            pin bv = BOOLVEC_DECLARE(PLAYER_NUM)
+            set bv@(0) = arg(op, 1)
+            game_turn_contact_broken(g, arg(op, 0), bv)
+        }
+        "update_seen" => game_turn_update_seen(g)
+        "finished_slider" => game_turn_finished_slider(g)
+        "claim" => game_turn_claim(g)
+        "final_war" => game_turn_update_final_war(g)
+        "set_end" => { set g.end = arg(op, 0) }
+        "set_refuse" => { set g.refuse@(0) = arg(op, 0) }
         "move_ships" => game_turn_move_ships(g)
         "explore" => game_turn_explore(g)
         "transport" => game_turn_transport(g)

@@ -30,9 +30,10 @@ OPS4="start tech_util production limit_ships countdown_ceasefire mood_blunder in
 OPS5="start tech_util production stats:0 stats:1 any_dest:0:1 send_half:0:0:5:0 send_half:1:3:7:1 fleet_speed:0:255:4 redirect:0:255:3 redirect:1:2:2 remove_player_fleets:2 design_ai:0:1:3 design_ai:1:2:5 design_scrap:0:1:1 design_fit:0:0 design_fit:1:1 stats:0"
 OPS6="start tech_util production moods diplo_adjust moods diplo_act:20:0:1:5:3:7 diplo_act:-30:1:2:9:4:0 diplo_act:-10000:0:2:6:1:2 set_trade:0:1:40 set_trade:1:2:25 annoy:2:0:3 esp_frame:1:2 battle_finish:1:0:3:20:0:10:4 battle_finish:0:2:-2:5:1:60:5 stop_war:0:2 break_treaty:1:2 start_war:0:3 start_war_swap:2:1 break_trade:1:0 set_treaty:0:1:2 diplo_adjust limit_mood_treaty mood_relax moods"
 OPS7="start tech_util production transport_shoot:0:1:20:2:0:5:2 transport_shoot:1:0:300:1:1:0:0 set_trans:0:0:0:5 set_trans:1:0:2:40 set_trans:0:1:1:12 set_trans:2:0:2:90 set_trans:1:1:1:3 send_transport move_ships transport explore move_ships transport explore move_ships transport explore coup have_met move_ships transport explore move_ships transport explore move_ships transport explore"
+OPS8="start tech_util production build_eco build_def build_ship build_ind finished_slider contact_broken:0:62 contact_broken:1:63 update_seen claim visibility update_seen set_refuse:5 set_end:3 final_war production total_research"
 n=0; bad=0
 for f in "$@"; do
-    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7"; do
+    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8"; do
         n=$((n+1))
         "$TMP/c" "$DATA" "$TMP/c.txt" load "$f" $ops > "$TMP/c.out"
         "$TMP/atm" "$DATA" "$TMP/a.txt" load "$f" $ops | grep -v '^Save: ' > "$TMP/a.out" || true
