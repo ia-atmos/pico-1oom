@@ -6,7 +6,9 @@ include "../src/game/game_aux.atm"
 include "../src/game/game_misc.atm"
 include "../src/game/game_new.atm"
 include "../src/game/game_save.atm"
+include "../src/game/game_bomb.atm"
 include "../src/game/game_design.atm"
+include "../src/game/game_ground.atm"
 include "../src/game/game_diplo.atm"
 include "../src/game/game_fleet.atm"
 include "../src/game/game_spy.atm"
@@ -137,6 +139,47 @@ set ui_spy_sabotage_done = func (g_, pi, spy, target, act, other1, other2, plane
     out("sabotage_done %d %d %d %d %d %d %d %d\n", pi, spy, target, act, other1, other2, planet, snum)
     other1
 }
+set ui_bomb_ask = func (g_, pi, planet_i, pop_inbound) {
+    out("bomb_ask %d %d %d\n", pi, planet_i, pop_inbound)
+    (planet_i & 1) == 0
+}
+set ui_bomb_show = func (g_, pi, attacker_i, owner_i, planet_i, popdmg, factdmg, play_music, hide_other) {
+    out("bomb_show %d %d %d %d %d %d %d %d\n", pi, attacker_i, owner_i, planet_i, popdmg, factdmg, cint(play_music), cint(hide_other))
+}
+set ui_ground = func (g_, gr) {
+    out("ground %d %d %d %d %d %d %d %d", gr.seed, gr.planet_i, cint(gr.flag_swap), cint(gr.flag_rebel), gr.inbound, gr.total_inbound, gr.fact, gr.techchance)
+    loop i in TECH_SPY_MAX {
+        out(" %d,%d", gr.got@(i).tech, gr.got@(i).field)
+    }
+    loop i in 2 {
+        val s = gr.s@(i)
+        out(" | %d %d %d %d %d %d %d %d %d %d", s.player, cint(s.human), s.force, s.pop1, s.pop2, s.armori, s.suiti, s.shieldi, s.weapi, s.strnum)
+        loop j in s.strnum {
+            out(" '%s'", cstr(s.str@(j)))
+        }
+    }
+    out("\n")
+}
+
+;; The functions of the AI that are not ported yet, replaced by fixed answers
+;; that print each call, as tst/c/state.c does.
+set game_ai = [
+    id            = game_ai.id,
+    name          = game_ai.name,
+    new_game_init = game_ai.new_game_init,
+    new_game_tech = game_ai.new_game_tech,
+    bomb          = func (g_, player, planet, pop_inbound) {
+        out("ai_bomb %d %d %d\n", player, planet, pop_inbound)
+        ((planet + player) & 1) == 0
+    },
+    tech_next     = func (g_, player, field, tbl, num) {
+        out("ai_tech_next %d %d %d\n", player, field, num)
+        tbl@((player + field) % num)
+    },
+    ground        = func (g_, def, att, planet, pop_killed, owner_changed) {
+        out("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, cint(owner_changed))
+    },
+]
 set ui_gmap_basic_init = func (g_, show_player_switch) { nil }
 set ui_gmap_basic_start_player = func (ctx, pi) { nil }
 set ui_gmap_basic_start_frame = func (ctx, pi) { nil }
@@ -289,6 +332,11 @@ func do_op (op) {
         "spy_turn" => game_spy_turn(g, spy_st)
         "spy_esp_human" => game_spy_esp_human(g, spy_st)
         "spy_sab_human" => game_spy_sab_human(g)
+        "bomb" => game_turn_bomb(g)
+        "ground" => {
+            val buf = game_turn_ground_resolve_all(g)
+            out("ground_show %d\n", game_turn_ground_show_all(g, buf))
+        }
         "move_ships" => game_turn_move_ships(g)
         "explore" => game_turn_explore(g)
         "transport" => game_turn_transport(g)

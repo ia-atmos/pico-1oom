@@ -33,9 +33,10 @@ OPS7="start tech_util production transport_shoot:0:1:20:2:0:5:2 transport_shoot:
 OPS8="start tech_util production build_eco build_def build_ship build_ind finished_slider contact_broken:0:62 contact_broken:1:63 update_seen claim visibility update_seen set_refuse:5 set_end:3 final_war production total_research"
 OPS9="start tech_util production set_spy:0:1:200:1:3 set_spy:1:0:150:2:5 set_spy:0:2:100:2:4 set_spy:2:0:80:1:6 set_spy:1:2:50:1:2 set_spy:2:1:120:2:3 spy_build spy_report spy_turn spy_esp_human spy_sab_human spy_build spy_turn spy_esp_human spy_sab_human"
 OPS10="start tech_util production set_spy:0:1:200:1:10 set_spy:0:2:200:1:2 set_spy:0:3:200:1:1 set_spy:1:0:150:1:5 set_spy:2:0:150:2:5 spy_turn spy_esp_human spy_sab_human spy_turn spy_esp_human spy_sab_human spy_turn spy_esp_human spy_sab_human"
+OPS11="start tech_util production set_trans:0:0:2:300 set_trans:0:1:2:300 set_trans:0:2:2:300 set_trans:0:3:1:300 set_trans:1:0:2:300 set_trans:1:1:2:300 send_transport move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb move_ships transport ground bomb"
 n=0; bad=0
 for f in "$@"; do
-    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8" "$OPS9" "$OPS10"; do
+    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8" "$OPS9" "$OPS10" "$OPS11"; do
         n=$((n+1))
         "$TMP/c" "$DATA" "$TMP/c.txt" load "$f" $ops > "$TMP/c.out"
         "$TMP/atm" "$DATA" "$TMP/a.txt" load "$f" $ops | grep -v '^Save: ' > "$TMP/a.out" || true

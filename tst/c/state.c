@@ -19,7 +19,9 @@
 #include "game_tech.h"
 #include "lbx.h"
 #include "os.h"
+#include "game_ai.h"
 #include "game_design.h"
+#include "game_ground.h"
 #include "game_diplo.h"
 #include "game_fleet.h"
 #include "game_spy.h"
@@ -64,6 +66,27 @@ int ui_spy_sabotage_done(struct game_s *g_, int pi, int spy, int target, ui_sabo
     printf("sabotage_done %d %d %d %d %d %d %d %d\n", pi, spy, target, act, other1, other2, planet, snum);
     return other1;
 }
+bool ui_bomb_ask(struct game_s *g_, int pi, uint8_t planet_i, int pop_inbound) { printf("bomb_ask %d %d %d\n", pi, planet_i, pop_inbound); return (planet_i & 1) == 0; }
+void ui_bomb_show(struct game_s *g_, int pi, int attacker_i, int owner_i, uint8_t planet_i, int popdmg, int factdmg, bool play_music, bool hide_other) { printf("bomb_show %d %d %d %d %d %d %d %d\n", pi, attacker_i, owner_i, planet_i, popdmg, factdmg, play_music, hide_other); }
+void ui_ground(struct game_s *g_, struct ground_s *gr)
+{
+    printf("ground %u %d %d %d %d %d %d %d", gr->seed, gr->planet_i, gr->flag_swap, gr->flag_rebel, gr->inbound, gr->total_inbound, gr->fact, gr->techchance);
+    for (int i = 0; i < TECH_SPY_MAX; ++i) { printf(" %d,%d", gr->got[i].tech, gr->got[i].field); }
+    for (int i = 0; i < 2; ++i) {
+        const struct ground_side_s *s = &gr->s[i];
+        printf(" | %d %d %d %d %d %d %d %d %d %d", s->player, s->human, s->force, s->pop1, s->pop2, s->armori, s->suiti, s->shieldi, s->weapi, s->strnum);
+        for (int j = 0; j < s->strnum; ++j) { printf(" '%s'", s->str[j]); }
+    }
+    printf("\n");
+}
+
+/* The functions of the AI that are not ported yet, replaced by fixed
+   answers that print each call. */
+static bool test_ai_bomb(struct game_s *g_, player_id_t player, uint8_t planet, int pop_inbound) { printf("ai_bomb %d %d %d\n", player, planet, pop_inbound); return ((planet + player) & 1) == 0; }
+static void test_ai_ground(struct game_s *g_, player_id_t def, player_id_t att, uint8_t planet, int pop_killed, bool owner_changed) { printf("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, owner_changed); }
+static uint8_t test_ai_tech_next(struct game_s *g_, player_id_t player, tech_field_t field, uint8_t *tbl, int num) { printf("ai_tech_next %d %d %d\n", player, field, num); return tbl[(player + field) % num]; }
+static struct game_ai_s test_ai;
+
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
 void ui_gmap_basic_start_player(void *ctx, int pi) { }
 void ui_gmap_basic_start_frame(void *ctx, int pi) { }
@@ -248,6 +271,8 @@ static void do_op(const char *op)
     OP(spy_turn) { game_spy_turn(&g, &spy_st); }
     OP(spy_esp_human) { game_spy_esp_human(&g, &spy_st); }
     OP(spy_sab_human) { game_spy_sab_human(&g); }
+    OP(bomb) { game_turn_bomb(&g); }
+    OP(ground) { const uint8_t *buf = game_turn_ground_resolve_all(&g); printf("ground_show %d\n", game_turn_ground_show_all(&g, buf)); }
     OP(move_ships) { game_turn_move_ships(&g); }
     OP(explore) { game_turn_explore(&g); }
     OP(transport) { game_turn_transport(&g); }
@@ -260,6 +285,11 @@ static void do_op(const char *op)
 int main(int argc, char **argv)
 {
     int k;
+    memcpy(&test_ai, game_ai, sizeof(test_ai));
+    test_ai.bomb = test_ai_bomb;
+    test_ai.ground = test_ai_ground;
+    test_ai.tech_next = test_ai_tech_next;
+    game_ai = &test_ai;
     os_set_path_data(argv[1]);
     lbxfile_init();
     game_aux_init(&gaux, &g);
