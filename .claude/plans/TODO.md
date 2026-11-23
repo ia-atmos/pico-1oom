@@ -13,7 +13,7 @@ settled before the rule keep their old numbers (1 to 7, see "Settled").
 The initial instructions are in `ia-atmos/lang`,
 `.claude/plans/261114-pico-1oom.md` (commit `354cf19`).
 
-Last update: 2026-11-22
+Last update: 2026-11-23
 
 ## Index
 
@@ -29,6 +29,7 @@ Last update: 2026-11-22
 | #8 | Step 3 of the port: a new game from a seed | work | done 2026-11-22 |
 | #9 | Step 4 of the port: the turn, one phase at a time | work | in course |
 | #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
+| #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C; the port throws there | remark | open |
 
 ## A. Decisions waiting for an answer
 
@@ -72,17 +73,36 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   only called when `game_num_update_on_load` is false (it is true).
 - #9 Step 4, the turn, in course. Done (2026-11-22): `game_tech.c` (all
   of it) and `game_misc.c` (all of it), with two functions of
-  `game_planet.c` and `lib_sprintf`. Checked by `tst/state.sh`: on the
-  109 saves, two groups of operations (the updates of production,
-  research, waste, range, contact, visibility; and techs, sliders,
-  terraforming, loot), the whole state compared with the C after each
-  (`tools/gamedump.py` writes the dump of every field of `game_s`, also
-  those the save does not keep, in C and Atmos). Next: the rest of
-  `game_planet.c`, then the phases of `game_turn_process` that need no
-  unported module (the build of eco, industry, defense, ships; the move
-  of ships), then `game_spy`, `game_diplo`, `game_event`, and the AI.
+  `game_planet.c` and `lib_sprintf`. Done (2026-11-23): the logic of
+  `game_planet.c`; `game_fleet.c`, `game_stat.c`, `game_design.c` and
+  `game_diplo.c` (all of them); the ship names (`game_str_shipnames.c`);
+  and these phases of `game_turn.c`: limit_ships, countdown_ceasefire,
+  update_mood_blunder, init_z_finished, send_transport, build_eco,
+  update_trade, diplo_adjust, build_def, build_ship, reserve, the finished
+  sliders, build_ind, move_ships, explore, transport_shoot, transport,
+  coup, update_have_met. `src/ui.atm` holds the functions of `ui.h` that
+  the logic calls (`ui_turn_msg`, `ui_explore`, the map of the moves, ...):
+  each is a `var` that an interface sets; unset, it throws (by the
+  session, reversible). Checked by `tst/state.sh`: on the 109 saves, seven
+  groups of operations (the updates of `game_misc`; techs, sliders,
+  terraforming, loot; planets; the build phases; fleets, stats and the
+  tables of the design screen; diplomacy; moves, transports, exploration,
+  coups), the whole state and what the operations print compared with
+  the C after each. The C driver includes `game_turn.c` to reach its
+  static phases, and has its own interface that prints each call.
+  Next: the rest of `game_turn.c` (check_end, audiences, contact_broken,
+  update_seen, claim, final_war, and `game_turn_process`), which needs
+  `game_spy`, `game_event`, `game_election`, `game_battle`, `game_ground`,
+  `game_bomb`, `game_news`, `game_audience`, `game_end`, and the AI.
   Calls into what is not ported yet throw (`game_tech_research` calls the
   AI's `tech_next` when an AI finishes a tech).
+- #11 In `game_turn_transport`, when the owner of the transports has
+  combat transporters and the planet has no owner, C reads
+  `g->eto[p->owner].have_sub_space_int` with `p->owner == PLAYER_NONE`,
+  past the end of `eto` (undefined behavior: it reads the bytes of
+  `srd[0]`). The port throws there instead of guessing. Not met in the
+  checks yet. To decide when it is met (it may be a bug to report to the
+  original project, which is not done: nothing goes upstream).
 - #10 A test program of the port takes ~50 s for the C compiler (the
   generated C of the tables of strings and ships); it then runs in
   0.1 s. Not a blocker; to tell `atmos-lang` if it grows.
