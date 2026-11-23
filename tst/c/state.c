@@ -318,6 +318,12 @@ static void do_op(const char *op)
         for (int i = 0; i < ns.statsnum; ++i) { printf(" %s", ns.stats[i]); }
         printf("\n");
     }
+    OP(set_winner) { g.winner = arg(op, 0); }
+    OP(check_end) {
+        struct game_end_s ge = { GAME_END_NONE, 0, 0, 0, 0 };
+        bool r = game_turn_check_end(&g, &ge);
+        printf("check_end %d %d %d %d '%s'\n", r, ge.type, ge.race, ge.banner_dead, ge.name ? ge.name : "(null)");
+    }
     OP(set_event_roll) { game_num_event_roll = arg(op, 0); }
     OP(set_year) { g.year = arg(op, 0); }
     OP(event_new) { game_event_new(&g); }

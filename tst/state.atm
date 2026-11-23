@@ -405,6 +405,12 @@ func do_op (op) {
             }
             out("\n")
         }
+        "set_winner" => { set g.winner = arg(op, 0) }
+        "check_end" => {
+            pin ge = game_end_s()
+            val r = game_turn_check_end(g, ge)
+            out("check_end %d %d %d %d '%s'\n", cint(r), ge.type, ge.race, ge.banner_dead, if ge.name == nil => "(null)" => cstr(ge.name))
+        }
         "set_event_roll" => { set game_num_event_roll = arg(op, 0) }
         "set_year" => { set g.year = arg(op, 0) }
         "event_new" => game_event_new(g)
