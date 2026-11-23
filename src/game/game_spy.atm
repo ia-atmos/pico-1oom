@@ -1,0 +1,711 @@
+;; Port of c/src/game/game_spy.c and game_spy.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../rnd.atm"
+include "../ui.atm"
+include "game.atm"
+include "game_aux.atm"
+include "game_diplo.atm"
+include "game_misc.atm"
+include "game_planet_c.atm"
+include "game_tech.atm"
+include "game_techtypes.atm"
+
+func spy_turn_s () {
+    [
+        tbl_rmax = carray2(PLAYER_NUM, PLAYER_NUM),     ;; int[][] [target][spy]
+    ]
+}
+
+func spy_esp_s () {
+    [
+        target    = 0,  ;; player_id_t
+        spy       = 0,  ;; player_id_t
+        tnum      = 0,  ;; int
+        tbl_num   = carray(TECH_FIELD_NUM),         ;; int[]
+        tbl_techi = carray2(TECH_FIELD_NUM, 50),    ;; uint8_t[][]
+        tbl_field = carray(TECH_SPY_MAX),           ;; tech_field_t[]
+        tbl_tech2 = carray(TECH_SPY_MAX),           ;; uint8_t[]
+        tbl_value = carray(TECH_SPY_MAX),           ;; int[]
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_spy_esp_get_group_tier (g, group, field, len, research_completed) {
+    var v = 0
+    loop i in len {
+        val techi = research_completed@(i)
+        val group2 = game_tech_get_group(g.gaux, field, techi)
+        if group == group2 {
+            set v = game_tech_get_tier(g.gaux, field, techi)
+        }
+    }
+    u8(v)
+}
+
+func game_spy_esp_sift_useful_techs_do (g, s, field, target_len, target_research_completed, spy_len, spy_research_completed) {
+    loop i in target_len {
+        val techi = target_research_completed@(i)
+        val group = game_tech_get_group(g.gaux, field, techi)
+        val tier = u8(game_tech_get_tier(g.gaux, field, techi))
+        var have_tech = false
+        loop j in spy_len {
+            if spy_research_completed@(j) == techi {
+                set have_tech = true
+                break
+            }
+        }
+        if (group == TECH_GROUP_IMPROVED_ROBOTIC_CONTROLS)
+          || (group == TECH_GROUP_SPACE_SCANNER)
+          || (group == TECH_GROUP_REDUCED_INDUSTRIAL_WASTE)
+          || (group == TECH_GROUP_IMPROVED_INDUSTRIAL_TECH)
+          || (group == TECH_GROUP_PLANETARY_SHIELD)
+          || (group == TECH_GROUP_IMPROVED_TERRAFORMING)
+          || (group == TECH_GROUP_CONTROLLED_ENVIRONMENT)
+          || (group == TECH_GROUP_ECO_RESTORATION)
+          || (group == TECH_GROUP_PERSONAL_ARMOR)
+          || (group == TECH_GROUP_PERSONAL_SHIELD)
+          || (group == TECH_GROUP_FUEL_CELLS)
+          || (group == TECH_GROUP_PERSONAL_WEAPONS) {
+            if game_spy_esp_get_group_tier(g, group, field, spy_len, spy_research_completed) >= tier {
+                set have_tech = true
+            }
+        }
+        ;; 632ff
+        if g.eto@(s.spy).race == RACE_SILICOID {
+            if (group == TECH_GROUP_REDUCED_INDUSTRIAL_WASTE) || (group == TECH_GROUP_CONTROLLED_ENVIRONMENT) || (group == TECH_GROUP_ECO_RESTORATION) {
+                set have_tech = true
+            }
+        }
+        if !have_tech {
+            set s.tbl_techi@(field)@(s.tbl_num@(field)) = techi
+            set s.tbl_num@(field) = s.tbl_num@(field) + 1
+        }
+    }
+}
+
+func game_spy_esp_get_value (g, field, techi, player_i) {
+    val es = g.eto@(player_i)
+    val srds = g.srd@(player_i)
+    var maxtier = 0     ;; uint8_t
+    var maxti = 0       ;; uint8_t
+    val group = game_tech_get_group(g.gaux, field, techi)
+    if (group & 0x80) != 0 {
+        return 0
+    }
+    loop i in es.tech.completed@(field) {
+        val ti = srds.researchcompleted@(field)@(i)
+        val group2 = game_tech_get_group(g.gaux, field, ti)
+        val tier2 = u8(game_tech_get_tier(g.gaux, field, ti))
+        if (group2 == group) && (tier2 > maxtier) {
+            set maxtier = tier2
+            set maxti = ti
+        }
+    }
+    ;; (a switch on the field by trait2 is #if 0 in C: v is overwritten)
+    ;; 62f24
+    var v = techi * techi
+    if group == TECH_GROUP_SINGULAR {
+        set v = v * 10
+    }
+    if group == TECH_GROUP_IMPROVED_ROBOTIC_CONTROLS {
+        set v = v * 6
+    }
+    if group == TECH_GROUP_REDUCED_INDUSTRIAL_WASTE {
+        set v = v * 3
+    }
+    if group == TECH_GROUP_ECO_RESTORATION {
+        set v = v * 3
+    }
+    if maxti > techi {
+        set v = v // 4
+    }
+    if maxti == techi {
+        set v = 0
+    }
+    if es.race == RACE_SILICOID {
+        if (group == TECH_GROUP_REDUCED_INDUSTRIAL_WASTE) || (group == TECH_GROUP_CONTROLLED_ENVIRONMENT) || (group == TECH_GROUP_ECO_RESTORATION) {
+            set v = 0
+        }
+    }
+    if (field == TECH_FIELD_WEAPON) && (techi == TECH_WEAP_DEATH_RAY) {
+        set v = 30000
+    }
+    v
+}
+
+func game_spy_esp_sub5 (s, r) {
+    var i = 0
+    loop {
+        while i < s.tnum
+        if s.tbl_tech2@(i) > r {
+            set s.tnum = s.tnum - 1
+            loop j in s.tnum {
+                set s.tbl_field@(j) = s.tbl_field@(j + 1)
+                set s.tbl_tech2@(j) = s.tbl_tech2@(j + 1)
+            }
+            set i = i - 1
+        }
+        set i = i + 1
+    }
+}
+
+func game_spy_frame_random (g, spy, target) {
+    val et = g.eto@(target)
+    pin tbl_scapegoat = carray(PLAYER_NUM)  ;; player_id_t[]
+    var n = 0
+    loop i in PLAYER_NUM {
+        if (i != spy) && (i != target) && BOOLVEC_IS1(et.contact, i) {
+            set tbl_scapegoat@(n) = i
+            set n = n + 1
+        }
+    }
+    if n == 0 => PLAYER_NONE => tbl_scapegoat@(rnd_0_nm1(n, g))
+}
+
+func game_spy_espionage (g, spy, target, flag_frame, spies, flag_any_caught, st) {
+    pin s = spy_esp_s()
+    val et = g.eto@(target)
+    var spied = spies
+    var rmax = 0
+    var tmax = 0
+    loop in spies {
+        val r = rnd_1_n(100, g)
+        set rmax = SETMAX(rmax, r)
+    }
+    loop i in TECH_FIELD_NUM {
+        set tmax = SETMAX(tmax, et.tech.percent@(i))
+    }
+    set rmax = (rmax * tmax) // 100
+    if spies > 0 {
+        set s.target = target
+        set s.spy = spy
+        game_spy_esp_sub1(g, s, 0, 0)
+        ;; 81f0a
+        game_spy_esp_sub5(s, rmax)
+        set spied = SETMIN(spied, s.tnum)
+        if s.tnum > 0 {
+            set g.evn.stolen_spy@(target)@(spy) = if flag_any_caught => spy => PLAYER_NONE
+            if IS_HUMAN(g, spy) {
+                ;; 81fd3
+                var v = 0
+                set st.tbl_rmax@(target)@(spy) = rmax
+                set g.evn.spied_num@(target)@(spy) = u16(spied)
+                set g.evn.spied_spy@(target)@(spy) = if flag_frame => -1 => spy
+                loop in 5 {
+                    set v = v + rnd_1_n(12, g)
+                }
+                if (!flag_frame) && flag_any_caught {
+                    set g.evn.spied_spy@(target)@(spy) = i16(v)
+                }
+            } else {
+                if IS_HUMAN(g, target) {
+                    ;; 81f35
+                    set g.evn.stolen_field@(target)@(spy) = s.tbl_field@(0)
+                    set g.evn.stolen_tech@(target)@(spy) = s.tbl_tech2@(0)
+                    if flag_frame {
+                        set g.evn.stolen_spy@(target)@(spy) = game_spy_frame_random(g, spy, target)
+                    }
+                    ;; 81fa7
+                    game_tech_get_new(g, spy, s.tbl_field@(0), s.tbl_tech2@(0), TECHSOURCE_AI_SPY, 0, PLAYER_NONE, false)
+                } else {
+                    ;; 8207f
+                    game_tech_get_new(g, spy, s.tbl_field@(0), s.tbl_tech2@(0), TECHSOURCE_AI_SPY, 0, PLAYER_NONE, false)
+                    if flag_frame && (rnd_0_nm1(2, g) == 0) {
+                        pin scapegoat = carray(PLAYER_NUM)  ;; player_id_t[]
+                        var n = 0
+                        loop pi in g.players {
+                            if (pi != target) && IS_HUMAN(g, pi) && IS_ALIVE(g, pi) && BOOLVEC_IS1(et.contact, pi) {
+                                set scapegoat@(n) = pi
+                                set n = n + 1
+                            }
+                        }
+                        if n > 0 {
+                            val pi = scapegoat@(if n > 1 => rnd_0_nm1(n, g) => 0)
+                            game_diplo_act(g, -(rnd_1_n(20, g) + 20), pi, target, 5, 0, s.tbl_field@(0))
+                        }
+                    }
+                }
+            }
+            ;; 820e6
+        }
+    }
+}
+
+func game_spy_sabotage (g, spy, target, flag_frame, spies, flag_any_caught) {
+    var v8 = 0
+    val rcaught = if flag_any_caught => (rnd_1_n(20, g) + 20) => 0
+    do {
+        val num = ((g.eto@(spy).tech.percent@(TECH_FIELD_WEAPON) + 9) * spies) // 10
+        loop in num {
+            set v8 = v8 + rnd_1_n(5, g)
+        }
+    }
+    val flag_bases = rnd_0_nm1(2, g) != 0
+    val pl = game_planet_get_random(g, target)  ;; WASBUG? used a function that returned 0 on no planets
+    if (v8 > 0) && (pl != PLANET_NONE) {
+        val p = g.planet@(pl)
+        set g.evn.sabotage_spy@(target)@(spy) = if rcaught != 0 => spy => PLAYER_NONE
+        if IS_HUMAN(g, spy) {
+            ;; 82431
+            set g.evn.sabotage_num@(target)@(spy) = u16(v8)
+            ;; player_id_t is an unsigned enum in C: -1 is kept as 0xffffffff
+            set g.evn.sabotage_spy@(target)@(spy) = u32(if flag_frame => -1 => rcaught)
+        } else {
+            if IS_HUMAN(g, target) {
+                if rnd_0_nm1(4, g) == 0 {
+                    set v8 = (p.pop * (v8 // 2)) // 100
+                    set v8 = SETMAX(v8, 1)
+                    set v8 = SETMIN(v8, p.pop)
+                    set p.rebels = i16(p.rebels + v8)
+                    set p.rebels = SETMIN(p.rebels, p.pop)
+                    if p.rebels >= (p.pop // 2) {
+                        set p.unrest = PLANET_UNREST_REBELLION
+                        set p.unrest_reported = false
+                        set p.rebels = p.pop
+                    }
+                } else {
+                    ;; 822f6
+                    if !flag_bases {
+                        set v8 = SETMIN(v8, p.factories)
+                    } else {
+                        ;; 82328
+                        set v8 = v8 // 5
+                        set v8 = SETMIN(v8, p.missile_bases)
+                    }
+                    ;; 8235e
+                    if v8 > 0 {
+                        set g.evn.sabotage_is_bases@(target)@(spy) = flag_bases
+                        set g.evn.sabotage_planet@(target)@(spy) = pl
+                        set g.evn.sabotage_num@(target)@(spy) = u16(v8)
+                        if flag_frame {
+                            set g.evn.sabotage_spy@(target)@(spy) = game_spy_frame_random(g, spy, target)
+                        }
+                        if flag_bases {
+                            set p.missile_bases = u16(p.missile_bases - v8)
+                        } else {
+                            set p.factories = i16(p.factories - v8)
+                        }
+                    }
+                }
+            } else {
+                ;; 8247a
+                if !flag_bases {
+                    set p.factories = SUBSAT0(p.factories, v8)
+                } else {
+                    ;; 82328
+                    set v8 = v8 // 5
+                    set p.missile_bases = SUBSAT0(p.missile_bases, v8)
+                }
+                if !flag_frame {
+                    game_diplo_act(g, -rcaught, spy, target, 6, pl, cint(flag_bases))
+                } else {
+                    val p2 = game_spy_frame_random(g, spy, target)
+                    if p2 != PLAYER_NONE {
+                        val a = rnd_1_n(16, g)
+                        val r = -(a + rnd_1_n(16, g))
+                        game_diplo_act(g, -r, p2, target, 7, pl, cint(flag_bases))
+                    }
+                }
+            }
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_spy_esp_sub1 (g, s, a4, a6) {
+    set s.tnum = 0
+    game_spy_esp_sub2(g, s, a6)
+    var loops = 0
+    loop {
+        while (loops < 500) && (s.tnum < TECH_SPY_MAX)
+        val field = rnd_0_nm1(TECH_FIELD_NUM, g)
+        if s.tbl_num@(field) > 0 {
+            val techi = s.tbl_techi@(field)@(rnd_0_nm1(s.tbl_num@(field), g))
+            var have_tech = false
+            loop i in s.tnum {
+                ;; 63495
+                if (s.tbl_field@(i) == field) && (s.tbl_tech2@(i) == techi) {
+                    set have_tech = true
+                }
+            }
+            val value = game_spy_esp_get_value(g, field, techi, s.spy)
+            if (value == 0) || (value < a4) {
+                set have_tech = true
+            }
+            if !have_tech {
+                val i = s.tnum
+                set s.tbl_field@(i) = field
+                set s.tbl_tech2@(i) = techi
+                set s.tbl_value@(i) = value
+                set s.tnum = i + 1
+            }
+        }
+        set loops = loops + 1
+    }
+    s.tnum
+}
+
+func game_spy_esp_sub2 (g, s, a4) {
+    val es = g.eto@(s.spy)
+    val et = g.eto@(s.target)
+    val srds = g.srd@(s.spy)
+    val srdt = g.srd@(s.target)
+    var sum = 0
+    loop f in TECH_FIELD_NUM {
+        set s.tbl_num@(f) = 0
+    }
+    loop f in TECH_FIELD_NUM {
+        game_spy_esp_sift_useful_techs_do(g, s, f, et.tech.completed@(f) - a4, srdt.researchcompleted@(f), es.tech.completed@(f), srds.researchcompleted@(f))
+    }
+    loop f in TECH_FIELD_NUM {
+        set sum = sum + s.tbl_num@(f)
+    }
+    sum
+}
+
+func game_spy_build (g) {
+    loop i in g.players {
+        val e = g.eto@(i)
+        var spycost_base = (e.tech.percent@(TECH_FIELD_COMPUTER) * 2) + 25
+        if e.race == RACE_DARLOK {
+            set spycost_base = spycost_base // 2
+        }
+        loop j in g.players {
+            if (i != j) && (e.spying@(j) != 0) {
+                ;; uint32_t * int16_t: without sign
+                var spyfund = i32((u32(e.total_production_bc * e.spying@(j)) // 1000) + e.spyfund@(j))
+                var spycost = spycost_base  ;; WASBUG MOO1 does not reset spycost between target players
+                loop {
+                    while spyfund >= spycost
+                    set e.spies@(j) = u16(e.spies@(j) + 1)
+                    set spyfund = spyfund - spycost
+                    set spycost = spycost * 2
+                }
+                set e.spyfund@(j) = u16(spyfund)
+            }
+        }
+    }
+}
+
+func game_spy_report (g) {
+    loop i in g.players {
+        val e = g.eto@(i)
+        loop j in g.players {
+            if (i != j) && (e.spies@(j) > 0) {
+                val ntbl = g.eto@(j).tech.completed
+                val srd = g.srd@(j)
+                set e.spyreportyear@(j) = g.year
+                loop f in TECH_FIELD_NUM {
+                    set e.spyreportfield@(j)@(f) = srd.researchcompleted@(f)@(ntbl@(f) - 1)
+                }
+            }
+        }
+    }
+}
+
+func game_spy_turn (g, st) {
+    pin have_planet = carray(PLAYER_NUM, false)     ;; bool[]
+    pin comptech1 = carray(PLAYER_NUM)  ;; int[]
+    pin comptech2 = carray(PLAYER_NUM)  ;; int[]
+    cstruct_copy(st, spy_turn_s())
+    loop i in g.players {
+        val e = g.eto@(i)
+        set have_planet@(i) = false
+        loop j in g.galaxy_stars {
+            if g.planet@(j).owner == i {
+                set have_planet@(i) = true
+                break
+            }
+        }
+        set comptech1@(i) = e.tech.percent@(TECH_FIELD_COMPUTER)
+        set comptech2@(i) = e.tech.percent@(TECH_FIELD_COMPUTER)
+        if e.race == RACE_DARLOK {
+            set comptech1@(i) = comptech1@(i) + 20
+            set comptech2@(i) = comptech2@(i) + 30
+        }
+        val v = g.evn
+        loop j in g.players {
+            set v.spies_caught@(j)@(i) = 0
+            set v.spies_caught@(i)@(j) = 0
+            set v.stolen_field@(j)@(i) = 0
+            set v.stolen_field@(i)@(j) = 0
+            set v.stolen_tech@(j)@(i) = 0
+            set v.stolen_tech@(i)@(j) = 0
+            set v.stolen_spy@(j)@(i) = 0
+            set v.stolen_spy@(i)@(j) = 0
+            set v.spied_num@(j)@(i) = 0
+            set v.spied_num@(i)@(j) = 0
+            set v.spied_spy@(j)@(i) = 0
+            set v.spied_spy@(i)@(j) = 0
+            set v.sabotage_is_bases@(j)@(i) = false
+            set v.sabotage_is_bases@(i)@(j) = false
+            set v.sabotage_num@(j)@(i) = 0
+            set v.sabotage_num@(i)@(j) = 0
+            set v.sabotage_spy@(j)@(i) = 0
+            set v.sabotage_spy@(i)@(j) = 0
+        }
+    }
+    ;; 8af1
+    loop spy in g.players {
+        val es = g.eto@(spy)
+        loop target in g.players {
+            val et = g.eto@(target)
+            if (spy == target) || (!have_planet@(spy)) || (!have_planet@(target)) {
+                skip
+            }
+            var spies = es.spies@(target)
+            var dt1 = comptech2@(spy) - comptech1@(target)
+            var dt2 = comptech1@(target) - comptech2@(spy)
+            set dt1 = SETMAX(dt1, 0)
+            set dt2 = SETMAX(dt2, 0)
+            set dt2 = dt2 + (et.security // 5)
+            if es.spymode@(target) == SPYMODE_HIDE {
+                set dt1 = dt1 + 30
+            }
+            var numcaught = 0
+            var numsuccess = 0
+            var numfail = 0
+            var flag_frame = false
+            var flag_any_caught = false
+            if es.spymode@(target) == SPYMODE_HIDE {
+                loop in spies {
+                    if (rnd_1_n(100, g) + dt2) > 85 {
+                        set numcaught = numcaught + 1
+                    }
+                }
+                set spies = 0
+            } else {
+                ;; 8c30
+                loop in spies {
+                    val r = rnd_1_n(100, g) + dt2
+                    if r > 99 {
+                        set numcaught = spies
+                        set numfail = spies
+                        set flag_any_caught = true
+                        break
+                    } else {
+                        if r > 70 {
+                            set numcaught = numcaught + 1
+                            set numfail = numfail + 1
+                            set flag_any_caught = true
+                        } else {
+                            if r > 50 {
+                                set numfail = numfail + 1
+                                set flag_any_caught = true
+                            }
+                            ;; else if (r > 50): BUG never true
+                        }
+                    }
+                }
+            }
+            ;; 8c9e
+            set spies = SUBSAT0(spies, numfail)
+            set numcaught = SETMIN(numcaught, es.spies@(target))
+            set es.spies@(target) = u16(es.spies@(target) - numcaught)
+            do {
+                val r = rnd_1_n(100, g) + dt1
+                if r > 84 {
+                    set numsuccess = spies
+                }
+                if r > 100 {
+                    set flag_frame = true
+                }
+            }
+            set g.evn.spies_caught@(target)@(spy) = u16(numcaught)
+            if es.spymode@(target) == SPYMODE_ESPIONAGE {
+                game_spy_espionage(g, spy, target, flag_frame, numsuccess, flag_any_caught, st)
+            } else {
+                if es.spymode@(target) == SPYMODE_SABOTAGE {
+                    game_spy_sabotage(g, spy, target, flag_frame, numsuccess, flag_any_caught)
+                }
+            }
+        }
+    }
+}
+
+func game_spy_esp_human (g, st) {
+    ;; FIXME refactor for multiplayer
+    loop spy in g.players {
+        pin s = spy_esp_s()
+        set g.evn.newtech@(spy).num = 0
+        if IS_AI(g, spy) {
+            skip
+        }
+        set s.spy = spy
+        loop target in g.players {
+            if (spy != target) && (g.evn.spied_num@(target)@(spy) > 0) {
+                pin tbl_tech = carray(TECH_FIELD_NUM)   ;; uint8_t[]
+                var flags_field = 0     ;; uint8_t
+                set s.target = target
+                loop in 5 {
+                    val num = game_spy_esp_sub1(g, s, 0, 0)
+                    game_spy_esp_sub5(s, st.tbl_rmax@(target)@(spy))
+                    loop i in num {
+                        val field = s.tbl_field@(i)
+                        if tbl_tech@(field) == 0 {
+                            set tbl_tech@(field) = s.tbl_tech2@(i)
+                            set flags_field = flags_field | (1 << field)
+                        }
+                    }
+                }
+                if flags_field != 0 {
+                    val field = ui_spy_steal(g, spy, target, flags_field)
+                    if (field >= 0) && (field < TECH_FIELD_NUM) {
+                        val planet = game_planet_get_random(g, target)  ;; uint8_t
+                        val framed = g.evn.spied_spy@(target)@(spy) == -1
+                        set g.evn.stolen_field@(target)@(spy) = field
+                        set g.evn.stolen_tech@(target)@(spy) = tbl_tech@(field)
+                        game_tech_get_new(g, spy, field, tbl_tech@(field), TECHSOURCE_SPY, u8(planet), target, framed)
+                        if !framed {
+                            game_diplo_act(g, -g.evn.spied_spy@(target)@(spy), spy, target, 4, 0, field)
+                        }
+                        game_tech_finish_new(g, spy)
+                        ui_newtech(g, spy)
+                        set g.evn.newtech@(spy).num = 0
+                    }
+                }
+            }
+        }
+    }
+    loop player in g.players {
+        pin tbl = carray(PLAYER_NUM)    ;; uint16_t[]
+        if IS_AI(g, player) {
+            skip
+        }
+        var n = 0
+        loop spy in g.players {
+            val tech = g.evn.stolen_tech@(player)@(spy)     ;; uint8_t
+            if (spy != player) && (tech != 0) {
+                set tbl@(n) = u16((u16(g.evn.stolen_spy@(player)@(spy)) << 12) | (u16(g.evn.stolen_field@(player)@(spy)) << 8) | tech)
+                set n = n + 1
+            }
+        }
+        loop in n {
+            loop i in n - 1 {
+                val v0 = tbl@(i)
+                val v1 = tbl@(i + 1)
+                if v0 > v1 {
+                    set tbl@(i + 1) = v0
+                    set tbl@(i) = v1
+                }
+            }
+        }
+        loop i in n {
+            val v = tbl@(i)
+            ui_spy_stolen(g, player, (v >> 12) & 7, (v >> 8) & 7, v & 0xff)
+        }
+    }
+}
+
+func game_spy_sab_human (g) {
+    ;; FIXME refactor for multiplayer
+    loop player in g.players {
+        if IS_AI(g, player) {
+            skip
+        }
+        loop target in g.players {
+            var snum = g.evn.sabotage_num@(target)@(player)
+            if (player != target) && (snum > 0) {
+                val act, planet = ui_spy_sabotage_ask(g, player, target)
+                set g.evn.sabotage_planet@(target)@(player) = planet
+                val p = g.planet@(planet)
+                ;; ui_spy_sabotage_ask:
+                if act == UI_SABOTAGE_FACT {    ;; 0
+                    set snum = SETMIN(snum, p.factories)
+                    set p.factories = i16(p.factories - snum)
+                } else {
+                    if act == UI_SABOTAGE_BASES {   ;; 1
+                        do {
+                            var n = 0
+                            loop in snum {
+                                if rnd_0_nm1(4, g) == 0 {
+                                    set n = n + 1
+                                }
+                            }
+                            set snum = n
+                        }
+                        set snum = SETMIN(snum, p.missile_bases)
+                        set p.missile_bases = u16(p.missile_bases - snum)
+                    } else {
+                        if act == UI_SABOTAGE_REVOLT {  ;; 2
+                            set snum = (p.pop * snum) // 200
+                            if p.pop < snum {
+                                set snum = p.pop - p.rebels
+                            }
+                            set snum = SETMAX(snum, 1)
+                            set p.rebels = i16(p.rebels + snum)
+                            if p.rebels >= (p.pop // 2) {
+                                set p.unrest = PLANET_UNREST_REBELLION
+                                set p.unrest_reported = false
+                                set p.rebels = p.pop // 2  ;; FIXME BUG? AI cheat?
+                            }
+                        }
+                        ;; UI_SABOTAGE_NONE, default: nothing
+                    }
+                }
+                var other1 = PLAYER_NONE
+                var other2 = PLAYER_NONE
+                if (act != UI_SABOTAGE_NONE) && (act != UI_SABOTAGE_REVOLT) {
+                    if g.evn.spied_spy@(target)@(player) != -1 {
+                        game_diplo_act(g, -g.evn.spied_spy@(target)@(player), player, target, 6, planet, act)
+                    } else {
+                        if (snum != 0) && (act > UI_SABOTAGE_FACT) {
+                            val et = g.eto@(target)
+                            var i = 0
+                            loop {
+                                while (i < g.players) && (other2 == PLAYER_NONE)
+                                if (i != player) && BOOLVEC_IS1(et.contact, i) {
+                                    if other1 == PLAYER_NONE {
+                                        set other1 = i
+                                    } else {
+                                        set other2 = i
+                                    }
+                                }
+                                set i = i + 1
+                            }
+                            if other2 == PLAYER_NONE {
+                                set other1 = PLAYER_NONE
+                            }
+                        }
+                    }
+                }
+                if act != UI_SABOTAGE_NONE {
+                    BOOLVEC_SET1(p.explored, player)
+                    val sn = g.seen@(player)@(planet)
+                    set sn.owner = p.owner
+                    set sn.pop = u16(p.pop)
+                    set sn.bases = p.missile_bases
+                    set sn.factories = u16(p.factories)
+                    val other = ui_spy_sabotage_done(g, player, player, target, act, other1, other2, planet, snum)
+                    if (other2 != PLAYER_NONE) && (other != PLAYER_NONE) {
+                        val a = rnd_1_n(12, g)
+                        val v = -(a + rnd_1_n(12, g))
+                        game_diplo_act(g, v, other, target, 7, planet, act)
+                    }
+                }
+            }
+        }
+    }
+    loop player in g.players {
+        if IS_AI(g, player) {
+            skip
+        }
+        loop spy in g.players {
+            val snum = g.evn.sabotage_num@(player)@(spy)
+            if (player != spy) && (snum > 0) {
+                val planet = g.evn.sabotage_planet@(player)@(spy)
+                var spy2 = i32(g.evn.sabotage_spy@(player)@(spy))    ;; int spy2 = (player_id_t)
+                if spy2 == -1 {
+                    set spy2 = PLAYER_NONE
+                }
+                val act = if g.evn.sabotage_is_bases@(player)@(spy) => UI_SABOTAGE_BASES => UI_SABOTAGE_FACT
+                ui_spy_sabotage_done(g, player, spy2, player, act, PLAYER_NONE, PLAYER_NONE, planet, snum)
+            }
+        }
+    }
+}

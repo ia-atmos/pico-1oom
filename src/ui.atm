@@ -30,3 +30,14 @@ var ui_gmap_basic_finish_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_fini
 var ui_gmap_basic_shutdown = func (ctx) { ui_not_set("ui_gmap_basic_shutdown") }
 
 var ui_newtech = func (g, pi) { ui_not_set("ui_newtech") }
+
+;; The spies. `ui_spy_sabotage_ask` gives the action and the planet (the
+;; `uint8_t *planetptr` of C).
+val UI_SABOTAGE_FACT = 0
+val UI_SABOTAGE_BASES = 1
+val UI_SABOTAGE_REVOLT = 2
+val UI_SABOTAGE_NONE = 3
+var ui_spy_steal = func (g, spy, target, flags_field) { ui_not_set("ui_spy_steal") }
+var ui_spy_stolen = func (g, pi, spy, field, tech) { ui_not_set("ui_spy_stolen") }
+var ui_spy_sabotage_ask = func (g, spy, target) { ui_not_set("ui_spy_sabotage_ask") }
+var ui_spy_sabotage_done = func (g, pi, spy, target, act, other1, other2, planet, snum) { ui_not_set("ui_spy_sabotage_done") }
