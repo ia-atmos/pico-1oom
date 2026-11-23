@@ -28,9 +28,10 @@ OPS3="start production adjust_percent:0:2:20:0 adjust_percent:1:3:30:1 adjust_pe
 OPS2="start production total_research finish_new:0 start_next:1:2:5 set_to_max_bonus:0:3 equalize_tech:2 adjust_tech:0:1:40 soil_enrich:3:20:0 soil_enrich:4:40:1 atmos_tform:5 artifact_loot:7:0 orion_loot:0 tech_util"
 OPS4="start tech_util production limit_ships countdown_ceasefire mood_blunder init_z_finished send_transport build_eco update_trade build_def build_ship reserve build_ind remove_empty_fleets fleet_unrefuel disable_slider:5:3:1 disable_slider:6:2:0"
 OPS5="start tech_util production stats:0 stats:1 any_dest:0:1 send_half:0:0:5:0 send_half:1:3:7:1 fleet_speed:0:255:4 redirect:0:255:3 redirect:1:2:2 remove_player_fleets:2 design_ai:0:1:3 design_ai:1:2:5 design_scrap:0:1:1 design_fit:0:0 design_fit:1:1 stats:0"
+OPS6="start tech_util production moods diplo_adjust moods diplo_act:20:0:1:5:3:7 diplo_act:-30:1:2:9:4:0 diplo_act:-10000:0:2:6:1:2 set_trade:0:1:40 set_trade:1:2:25 annoy:2:0:3 esp_frame:1:2 battle_finish:1:0:3:20:0:10:4 battle_finish:0:2:-2:5:1:60:5 stop_war:0:2 break_treaty:1:2 start_war:0:3 start_war_swap:2:1 break_trade:1:0 set_treaty:0:1:2 diplo_adjust limit_mood_treaty mood_relax moods"
 n=0; bad=0
 for f in "$@"; do
-    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5"; do
+    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6"; do
         n=$((n+1))
         "$TMP/c" "$DATA" "$TMP/c.txt" load "$f" $ops > "$TMP/c.out"
         "$TMP/atm" "$DATA" "$TMP/a.txt" load "$f" $ops | grep -v '^Save: ' > "$TMP/a.out" || true

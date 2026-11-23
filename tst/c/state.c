@@ -20,6 +20,7 @@
 #include "lbx.h"
 #include "os.h"
 #include "game_design.h"
+#include "game_diplo.h"
 #include "game_fleet.h"
 #include "game_stat.h"
 #include "gamedump.h"
@@ -151,6 +152,26 @@ static void do_op(const char *op)
         game_design_look_fix(&g, pi, &gd.sd); printf(" %d", gd.sd.look);
         game_design_compact_slots(&gd.sd);
         game_design_clear(&gd); printf(" %s %d %d\n", gd.sd.name, gd.sd.space, gd.sd.cost);
+    }
+    OP(diplo_adjust) { game_turn_diplo_adjust(&g); }
+    OP(diplo_act) { game_diplo_act(&g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3), arg(op, 4), arg(op, 5)); }
+    OP(break_treaty) { game_diplo_break_treaty(&g, arg(op, 0), arg(op, 1)); }
+    OP(start_war) { game_diplo_start_war(&g, arg(op, 0), arg(op, 1)); }
+    OP(start_war_swap) { game_diplo_start_war_swap(&g, arg(op, 0), arg(op, 1)); }
+    OP(break_trade) { game_diplo_break_trade(&g, arg(op, 0), arg(op, 1)); }
+    OP(annoy) { game_diplo_annoy(&g, arg(op, 0), arg(op, 1), arg(op, 2)); }
+    OP(battle_finish) { game_diplo_battle_finish(&g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3), arg(op, 4), arg(op, 5), arg(op, 6)); }
+    OP(set_treaty) { game_diplo_set_treaty(&g, arg(op, 0), arg(op, 1), arg(op, 2)); }
+    OP(set_trade) { game_diplo_set_trade(&g, arg(op, 0), arg(op, 1), arg(op, 2)); }
+    OP(stop_war) { game_diplo_stop_war(&g, arg(op, 0), arg(op, 1)); }
+    OP(esp_frame) { game_diplo_esp_frame(&g, arg(op, 0), arg(op, 1)); }
+    OP(limit_mood_treaty) { game_diplo_limit_mood_treaty(&g); }
+    OP(mood_relax) { game_diplo_mood_relax(&g); }
+    OP(moods) {
+        /* the mood and is_gone of each pair */
+        printf("moods");
+        for (int i = 0; i < g.players; ++i) { for (int j = 0; j < g.players; ++j) { printf(" %d,%d", game_diplo_get_mood(&g, i, j), game_diplo_is_gone(&g, i, j)); } }
+        printf("\n");
     }
     else { printf("unknown op %s\n", op); exit(1); }
 }
