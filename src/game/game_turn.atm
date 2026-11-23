@@ -8,11 +8,13 @@ include "../rnd.atm"
 include "../util.atm"
 include "game.atm"
 include "game_design.atm"
+include "game_diplo.atm"
 include "game_fleet.atm"
 include "game_misc.atm"
 include "game_num.atm"
 include "game_planet.atm"
 include "game_planet_c.atm"
+include "game_stat.atm"
 include "game_tech.atm"
 
 ;; Of c/src/game/game.c (an option of the configuration), here until game.c
@@ -292,6 +294,108 @@ func game_turn_update_trade (g) {
                     set e.trade_percent@(j) = i16(ADDSATT(e.trade_percent@(j), v, 100))
                     set e2.trade_percent@(i) = i16(ADDSATT(e2.trade_percent@(i), v, 100))
                 }
+            }
+        }
+    }
+}
+
+func game_turn_diplo_adjust (g) {
+    loop i in g.players {
+        val e = g.eto@(i)
+        loop j in (i + 1, g.players - 1) {
+            if rnd_0_nm1(2, g) == 0 {
+                if e.treaty@(j) == TREATY_NONAGGRESSION {
+                    game_diplo_act(g, rnd_1_n(3, g), i, j, 0, 0, 0)
+                }
+                if e.treaty@(j) == TREATY_ALLIANCE {
+                    game_diplo_act(g, rnd_1_n(6, g), i, j, 0, 0, 0)
+                }
+                if e.trade_bc@(j) != 0 {
+                    game_diplo_act(g, rnd_1_n(3, g), i, j, 2, 0, 0)
+                }
+            }
+        }
+    }
+    loop i in g.players {
+        if IS_HUMAN(g, i) {
+            skip
+        }
+        val s_ai = game_stat_fleet(g, i)
+        loop j in g.players {
+            if IS_AI(g, j) {
+                skip
+            }
+            val s_h = game_stat_fleet(g, j)
+            if (s_ai < s_h) && (s_ai > 0) && (rnd_1_n(100, g) >= ((s_h * 50) // s_ai)) && (rnd_0_nm1(20, g) == 0) {
+                game_diplo_act(g, -10, j, i, 8, 0, 0)
+            }
+        }
+    }
+    if (g.year & 1) == 0 {
+        pin tbl_num_pp = carray(PLAYER_NUM)     ;; uint8_t[]
+        val gscale = (g.galaxy_size + 1) * 3
+        val gdiv = g.galaxy_size + 6 - g.difficulty
+        loop i in g.players {
+            set tbl_num_pp@(i) = 0
+        }
+        loop j in g.galaxy_stars {
+            val p = g.planet@(j)
+            if p.prod_after_maint >= 100 {
+                set tbl_num_pp@(p.owner) = u8(tbl_num_pp@(p.owner) + 1)
+            }
+        }
+        loop i in g.players {
+            val e = g.eto@(i)
+            if (gscale < tbl_num_pp@(i)) && (rnd_0_nm1(4, g) == 0) {
+                var v = rnd_1_n(4, g) * ((-(tbl_num_pp@(i) - gscale)) // gdiv)
+                set v = (v // 3) * 4
+                if IS_HUMAN(g, i) {
+                    set v = v // 2
+                }
+                loop j in g.players {
+                    if IS_HUMAN(g, j) {
+                        skip
+                    }
+                    if BOOLVEC_IS1(e.contact, j) && (e.treaty@(j) == TREATY_ALLIANCE) {
+                        game_diplo_act(g, v, i, j, 12, 0, 0)
+                    }
+                }
+            }
+        }
+    }
+    loop i in g.players {
+        val e = g.eto@(i)
+        if IS_HUMAN(g, i) {
+            skip
+        }
+        loop j in g.players {
+            if (i != j) && (e.diplo_val@(j) == 0) {
+                var r1 = e.relation1@(j)    ;; int16_t
+                val r2 = e.relation2@(j)    ;; int16_t
+                val v = if math.abs(r1) > rnd_1_n(105, g) => rnd_0_nm1(2, g) => 0   ;; uint8_t
+                if r1 < r2 {
+                    set r1 = i16(r1 + v)
+                    if r1 > r2 {
+                        set r1 = r2
+                    }
+                } else {
+                    set r1 = i16(r1 - v)
+                    if r1 < r2 {
+                        set r1 = r2
+                    }
+                }
+                set r1 = SETRANGE(r1, -100, 100)
+                set e.relation1@(j) = r1
+            }
+        }
+    }
+    loop i in g.players {
+        val e = g.eto@(i)
+        loop j in g.players {
+            if i == j {
+                set e.relation1@(j) = 0
+            } else {
+                set g.eto@(j).relation1@(i) = e.relation1@(j)
             }
         }
     }
