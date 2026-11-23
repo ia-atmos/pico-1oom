@@ -22,7 +22,10 @@
 #include "game_ai.h"
 #include "game_design.h"
 #include "game_election.h"
+#include "game_end.h"
+#include "game_event.h"
 #include "game_ground.h"
+#include "game_num.h"
 #include "game_news.h"
 #include "game_diplo.h"
 #include "game_fleet.h"
@@ -86,12 +89,24 @@ static void el_print(const char *what, struct election_s *el)
 {
     printf("%s %d %d %d %d %d %d %d %d %d %d %d '%s'\n", what, el->num, el->candidate[0], el->candidate[1], el->total_votes, el->got_votes[0], el->got_votes[1], el->first_human, el->last_human, el->cur_i, el->flag_show_votes, el->ui_delay, el->str ? el->str : "(null)");
 }
-void ui_election_start(struct election_s *el) { el_print("el_start", el); }
+/* ui_delay is not set yet at the start (garbage of the stack in C) */
+void ui_election_start(struct election_s *el) { int d = el->ui_delay; el->ui_delay = -1; el_print("el_start", el); el->ui_delay = d; }
 void ui_election_show(struct election_s *el) { el_print("el_show", el); }
 void ui_election_delay(struct election_s *el, int delay) { printf("el_delay %d\n", delay); el_print("el_delay", el); }
 int ui_election_vote(struct election_s *el, int player_i) { el_print("el_vote", el); return (player_i + 1) % 3; }
 bool ui_election_accept(struct election_s *el, int player_i) { el_print("el_accept", el); return (player_i & 1) == 0; }
 void ui_election_end(struct election_s *el) { el_print("el_end", el); }
+
+void ui_news_start(void) { printf("news_start\n"); }
+void ui_news_end(void) { printf("news_end\n"); }
+void ui_news(struct game_s *g_, struct news_s *ns)
+{
+    char buf[0x200];
+    game_news_get_msg(g_, ns, buf, sizeof(buf));
+    printf("ui_news %d %d '%s' %d", ns->type, ns->subtype, buf, ns->statsnum);
+    for (int i = 0; i < ns->statsnum; ++i) { printf(" %s", ns->stats[i]); }
+    printf("\n");
+}
 
 /* The functions of the AI that are not ported yet, replaced by fixed
    answers that print each call. */
@@ -99,6 +114,10 @@ static bool test_ai_bomb(struct game_s *g_, player_id_t player, uint8_t planet, 
 static void test_ai_ground(struct game_s *g_, player_id_t def, player_id_t att, uint8_t planet, int pop_killed, bool owner_changed) { printf("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, owner_changed); }
 static uint8_t test_ai_tech_next(struct game_s *g_, player_id_t player, tech_field_t field, uint8_t *tbl, int num) { printf("ai_tech_next %d %d %d\n", player, field, num); return tbl[(player + field) % num]; }
 static int test_ai_vote(struct election_s *el, player_id_t player) { printf("ai_vote %d\n", player); return (player + el->g->year) % 3; }
+static void test_ai_plague(struct game_s *g_, uint8_t planet) { printf("ai_plague %d\n", planet); }
+static void test_ai_nova(struct game_s *g_, uint8_t planet) { printf("ai_nova %d\n", planet); }
+static void test_ai_comet(struct game_s *g_, uint8_t planet) { printf("ai_comet %d\n", planet); }
+static void test_ai_pirates(struct game_s *g_, uint8_t planet) { printf("ai_pirates %d\n", planet); }
 static struct game_ai_s test_ai;
 
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
@@ -299,6 +318,14 @@ static void do_op(const char *op)
         for (int i = 0; i < ns.statsnum; ++i) { printf(" %s", ns.stats[i]); }
         printf("\n");
     }
+    OP(set_event_roll) { game_num_event_roll = arg(op, 0); }
+    OP(set_year) { g.year = arg(op, 0); }
+    OP(event_new) { game_event_new(&g); }
+    OP(event_run) {
+        struct game_end_s ge = { GAME_END_NONE, 0, 0, 0, 0 };
+        bool r = game_event_run(&g, &ge);
+        printf("event_run %d %d %d %d\n", r, ge.type, ge.race, ge.banner_dead);
+    }
     OP(move_ships) { game_turn_move_ships(&g); }
     OP(explore) { game_turn_explore(&g); }
     OP(transport) { game_turn_transport(&g); }
@@ -316,6 +343,10 @@ int main(int argc, char **argv)
     test_ai.ground = test_ai_ground;
     test_ai.tech_next = test_ai_tech_next;
     test_ai.vote = test_ai_vote;
+    test_ai.plague = test_ai_plague;
+    test_ai.nova = test_ai_nova;
+    test_ai.comet = test_ai_comet;
+    test_ai.pirates = test_ai_pirates;
     game_ai = &test_ai;
     os_set_path_data(argv[1]);
     lbxfile_init();
