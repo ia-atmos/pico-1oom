@@ -12,8 +12,10 @@ include "../util_math.atm"
 include "game.atm"
 include "game_design.atm"
 include "game_diplo.atm"
+include "game_end.atm"
 include "game_fleet.atm"
 include "game_misc.atm"
+include "game_news.atm"
 include "game_num.atm"
 include "game_planet.atm"
 include "game_planet_c.atm"
@@ -1362,4 +1364,87 @@ func game_turn_update_final_war (g) {
             }
         }
     }
+}
+
+func game_turn_check_end (g, ge) {
+    var pih = PLAYER_NONE
+    loop i in g.players {
+        if IS_HUMAN(g, i) && IS_ALIVE(g, i) {
+            set pih = i
+            break
+        }
+    }
+    if g.end == GAME_END_LOST_EXILE {
+        set ge.type = GAME_END_LOST_EXILE
+        if pih == g.winner {
+            loop i in (pih + 1, g.players - 1) {
+                if IS_HUMAN(g, i) && IS_ALIVE(g, i) {
+                    set pih = i
+                    break
+                }
+            }
+        }
+        set ge.name = g.emperor_names@(pih)
+        return true
+    }
+    if g.end == GAME_END_WON_GOOD {
+        set ge.type = GAME_END_WON_GOOD
+        set ge.name = g.emperor_names@(g.winner)
+        set ge.race = g.eto@(g.winner).race
+        return true
+    }
+    do {
+        var pi1 = PLAYER_NONE
+        var pi2 = PLAYER_NONE
+        var human_alive = false
+        pin num_planets = carray(PLAYER_NUM)    ;; uint8_t[]
+        pin good_planets = carray(PLAYER_NUM)   ;; uint8_t[]
+        loop pli in g.galaxy_stars {
+            val p = g.planet@(pli)
+            if p.owner != PLAYER_NONE {
+                set num_planets@(p.owner) = u8(num_planets@(p.owner) + 1)
+                if p.unrest != PLANET_UNREST_REBELLION {
+                    set good_planets@(p.owner) = u8(good_planets@(p.owner) + 1)
+                }
+            }
+        }
+        loop i in g.players {
+            if num_planets@(i) > 0 {
+                if pi1 == PLAYER_NONE {
+                    set pi1 = i
+                } else {
+                    if pi2 == PLAYER_NONE {
+                        set pi2 = i
+                    }
+                }
+                if IS_HUMAN(g, i) && (good_planets@(i) > 0) && IS_ALIVE(g, i) {
+                    set human_alive = true
+                }
+            }
+        }
+        if pi2 == PLAYER_NONE {
+            set ge.type = GAME_END_WON_TYRANT
+            set ge.name = g.emperor_names@(pi1)
+            set ge.race = g.eto@(pi1).race
+            return true
+        }
+        if !human_alive {
+            pin ns = news_s()
+            var killer = g.gaux.human_killer
+            if killer >= g.players {
+                set killer = if pi1 != PLAYER_NONE => pi1 => 1
+            }
+            set ns.type = GAME_NEWS_GENOCIDE
+            set ns.race = g.eto@(pih).race
+            set ns.subtype = 3
+            set ns.num1 = pih
+            ui_news_start()
+            ui_news(g, ns)
+            set ge.type = GAME_END_LOST_FUNERAL
+            set ge.race = g.eto@(killer).banner
+            set ge.banner_dead = pih
+            return true
+        }
+    }
+    false
 }
