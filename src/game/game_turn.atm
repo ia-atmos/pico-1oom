@@ -10,6 +10,7 @@ include "../ui.atm"
 include "../util.atm"
 include "../util_math.atm"
 include "game.atm"
+include "game_audience.atm"
 include "game_design.atm"
 include "game_diplo.atm"
 include "game_end.atm"
@@ -1447,4 +1448,22 @@ func game_turn_check_end (g, ge) {
         }
     }
     false
+}
+
+func game_turn_audiences (g) {
+    loop ph in PLAYER_NUM {
+        val e = g.eto@(ph)
+        if !IS_HUMAN(g, ph) {
+            skip
+        }
+        set g.evn.newtech@(ph).num = 0
+        loop pa in PLAYER_NUM {
+            if IS_AI(g, pa) && (e.diplo_type@(pa) != 0) {
+                game_audience(g, ph, pa)
+                set e.diplo_type@(pa) = 0
+            }
+        }
+        game_tech_finish_new(g, ph)
+        ui_newtech(g, ph)
+    }
 }

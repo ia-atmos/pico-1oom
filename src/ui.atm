@@ -61,3 +61,16 @@ var ui_election_end = func (el) { ui_not_set("ui_election_end") }
 var ui_news_start = func () { ui_not_set("ui_news_start") }
 var ui_news = func (g, ns) { ui_not_set("ui_news") }
 var ui_news_end = func () { ui_not_set("ui_news_end") }
+
+;; The audiences (`au` is a `struct audience_s`). The `ask` functions give
+;; the index of the option chosen, or -1.
+var ui_audience_start = func (au) { ui_not_set("ui_audience_start") }
+var ui_audience_show1 = func (au) { ui_not_set("ui_audience_show1") }
+var ui_audience_show2 = func (au) { ui_not_set("ui_audience_show2") }
+var ui_audience_show3 = func (au) { ui_not_set("ui_audience_show3") }
+var ui_audience_ask2a = func (au) { ui_not_set("ui_audience_ask2a") }
+var ui_audience_ask2b = func (au) { ui_not_set("ui_audience_ask2b") }
+var ui_audience_ask3 = func (au) { ui_not_set("ui_audience_ask3") }
+var ui_audience_ask4 = func (au) { ui_not_set("ui_audience_ask4") }
+var ui_audience_newtech = func (au, pi) { ui_not_set("ui_audience_newtech") }
+var ui_audience_end = func (au) { ui_not_set("ui_audience_end") }
