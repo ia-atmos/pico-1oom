@@ -1,0 +1,403 @@
+;; Port of c/src/game/game_ground.c and game_ground.h.
+
+include "../bits.atm"
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "../rnd.atm"
+include "../ui.atm"
+include "../util.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_aux.atm"
+include "game_endecode.atm"
+include "game_misc.atm"
+include "game_num.atm"
+include "game_planet_c.atm"
+include "game_shiptech.atm"
+include "game_spy.atm"
+include "game_str.atm"
+include "game_tech.atm"
+
+val GAME_GROUND_STRBUF_SIZE = 64
+
+func ground_side_s () {
+    [
+        player  = 0,        ;; player_id_t
+        human   = false,    ;; bool
+        force   = 0,        ;; int
+        pop1    = 0,        ;; int
+        pop2    = 0,        ;; int
+        armori  = 0,        ;; uint8_t
+        suiti   = 0,        ;; uint8_t
+        shieldi = 0,        ;; uint8_t
+        weapi   = 0,        ;; uint8_t
+        strnum  = 0,        ;; int
+        str     = carray2(3, GAME_GROUND_STRBUF_SIZE),  ;; char[][]
+    ]
+}
+
+func ground_got_s () {
+    [
+        tech  = 0,  ;; uint8_t
+        field = 0,  ;; tech_field_t
+    ]
+}
+
+func ground_s () {
+    [
+        seed          = 0,      ;; uint32_t
+        planet_i      = 0,      ;; uint8_t
+        flag_swap     = false,  ;; bool
+        flag_rebel    = false,  ;; bool
+        inbound       = 0,      ;; int
+        total_inbound = 0,      ;; int
+        death         = 0,      ;; int (0, 1, -1)
+        fact          = 0,      ;; int
+        techchance    = 0,      ;; int
+        got           = carrayf(TECH_SPY_MAX, ground_got_s),
+        s             = carrayf(2, ground_side_s),
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+;; The best tier and tech of a group of a field that a player has completed.
+func ground_best (g, rc, num, field, group) {
+    var best = 0    ;; uint8_t
+    var besti = 0   ;; uint8_t
+    loop j in num {
+        val gr2 = game_tech_get_group(g.gaux, field, rc@(j))
+        val tier = u8(game_tech_get_tier(g.gaux, field, rc@(j)))
+        if gr2 == group {
+            set best = tier
+            set besti = rc@(j)
+        }
+    }
+    return (best, besti)
+}
+
+func game_ground_resolve_init (g, gr) {
+    set gr.seed = g.seed
+    do {
+        val p = g.planet@(gr.planet_i)
+        set gr.fact = p.factories
+    }
+    loop i in 2 {
+        val sd = gr.s@(i)
+        val e = g.eto@(sd.player)
+        val srd = g.srd@(sd.player)
+        var bestarmor = 0   ;; uint8_t
+        var bestsuit = 0    ;; uint8_t
+        var besti = 0       ;; uint8_t
+        set sd.human = IS_HUMAN(g, sd.player)
+        set sd.force = 0
+        do {
+            val rc = srd.researchcompleted@(TECH_FIELD_CONSTRUCTION)
+            loop j in e.tech.completed@(TECH_FIELD_CONSTRUCTION) {
+                val group = game_tech_get_group(g.gaux, TECH_FIELD_CONSTRUCTION, rc@(j))
+                val tier = u8(game_tech_get_tier(g.gaux, TECH_FIELD_CONSTRUCTION, rc@(j)))
+                if group == TECH_GROUP_ARMOR {
+                    set bestarmor = tier
+                } else {
+                    if group == TECH_GROUP_PERSONAL_ARMOR {
+                        set bestsuit = tier
+                        set besti = rc@(j)
+                    }
+                }
+            }
+        }
+        set sd.force = sd.force + (bestarmor * 5) + (bestsuit * 10)
+        set sd.armori = bestarmor
+        set sd.suiti = besti
+        do {
+            val bestshield, bi = ground_best(g, srd.researchcompleted@(TECH_FIELD_FORCE_FIELD), e.tech.completed@(TECH_FIELD_FORCE_FIELD), TECH_FIELD_FORCE_FIELD, TECH_GROUP_PERSONAL_SHIELD)
+            set sd.shieldi = bi
+            if bestshield != 0 {
+                set sd.force = sd.force + (bestshield * 10)
+            }
+        }
+        do {
+            var bestweap, bi = ground_best(g, srd.researchcompleted@(TECH_FIELD_WEAPON), e.tech.completed@(TECH_FIELD_WEAPON), TECH_FIELD_WEAPON, TECH_GROUP_PERSONAL_WEAPONS)
+            set sd.weapi = bi
+            if bestweap != 0 {
+                if bestweap > 2 {
+                    set bestweap = bestweap + 1
+                }
+                set sd.force = sd.force + (bestweap * 5)
+            }
+        }
+        if e.race == RACE_BULRATHI {
+            set sd.force = sd.force + 25
+        }
+    }
+    val sw = gr.s@(if gr.flag_swap => 0 => 1)
+    set sw.force = sw.force + 5
+    loop i in TECH_SPY_MAX {
+        set gr.got@(i).tech = 0
+        set gr.got@(i).field = 0
+    }
+}
+
+func game_ground_show_init (g, gr) {
+    loop i in 2 {
+        val sd = gr.s@(i)
+        pin strbuf = carray(GAME_GROUND_STRBUF_SIZE)   ;; char[]
+        set sd.human = IS_HUMAN(g, sd.player)
+        set sd.pop2 = sd.pop1
+        set sd.strnum = 1
+        lib_strcpy(strbuf, tbl_shiptech_armor@(sd.armori * 2).nameptr(), GAME_GROUND_STRBUF_SIZE)
+        util_str_tolower(strbuf, 1, GAME_GROUND_STRBUF_SIZE - 1)
+        lib_sprintf(sd.str@(0), GAME_GROUND_STRBUF_SIZE, "%s ", cstr(strbuf))
+        var besti = sd.suiti
+        if besti == 0 {
+            lib_strcat(sd.str@(0), game_str_gr_carmor, GAME_GROUND_STRBUF_SIZE)
+        } else {
+            game_tech_get_name(g.gaux, TECH_FIELD_CONSTRUCTION, besti, strbuf, GAME_GROUND_STRBUF_SIZE)
+            lib_strcat(sd.str@(0), strbuf, GAME_GROUND_STRBUF_SIZE)
+        }
+        set besti = sd.shieldi
+        if besti != 0 {
+            game_tech_get_name(g.gaux, TECH_FIELD_FORCE_FIELD, besti, sd.str@(1), GAME_GROUND_STRBUF_SIZE)
+            set sd.strnum = 2
+        }
+        set besti = sd.weapi
+        if besti != 0 {
+            game_tech_get_name(g.gaux, TECH_FIELD_WEAPON, besti, sd.str@(sd.strnum), GAME_GROUND_STRBUF_SIZE)
+            set sd.strnum = sd.strnum + 1
+        }
+    }
+}
+
+func game_ground_encode_start (gr, buf, pos0) {
+    var pos = pos0
+    set pos = SG_1OOM_EN_U8(buf, pos, gr.planet_i)
+    set pos = SG_1OOM_EN_U8(buf, pos, gr.s@(0).player)
+    set pos = SG_1OOM_EN_U8(buf, pos, gr.s@(1).player)
+    set pos = SG_1OOM_EN_U8(buf, pos, cint(gr.flag_swap) | (if gr.flag_rebel => 2 => 0))
+    set pos = SG_1OOM_EN_U32(buf, pos, gr.seed)
+    set pos = SG_1OOM_EN_U16(buf, pos, gr.inbound)
+    set pos = SG_1OOM_EN_U16(buf, pos, gr.total_inbound)
+    set pos = SG_1OOM_EN_U16(buf, pos, gr.fact)
+    loop i in 2 {
+        val sd = gr.s@(i)
+        set pos = SG_1OOM_EN_U16(buf, pos, sd.force)
+        set pos = SG_1OOM_EN_U16(buf, pos, sd.pop1)
+        set pos = SG_1OOM_EN_U8(buf, pos, sd.armori)
+        set pos = SG_1OOM_EN_U8(buf, pos, sd.suiti)
+        set pos = SG_1OOM_EN_U8(buf, pos, sd.shieldi)
+        set pos = SG_1OOM_EN_U8(buf, pos, sd.weapi)
+    }
+    pos
+}
+
+func game_ground_encode_end (gr, buf, pos0) {
+    var pos = pos0
+    loop i in TECH_SPY_MAX {
+        set pos = SG_1OOM_EN_U8(buf, pos, gr.got@(i).tech)
+        set pos = SG_1OOM_EN_U8(buf, pos, gr.got@(i).field)
+    }
+    pos
+}
+
+;; The fields are kept as the types of `struct ground_s` keep them.
+func game_ground_decode (gr, buf, pos0) {
+    var pos = pos0
+    var v
+    set v, pos = SG_1OOM_DE_U8(buf, pos)
+    if v == 0xff {
+        return 0
+    }
+    set gr.planet_i = v
+    set v, pos = SG_1OOM_DE_U8(buf, pos)
+    set gr.s@(0).player = v
+    set v, pos = SG_1OOM_DE_U8(buf, pos)
+    set gr.s@(1).player = v
+    set v, pos = SG_1OOM_DE_U8(buf, pos)
+    set gr.flag_swap = (v & 1) != 0
+    set gr.flag_rebel = (v & 2) != 0
+    set v, pos = SG_1OOM_DE_U32(buf, pos)
+    set gr.seed = v
+    set v, pos = SG_1OOM_DE_U16(buf, pos)
+    set gr.inbound = v
+    set v, pos = SG_1OOM_DE_U16(buf, pos)
+    set gr.total_inbound = v
+    set v, pos = SG_1OOM_DE_U16(buf, pos)
+    set gr.fact = v
+    loop i in 2 {
+        val sd = gr.s@(i)
+        set v, pos = SG_1OOM_DE_U16(buf, pos)
+        set sd.force = v
+        set v, pos = SG_1OOM_DE_U16(buf, pos)
+        set sd.pop1 = v
+        set v, pos = SG_1OOM_DE_U8(buf, pos)
+        set sd.armori = v
+        set v, pos = SG_1OOM_DE_U8(buf, pos)
+        set sd.suiti = v
+        set v, pos = SG_1OOM_DE_U8(buf, pos)
+        set sd.shieldi = v
+        set v, pos = SG_1OOM_DE_U8(buf, pos)
+        set sd.weapi = v
+    }
+    do {
+        var num = 0
+        loop i in TECH_SPY_MAX {
+            set v, pos = SG_1OOM_DE_U8(buf, pos)
+            set gr.got@(i).tech = v
+            if v != 0 {
+                set num = num + 1
+            }
+            set v, pos = SG_1OOM_DE_U8(buf, pos)
+            set gr.got@(i).field = v
+        }
+        set gr.techchance = num
+    }
+    pos
+}
+
+;; `g->gaux->savebuf` in C (unused during turn processing, large enough for
+;; ground data): here a buffer of its own.
+pin game_ground_buf = carray(0x10000)   ;; uint8_t[]
+
+func game_ground_get_buf (g) {
+    game_ground_buf
+}
+
+func game_ground_finish (g, gr) {
+    val p = g.planet@(gr.planet_i)
+    pin s = spy_esp_s()
+    set g.seed = gr.seed
+    set gr.techchance = 0
+    if gr.s@(0).pop1 > 0 {
+        if gr.flag_rebel {
+            set p.unrest = PLANET_UNREST_RESOLVED
+            set p.pop = i16(p.pop - p.rebels + gr.s@(0).pop1)
+            set p.rebels = 0
+        } else {
+            val fact = gr.fact
+            var chance = 0
+            loop in fact {
+                if rnd_0_nm1(50, g) == 0 {
+                    set chance = chance + 1
+                }
+            }
+            set gr.techchance = chance
+            set s.target = gr.s@(1).player
+            set s.spy = gr.s@(0).player
+            var num = game_spy_esp_sub1(g, s, 0, 0)
+            set num = SETMIN(num, chance)
+            set s.tnum = num
+            loop i in num {
+                set gr.got@(i).tech = s.tbl_tech2@(i)
+                set gr.got@(i).field = s.tbl_field@(i)
+                game_tech_get_new(g, gr.s@(0).player, s.tbl_field@(i), s.tbl_tech2@(i), TECHSOURCE_FOUND, gr.planet_i, gr.s@(1).player, false)
+            }
+            set gr.techchance = num
+            game_planet_destroy(g, gr.planet_i, gr.s@(0).player)
+            set p.owner = gr.s@(0).player
+            set p.pop = i16(gr.s@(0).pop1)
+            set p.bc_to_refit = 0
+            set p.pop_oper_fact = 1
+        }
+    } else {
+        if gr.flag_rebel {
+            set p.rebels = i16(gr.s@(1).pop1)
+            if p.rebels == 0 {
+                set p.unrest = PLANET_UNREST_RESOLVED
+            }
+        } else {
+            set p.pop = i16(gr.s@(1).pop1)
+        }
+    }
+    set p.pop = SETMIN(p.pop, p.max_pop3)
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ground_kill (gr) {
+    val v1 = rnd_1_n(100, gr) + gr.s@(0).force
+    val v2 = rnd_1_n(100, gr) + gr.s@(1).force
+    val death = if v1 <= v2 => 0 => 1
+    set gr.death = death
+    set gr.s@(death).pop1 = gr.s@(death).pop1 - 1
+}
+
+;; `t = a; a = b; b = t` of one field of the two sides.
+func ground_swap (gr, k) {
+    val t = gr.s@(0)@(k)
+    set gr.s@(0)@(k) = gr.s@(1)@(k)
+    set gr.s@(1)@(k) = t
+}
+
+func game_turn_ground_resolve_all (g) {
+    pin gr = ground_s()
+    val buf = game_ground_get_buf(g)
+    var pos = 0
+    set gr.seed = g.seed
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        var powner = p.owner
+        loop i in g.players {
+            if (i != powner) || (p.unrest == PLANET_UNREST_REBELLION) {
+                if (powner != PLAYER_NONE) && (p.inbound@(i) > 0) {
+                    set gr.flag_rebel = (p.unrest == PLANET_UNREST_REBELLION) && IS_HUMAN(g, i) && (p.owner == i)
+                    set gr.inbound = p.inbound@(i)
+                    set gr.total_inbound = p.total_inbound@(i)
+                    set gr.s@(0).pop1 = p.inbound@(i)
+                    set gr.s@(0).pop2 = gr.s@(0).pop1
+                    var pop_planet = if gr.flag_rebel => p.rebels => p.pop
+                    set gr.s@(1).pop1 = pop_planet
+                    set gr.s@(1).pop2 = pop_planet
+                    set gr.s@(0).player = i
+                    set gr.s@(1).player = powner
+                    set gr.planet_i = pli
+                    set gr.flag_swap = false
+                    if IS_HUMAN(g, i) || IS_HUMAN(g, powner) {
+                        set gr.flag_swap = true
+                        ground_swap(gr, "pop2")
+                        ground_swap(gr, "pop1")
+                        ground_swap(gr, "player")
+                    }
+                    game_ground_resolve_init(g, gr)
+                    if (gr.s@(0).pop1 != 0) && (gr.s@(1).pop1 != 0) {
+                        if gr.s@(0).human || gr.s@(1).human {
+                            set pos = game_ground_encode_start(gr, buf, pos)
+                        }
+                        loop {
+                            while (gr.s@(0).pop1 != 0) && (gr.s@(1).pop1 != 0)
+                            game_ground_kill(gr)
+                        }
+                        if gr.flag_swap {
+                            ground_swap(gr, "pop1")
+                            ground_swap(gr, "player")
+                        }
+                        game_ground_finish(g, gr)
+                        if gr.s@(0).human || gr.s@(1).human {
+                            set pos = game_ground_encode_end(gr, buf, pos)
+                        }
+                        set pop_planet = pop_planet - gr.s@(1).pop1
+                        set pop_planet = SETMAX(pop_planet, 1)
+                        game_ai.ground(g, gr.s@(1).player, gr.s@(0).player, pli, pop_planet, p.owner != powner)
+                    }
+                }
+                set powner = p.owner
+            }
+        }
+    }
+    set pos = SG_1OOM_EN_U8(buf, pos, 0xff)
+    buf
+}
+
+func game_turn_ground_show_all (g, buf) {
+    pin gr = ground_s()
+    var pos = 0
+    ;; TODO reorder for minimum player switching
+    loop {
+        set pos = game_ground_decode(gr, buf, pos)
+        while pos > 0
+        game_ground_show_init(g, gr)
+        ui_ground(g, gr)
+    }
+    if pos == 0 => 0 => -1
+}

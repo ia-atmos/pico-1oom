@@ -1,0 +1,216 @@
+;; Port of c/src/game/game_bomb.c and game_bomb.h.
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../rnd.atm"
+include "../ui.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_aux.atm"
+include "game_diplo.atm"
+include "game_num.atm"
+include "game_planet_c.atm"
+include "game_shiptech.atm"
+include "game_tech.atm"
+
+;; ---------------------------------------------------------------------------
+
+;; The `int *popdmgptr, *factdmgptr, *biodmgptr` of C: the three values.
+func game_turn_bomb_damage (g, pli, attacker) {
+    val p = g.planet@(pli)
+    val ea = g.eto@(attacker)
+    val ed = g.eto@(p.owner)
+    pin tbl = carray(WEAPON_NUM)    ;; uint32_t[]
+    val pshield = p.shield      ;; uint8_t
+    val antidote = ed.antidote  ;; uint8_t
+    var totaldmg = 0
+    var totalbio = 0
+    var maxcomp = 0
+    val wslots = if game_num_orbital_weap_4 => WEAPON_SLOT_NUM => (WEAPON_SLOT_NUM - 1)
+    loop i in ea.shipdesigns_num {
+        val sd = g.srd@(attacker).design@(i)
+        if (!game_num_orbital_comp_fix) || (ea.orbit@(pli).ships@(i) != 0) {   ;; WASBUG bonus from non-existing ships
+            set maxcomp = SETMAX(maxcomp, sd.comp)
+        }
+        loop j in wslots {  ;; WASBUG? last weapon not used
+            val wpnt = sd.wpnt@(j)
+            var v = u32(ea.orbit@(pli).ships@(i) * sd.wpnn@(j))    ;; uint32_t
+            if v != 0 {
+                var ns = tbl_shiptech_weap@(wpnt).numshots
+                if ns == -1 {
+                    set ns = 30
+                }
+                set v = u32(v * ns)
+                set tbl@(wpnt) = u32(tbl@(wpnt) + v)
+            }
+        }
+    }
+    var complevel = ((maxcomp - 1) * 2) + 6
+    set complevel = SETRANGE(complevel, 1, 20)
+    val wnum = if game_num_orbital_weap_any => WEAPON_NUM => WEAPON_CRYSTAL_RAY
+    loop i in wnum {    ;; WASBUG? excludes death ray and amoeba stream too
+        var vcur = tbl@(i)  ;; uint32_t
+        if vcur != 0 {
+            val w = tbl_shiptech_weap@(i)
+            var v   ;; uint32_t
+            var dmgmin = w.damagemin
+            var dmgmax = w.damagemax
+            set vcur = SETMIN(vcur, game_num_max_bomb_dmg)
+            if vcur < 10 {
+                set v = 1
+            } else {
+                set v = vcur // 10
+                set vcur = 10
+            }
+            if dmgmin == dmgmax {
+                if w.is_bio {
+                    loop in vcur {
+                        if rnd_1_n(20, g) <= complevel {
+                            var dmg = rnd_0_nm1(dmgmin + 1, g) - antidote
+                            set dmg = SETMAX(dmg, 0)
+                            set totalbio = i32(totalbio + u32(v * dmg))
+                            set totalbio = SETMIN(totalbio, game_num_max_bio_dmg)
+                        }
+                    }
+                } else {
+                    if game_num_orbital_torpedo == (w.misstype != 0) {  ;; WASBUG damage halving for torpedo affected missiles instead
+                        set dmgmax = dmgmax // 2
+                    }
+                    set dmgmax = dmgmax * w.nummiss
+                    if dmgmax > pshield {
+                        loop in vcur {
+                            if rnd_1_n(20, g) <= complevel {
+                                val dmg = dmgmax - pshield
+                                set totaldmg = i32(totaldmg + u32(v * dmg))
+                            }
+                        }
+                    }
+                }
+            } else {
+                ;; dd3d
+                if !w.is_bomb {
+                    set dmgmin = dmgmin // 2
+                    set dmgmax = dmgmax // 2
+                }
+                if dmgmax > pshield {
+                    val dmgrange = dmgmax - dmgmin + 1
+                    set dmgmin = dmgmin - 1 - pshield
+                    set vcur = u32(u32(complevel * vcur) * v) // 20
+                    loop in vcur {
+                        val dmg = rnd_1_n(dmgrange, g) + dmgmin
+                        if dmg > 0 {
+                            set totaldmg = totaldmg + dmg
+                        }
+                    }
+                }
+            }
+        }
+    }
+    ;; de00
+    var factdmg
+    var popdmg
+    do {
+        val h = game_num_fact_hp // 5
+        val hr = h * 2
+        val hb = game_num_fact_hp - h
+        var v = totaldmg // (rnd_1_n(hr, g) + hb)
+        set v = SETMIN(v, p.factories)
+        set factdmg = v
+    }
+    do {
+        val h = game_num_pop_hp // 5
+        val hr = h * 2
+        val hb = game_num_pop_hp - h
+        var v = totaldmg // (rnd_1_n(hr, g) + hb)
+        set v = v + totalbio
+        set v = SETMIN(v, p.pop)
+        set popdmg = v
+    }
+    return (popdmg, factdmg, totalbio)
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_turn_bomb (g) {
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        val owner = p.owner
+        if owner == PLAYER_NONE {
+            skip
+        }
+        loop i in g.players {
+            val ea = g.eto@(i)
+            if i == owner {
+                skip
+            }
+            var v4 = 0
+            loop j in ea.shipdesigns_num {
+                if ea.orbit@(pli).ships@(j) > 0 {
+                    set v4 = v4 + 2
+                }
+            }
+            var flag_treaty = false
+            if (ea.treaty@(owner) == TREATY_ALLIANCE) || ((ea.treaty@(owner) == TREATY_NONAGGRESSION) && IS_AI(g, i)) {
+                set flag_treaty = true
+            }
+            if (v4 > 0) && (!flag_treaty) {
+                var pop_inbound = 0
+                var flag_do_bomb
+                loop j in g.transport_num {
+                    val r = g.transport@(j)
+                    if (r.owner == i) && (r.dest == pli) {
+                        set pop_inbound = pop_inbound + r.pop
+                    }
+                }
+                ;; cf52
+                var flag_play_music = true
+                val popdmg, factdmg, biodmg = game_turn_bomb_damage(g, pli, i)
+                if (popdmg == 0) && (factdmg == 0) {
+                    set flag_do_bomb = false
+                } else {
+                    if IS_HUMAN(g, i) {
+                        set flag_do_bomb = ui_bomb_ask(g, i, pli, pop_inbound)
+                        set flag_play_music = false
+                    } else {
+                        set flag_do_bomb = game_ai.bomb(g, i, pli, pop_inbound)
+                    }
+                }
+                ;; d004
+                if flag_do_bomb || (!game_num_orbital_bio_fix) {
+                    if biodmg != 0 {
+                        var v = p.max_pop3 - biodmg
+                        set v = SETMAX(v, 10)
+                        set p.max_pop3 = i16(v)
+                    }
+                }
+                if flag_do_bomb && ((popdmg > 0) || (factdmg > 0)) {
+                    set p.pop = i16(p.pop - popdmg)
+                    set p.factories = i16(p.factories - factdmg)
+                    set p.rebels = SUBSAT0(p.rebels, (popdmg // 2) + 1)
+                    if p.pop == 0 {
+                        game_planet_destroy(g, pli, i)
+                    }
+                    if IS_HUMAN(g, i) || IS_HUMAN(g, owner) {
+                        val human = if IS_HUMAN(g, i) => i => owner
+                        val hide_other = IS_HUMAN(g, i) && IS_HUMAN(g, owner)
+                        ui_bomb_show(g, human, i, owner, pli, popdmg, factdmg, flag_play_music, hide_other)
+                    }
+                    if (p.pop == 0) && IS_HUMAN(g, i) {
+                        var dv
+                        if ea.treaty@(owner) < TREATY_WAR {
+                            game_diplo_start_war_swap(g, owner, i)
+                            set dv = 13
+                        } else {
+                            set dv = 10
+                        }
+                        game_diplo_act(g, -50 - rnd_1_n(50, g), i, owner, dv, pli, 0)
+                    } else {
+                        ;; d118
+                        game_diplo_battle_finish(g, owner, i, popdmg, 0, biodmg, 0, pli)
+                    }
+                }
+            }
+        }
+    }
+}

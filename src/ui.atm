@@ -41,3 +41,10 @@ var ui_spy_steal = func (g, spy, target, flags_field) { ui_not_set("ui_spy_steal
 var ui_spy_stolen = func (g, pi, spy, field, tech) { ui_not_set("ui_spy_stolen") }
 var ui_spy_sabotage_ask = func (g, spy, target) { ui_not_set("ui_spy_sabotage_ask") }
 var ui_spy_sabotage_done = func (g, pi, spy, target, act, other1, other2, planet, snum) { ui_not_set("ui_spy_sabotage_done") }
+
+;; The bombing of planets.
+var ui_bomb_ask = func (g, pi, planet_i, pop_inbound) { ui_not_set("ui_bomb_ask") }
+var ui_bomb_show = func (g, pi, attacker_i, owner_i, planet_i, popdmg, factdmg, play_music, hide_other) { ui_not_set("ui_bomb_show") }
+
+;; The ground combat (`gr` is a `struct ground_s`).
+var ui_ground = func (g, gr) { ui_not_set("ui_ground") }
