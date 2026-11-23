@@ -68,3 +68,16 @@ func carrayf (n, f) {
     }
     t
 }
+
+;; `*dst = *src` of two structures of C (or two arrays): every field copied,
+;; the arrays and structures inside copied in place, so `dst` keeps its own
+;; tables, as `memcpy` keeps two copies apart.
+func cstruct_copy (dst, src) {
+    loop k,v in src {
+        if type(v) == "table" {
+            cstruct_copy(dst@(k), v)
+        } else {
+            set dst@(k) = v
+        }
+    }
+}

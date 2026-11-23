@@ -1,6 +1,7 @@
 ;; Port of c/src/util.c: the functions on strings and paths that the port
 ;; needs so far. In C they allocate; here, paths are Atmos strings.
 
+include "ctypes.atm"
 include "lib.atm"
 include "os/unix/osdefs.atm"
 
@@ -50,3 +51,24 @@ func util_trim_whitespace (buf, bufsize) {
     }
 }
 
+
+;; `util_table_remove_item_any_order(itemi, tbl, itemsz, itemnum)`: the last
+;; of the `itemnum` items copied over the item `itemi` (the size of an item
+;; is that of its table here).
+func util_table_remove_item_any_order (itemi, tbl, itemnum) {
+    if (itemi < 0) || (itemi >= (itemnum - 1)) {
+        return nil
+    }
+    cstruct_copy(tbl@(itemi), tbl@(itemnum - 1))
+}
+
+;; `util_table_remove_item_keep_order(itemi, tbl, itemsz, itemnum)`: the
+;; items after `itemi` moved one down; the last one stays as it was.
+func util_table_remove_item_keep_order (itemi, tbl, itemnum) {
+    if (itemi < 0) || (itemi >= (itemnum - 1)) {
+        return nil
+    }
+    loop i in (itemi, itemnum - 2) {
+        cstruct_copy(tbl@(i), tbl@(i + 1))
+    }
+}
