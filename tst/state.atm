@@ -93,6 +93,25 @@ func design_fit (op) {
     out(" %s %d %d\n", cstr(gd.sd.name), gd.sd.space, gd.sd.cost)
 }
 
+;; The interface (ui.atm) that the logic calls, as tst/c/state.c has it.
+set ui_explore = func (g_, pi, planet_i, by_scanner, flag_colony_ship) {
+    out("explore %d %d %d %d\n", pi, planet_i, cint(by_scanner), cint(flag_colony_ship))
+    (planet_i & 1) != 0
+}
+set ui_landing = func (g_, pi, planet_i) {
+    out("landing %d %d\n", pi, planet_i)
+}
+set ui_turn_msg = func (g_, pi, str) {
+    out("msg %d %s\n", pi, cstr(str))
+}
+
+set ui_gmap_basic_init = func (g_, show_player_switch) { nil }
+set ui_gmap_basic_start_player = func (ctx, pi) { nil }
+set ui_gmap_basic_start_frame = func (ctx, pi) { nil }
+set ui_gmap_basic_draw_frame = func (ctx, pi) { nil }
+set ui_gmap_basic_finish_frame = func (ctx, pi) { nil }
+set ui_gmap_basic_shutdown = func (ctx) { nil }
+
 func do_op (op) {
     val name = string.split(op, ":")@0
     match name {
@@ -184,6 +203,43 @@ func do_op (op) {
         "design_scrap" => game_design_scrap(g, arg(op, 0), arg(op, 1), arg(op, 2) != 0)
         "design_fit" => design_fit(op)
         "diplo_adjust" => game_turn_diplo_adjust(g)
+        "set_trans" => {
+            ;; transports of the k-th planet of a player (arg 1) to: the
+            ;; planet itself (mode 0), the nearest planet of another or no
+            ;; owner (1), the nearest planet of another player (2)
+            val pi = arg(op, 0)
+            var k = arg(op, 1)
+            val mode = arg(op, 2)
+            loop i in g.galaxy_stars {
+                val p = g.planet@(i)
+                if p.owner == pi {
+                    if k == 0 {
+                        var best = i
+                        var bestd = 0x7fffffff
+                        if mode != 0 {
+                            loop j in g.galaxy_stars {
+                                val q = g.planet@(j)
+                                val d = ((q.x - p.x) * (q.x - p.x)) + ((q.y - p.y) * (q.y - p.y))
+                                if (q.owner != pi) && ((mode == 1) || (q.owner != PLAYER_NONE)) && (d < bestd) {
+                                    set best = j
+                                    set bestd = d
+                                }
+                            }
+                        }
+                        set p.trans_dest = best
+                        set p.trans_num = arg(op, 3)
+                        break
+                    }
+                    set k = k - 1
+                }
+            }
+        }
+        "move_ships" => game_turn_move_ships(g)
+        "explore" => game_turn_explore(g)
+        "transport" => game_turn_transport(g)
+        "coup" => game_turn_coup(g)
+        "have_met" => game_turn_update_have_met(g)
+        "transport_shoot" => out("killed %d\n", game_turn_transport_shoot(g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3), arg(op, 4), arg(op, 5), arg(op, 6)))
         "diplo_act" => game_diplo_act(g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3), arg(op, 4), arg(op, 5))
         "break_treaty" => game_diplo_break_treaty(g, arg(op, 0), arg(op, 1))
         "start_war" => game_diplo_start_war(g, arg(op, 0), arg(op, 1))

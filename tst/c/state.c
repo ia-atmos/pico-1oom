@@ -34,6 +34,20 @@ void hw_log_error(const char *msg) { fputs(msg, stdout); }
 /* Of game.c (not linked): an option, all false by default. */
 bool game_opt_message_filter[FINISHED_NUM] = { false, false, false, false, false, false };
 
+/* The interface (ui.h) that the logic calls: each call printed, and a fixed
+   answer to ui_explore (colonize at the planets of odd index). */
+char *ui_get_strbuf(void) { static char buf[UI_STRBUF_SIZE]; return buf; }
+bool ui_explore(struct game_s *g_, int pi, uint8_t planet_i, bool by_scanner, bool flag_colony_ship) { printf("explore %d %d %d %d\n", pi, planet_i, by_scanner, flag_colony_ship); return (planet_i & 1) != 0; }
+void ui_landing(struct game_s *g_, int pi, uint8_t planet_i) { printf("landing %d %d\n", pi, planet_i); }
+void ui_turn_msg(struct game_s *g_, int pi, const char *str) { printf("msg %d %s\n", pi, str); }
+
+void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
+void ui_gmap_basic_start_player(void *ctx, int pi) { }
+void ui_gmap_basic_start_frame(void *ctx, int pi) { }
+void ui_gmap_basic_draw_frame(void *ctx, int pi) { }
+void ui_gmap_basic_finish_frame(void *ctx, int pi) { }
+void ui_gmap_basic_shutdown(void *ctx) { }
+
 static struct game_s g;
 static struct game_aux_s gaux;
 
@@ -173,6 +187,32 @@ static void do_op(const char *op)
         for (int i = 0; i < g.players; ++i) { for (int j = 0; j < g.players; ++j) { printf(" %d,%d", game_diplo_get_mood(&g, i, j), game_diplo_is_gone(&g, i, j)); } }
         printf("\n");
     }
+    OP(set_trans) {
+        /* transports of the k-th planet of a player (arg 1) to: the planet
+           itself (mode 0), the nearest planet of another or no owner (1),
+           the nearest planet of another player (2) */
+        int pi = arg(op, 0), k = arg(op, 1), mode = arg(op, 2);
+        for (int i = 0; i < g.galaxy_stars; ++i) {
+            planet_t *p = &g.planet[i];
+            if ((p->owner == pi) && (k-- == 0)) {
+                int best = i, bestd = 0x7fffffff;
+                for (int j = 0; (mode != 0) && (j < g.galaxy_stars); ++j) {
+                    const planet_t *q = &g.planet[j];
+                    int d = (q->x - p->x) * (q->x - p->x) + (q->y - p->y) * (q->y - p->y);
+                    if ((q->owner != pi) && ((mode == 1) || (q->owner != PLAYER_NONE)) && (d < bestd)) { best = j; bestd = d; }
+                }
+                p->trans_dest = best;
+                p->trans_num = arg(op, 3);
+                break;
+            }
+        }
+    }
+    OP(move_ships) { game_turn_move_ships(&g); }
+    OP(explore) { game_turn_explore(&g); }
+    OP(transport) { game_turn_transport(&g); }
+    OP(coup) { game_turn_coup(&g); }
+    OP(have_met) { game_turn_update_have_met(&g); }
+    OP(transport_shoot) { printf("killed %d\n", game_turn_transport_shoot(&g, arg(op, 0), arg(op, 1), arg(op, 2), arg(op, 3), arg(op, 4), arg(op, 5), arg(op, 6))); }
     else { printf("unknown op %s\n", op); exit(1); }
 }
 
