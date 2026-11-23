@@ -20,6 +20,7 @@
 #include "lbx.h"
 #include "os.h"
 #include "game_ai.h"
+#include "game_audience.h"
 #include "game_design.h"
 #include "game_election.h"
 #include "game_end.h"
@@ -108,6 +109,40 @@ void ui_news(struct game_s *g_, struct news_s *ns)
     printf("\n");
 }
 
+/* The audiences: each call printed with the state of the audience; the
+   choices follow a counter, never a disabled option. */
+static int aud_n = 0;
+static void au_print(const char *what, struct audience_s *au)
+{
+    /* (num_bc is garbage of the stack in C until the main menu sets it) */
+    printf("%s %d %d %d %d %d %d %d '%s'", what, au->ph, au->pa, au->mode, au->dtype, au->dtype_next, au->gfxi, au->musi, au->buf ? au->buf : "(null)");
+    /* condtbl is valid only while a menu asks (it points to the stack in C) */
+    bool asks = (strncmp(what, "au_ask", 6) == 0);
+    for (int i = 0; (i < AUDIENCE_STR_MAX) && au->strtbl[i]; ++i) { printf(" [%s]%d", au->strtbl[i], (asks && au->condtbl) ? au->condtbl[i] : 1); }
+    printf("\n");
+}
+static int au_ask(const char *what, struct audience_s *au)
+{
+    int n = 0, v;
+    au_print(what, au);
+    while ((n < AUDIENCE_STR_MAX) && au->strtbl[n]) { ++n; }
+    ++aud_n;
+    v = (aud_n * 3) % (n + 1) - 1;
+    if ((v >= 0) && au->condtbl && !au->condtbl[v]) { v = -1; }
+    printf("-> %d\n", v);
+    return v;
+}
+void ui_audience_start(struct audience_s *au) { printf("au_start %d %d\n", au->ph, au->pa); }
+void ui_audience_show1(struct audience_s *au) { au_print("au_show1", au); }
+void ui_audience_show2(struct audience_s *au) { au_print("au_show2", au); }
+void ui_audience_show3(struct audience_s *au) { au_print("au_show3", au); }
+int16_t ui_audience_ask2a(struct audience_s *au) { return au_ask("au_ask2a", au); }
+int16_t ui_audience_ask2b(struct audience_s *au) { return au_ask("au_ask2b", au); }
+int16_t ui_audience_ask3(struct audience_s *au) { return au_ask("au_ask3", au); }
+int16_t ui_audience_ask4(struct audience_s *au) { return au_ask("au_ask4", au); }
+void ui_audience_newtech(struct audience_s *au, int pi) { printf("au_newtech %d\n", pi); }
+void ui_audience_end(struct audience_s *au) { au_print("au_end", au); }
+
 /* The functions of the AI that are not ported yet, replaced by fixed
    answers that print each call. */
 static bool test_ai_bomb(struct game_s *g_, player_id_t player, uint8_t planet, int pop_inbound) { printf("ai_bomb %d %d %d\n", player, planet, pop_inbound); return ((planet + player) & 1) == 0; }
@@ -118,6 +153,21 @@ static void test_ai_plague(struct game_s *g_, uint8_t planet) { printf("ai_plagu
 static void test_ai_nova(struct game_s *g_, uint8_t planet) { printf("ai_nova %d\n", planet); }
 static void test_ai_comet(struct game_s *g_, uint8_t planet) { printf("ai_comet %d\n", planet); }
 static void test_ai_pirates(struct game_s *g_, uint8_t planet) { printf("ai_pirates %d\n", planet); }
+static void test_ai_aud_start_human(struct audience_s *au) { printf("ai_aud_start_human\n"); au->dtype = 22; au->mode = 0; }
+static int test_ai_aud_si(const char *what, struct audience_s *au) { ++aud_n; printf("ai_%s %d\n", what, aud_n % 4); return aud_n % 4; }
+static int test_ai_aud_treaty_nap(struct audience_s *au) { return test_ai_aud_si("aud_nap", au); }
+static int test_ai_aud_treaty_alliance(struct audience_s *au) { return test_ai_aud_si("aud_alliance", au); }
+static int test_ai_aud_treaty_peace(struct audience_s *au) { return test_ai_aud_si("aud_peace", au); }
+static int test_ai_aud_treaty_declare_war(struct audience_s *au) { return test_ai_aud_si("aud_declare_war", au); }
+static int test_ai_aud_treaty_break_alliance(struct audience_s *au) { return test_ai_aud_si("aud_break_alliance", au); }
+static int test_ai_aud_trade(struct audience_s *au) { return test_ai_aud_si("aud_trade", au); }
+static bool test_ai_aud_sweeten(struct audience_s *au, int *bcptr, tech_field_t *fieldptr, uint8_t *techptr) { ++aud_n; *bcptr = 25 * (aud_n % 3); *fieldptr = 0; *techptr = 0; printf("ai_aud_sweeten %d\n", *bcptr); return (aud_n % 2) == 0; }
+static uint8_t test_ai_aud_threaten(struct audience_s *au) { printf("ai_aud_threaten\n"); return 73; }
+static void test_ai_aud_tribute_bc(struct audience_s *au, int selected, int bc) { printf("ai_aud_tribute_bc %d %d\n", selected, bc); au->tribute_bc = bc; }
+static void test_ai_aud_tribute_tech(struct audience_s *au, int selected, tech_field_t field, uint8_t tech) { printf("ai_aud_tribute_tech %d %d %d\n", selected, field, tech); au->tribute_field = field; au->tribute_tech = tech; }
+static int test_ai_aud_tech_scale(struct audience_s *au) { printf("ai_aud_tech_scale\n"); return 100; }
+static uint8_t test_ai_aud_get_dtype(struct audience_s *au, uint8_t dtype, int a2) { printf("ai_aud_get_dtype %d %d\n", dtype, a2); return dtype; }
+static bool test_ai_aud_later(struct audience_s *au) { ++aud_n; printf("ai_aud_later %d\n", (aud_n % 5) == 4); return (aud_n % 5) == 4; }
 static struct game_ai_s test_ai;
 
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
@@ -324,6 +374,9 @@ static void do_op(const char *op)
         bool r = game_turn_check_end(&g, &ge);
         printf("check_end %d %d %d %d '%s'\n", r, ge.type, ge.race, ge.banner_dead, ge.name ? ge.name : "(null)");
     }
+    OP(audience) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); game_audience(&g, arg(op, 0), arg(op, 1)); }
+    OP(set_diplo_type) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); }
+    OP(audiences) { game_turn_audiences(&g); }
     OP(set_event_roll) { game_num_event_roll = arg(op, 0); }
     OP(set_year) { g.year = arg(op, 0); }
     OP(event_new) { game_event_new(&g); }
@@ -353,6 +406,20 @@ int main(int argc, char **argv)
     test_ai.nova = test_ai_nova;
     test_ai.comet = test_ai_comet;
     test_ai.pirates = test_ai_pirates;
+    test_ai.aud_start_human = test_ai_aud_start_human;
+    test_ai.aud_treaty_nap = test_ai_aud_treaty_nap;
+    test_ai.aud_treaty_alliance = test_ai_aud_treaty_alliance;
+    test_ai.aud_treaty_peace = test_ai_aud_treaty_peace;
+    test_ai.aud_treaty_declare_war = test_ai_aud_treaty_declare_war;
+    test_ai.aud_treaty_break_alliance = test_ai_aud_treaty_break_alliance;
+    test_ai.aud_trade = test_ai_aud_trade;
+    test_ai.aud_sweeten = test_ai_aud_sweeten;
+    test_ai.aud_threaten = test_ai_aud_threaten;
+    test_ai.aud_tribute_bc = test_ai_aud_tribute_bc;
+    test_ai.aud_tribute_tech = test_ai_aud_tribute_tech;
+    test_ai.aud_tech_scale = test_ai_aud_tech_scale;
+    test_ai.aud_get_dtype = test_ai_aud_get_dtype;
+    test_ai.aud_later = test_ai_aud_later;
     game_ai = &test_ai;
     os_set_path_data(argv[1]);
     lbxfile_init();
