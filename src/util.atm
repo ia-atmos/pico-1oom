@@ -72,3 +72,17 @@ func util_table_remove_item_keep_order (itemi, tbl, itemnum) {
         cstruct_copy(tbl@(i), tbl@(i + 1))
     }
 }
+
+;; `util_str_tolower(&buf[offs], bufsize)`: the letters A to Z of a vector of
+;; bytes lowered, up to its zero (`tolower` of the C locale).
+func util_str_tolower (buf, offs, bufsize) {
+    var i = offs
+    loop {
+        while (i < (offs + bufsize)) && (buf@(i) != 0)
+        val c = buf@(i)
+        if (c >= 65) && (c <= 90) {
+            set buf@(i) = c + 32
+        }
+        set i = i + 1
+    }
+}

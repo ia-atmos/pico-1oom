@@ -66,3 +66,18 @@ func lib_sprintf (buf, bufsize, fmt, ...) {
     #s
 }
 
+
+;; `strcat` into a vector of bytes, with the check of 1oom.
+func lib_strcat (dst, src, dst_bufsize) {
+    val s = cstr(src)
+    val d = cstr(dst)
+    val combined_len = #s + #d
+    if combined_len >= dst_bufsize {
+        log_fatal_and_die("lib_strcat: destination buffer too small, need %d, have %d\n", combined_len + 1, dst_bufsize)
+    }
+    loop i in #s {
+        set dst@(#d + i) = string.byte(s, i)
+    }
+    set dst@(combined_len) = 0
+    dst
+}
