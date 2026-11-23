@@ -1,10 +1,15 @@
 ;; A state of the game, operations in order, and the whole state as text,
-;; as tst/c/state.c does it (see that file for the usage).
+;; as tst/c/state.c does it (see that file for the usage). Some ops also
+;; print, as the C does.
 
 include "../src/game/game_aux.atm"
 include "../src/game/game_misc.atm"
 include "../src/game/game_new.atm"
 include "../src/game/game_save.atm"
+include "../src/game/game_design.atm"
+include "../src/game/game_fleet.atm"
+include "../src/game/game_stat.atm"
+include "../src/game/game_turn.atm"
 include "gamedump.atm"
 
 val args = [...]
@@ -18,6 +23,73 @@ game_aux_init(gaux, g)
 func arg (op, k) {
     val ps = string.split(op, ":")
     tonumber(ps@(k + 1) || "0") || 0
+}
+
+pin outs = []
+func out (fmt, ...) {
+    set outs@+ = string.format(fmt, ...)
+}
+
+;; Every table of the design screen, for a design of a player.
+func design_fit (op) {
+    pin gd = game_design_s()
+    pin d = design_data_s()
+    pin buf = carray(WEAPON_NUM)
+    val pi = arg(op, 0)
+    game_design_prepare(g, gd, pi, g.srd@(pi).design@(arg(op, 1)))
+    out("prepare %d %d:", gd.lookbase, gd.sd_num)
+    loop i in SHIP_HULL_NUM {
+        out(" %d %s", gd.tbl_shiplook_hull@(i), cstr(gd.names@(i)))
+    }
+    out("\n")
+    set d.g = g
+    set d.gd = gd
+    set d.api = pi
+    game_design_init_maxtech_haveflags(d)
+    out("flags %d %d %d %d %d %d %d %d %d:", d.last_avail_tech_weap, d.last_avail_tech_special, cint(d.flag_disable_cspeed), cint(d.flag_disable_comp), cint(d.flag_disable_jammer), cint(d.flag_disable_shield), cint(d.flag_disable_armor), cint(d.flag_disable_engine), gd.sd.hp)
+    loop i in WEAPON_SLOT_NUM {
+        out(" %d,%d,%d", cint(d.flag_tbl_weapon@(i)), d.flag_tbl_weap_up@(i), d.flag_tbl_weap_dn@(i))
+    }
+    loop i in SPECIAL_SLOT_NUM {
+        out(" %d", cint(d.flag_tbl_special@(i)))
+    }
+    loop i in SHIP_HULL_NUM {
+        out(" %d", cint(d.flag_tbl_hull@(i)))
+    }
+    out("\n")
+    func fit (name, last) {
+        out("%s %d:", name, last)
+        loop i in (0, last) {
+            out(" %d", buf@(i))
+        }
+        out("\n")
+    }
+    fit("comp", game_design_build_tbl_fit_comp(g, gd, buf))
+    fit("shield", game_design_build_tbl_fit_shield(g, gd, buf))
+    fit("jammer", game_design_build_tbl_fit_jammer(g, gd, buf))
+    fit("armor", game_design_build_tbl_fit_armor(g, gd, buf))
+    fit("engine", game_design_build_tbl_fit_engine(g, gd, buf))
+    fit("man", game_design_build_tbl_fit_man(g, gd, buf))
+    fit("weapon", game_design_build_tbl_fit_weapon(g, gd, buf, 0, WEAPON_GROUP_ALL))
+    fit("weapon", game_design_build_tbl_fit_weapon(g, gd, buf, 1, WEAPON_GROUP_BEAMS))
+    fit("weapon", game_design_build_tbl_fit_weapon(g, gd, buf, 2, WEAPON_GROUP_MISSILES))
+    fit("weapon", game_design_build_tbl_fit_weapon(g, gd, buf, 3, WEAPON_GROUP_BOMBS))
+    fit("special", game_design_build_tbl_fit_special(g, gd, buf, 0))
+    fit("special", game_design_build_tbl_fit_special(g, gd, buf, 2))
+    loop i in 13 {
+        out(" %d/%d", game_design_calc_cost_item(gd, i, 1), game_design_calc_space_item(gd, i, 1))
+    }
+    out("\n")
+    game_design_look_next(gd)
+    out("look %d", gd.sd.look)
+    game_design_look_prev(gd)
+    game_design_look_prev(gd)
+    out(" %d", gd.sd.look)
+    game_design_look_fix(g, pi, gd.sd)
+    out(" %d", gd.sd.look)
+    game_design_compact_slots(gd.sd)
+    game_design_clear(gd)
+    out(" %s %d %d\n", cstr(gd.sd.name), gd.sd.space, gd.sd.cost)
 }
 
 func do_op (op) {
@@ -49,6 +121,67 @@ func do_op (op) {
         "soil_enrich" => game_turn_soil_enrich(g.planet@(arg(op, 0)), arg(op, 1), arg(op, 2) != 0)
         "equalize_tech" => game_equalize_slider_group(g.eto@(arg(op, 0)).tech.slider, TECH_FIELD_NUM, g.eto@(arg(op, 0)).tech.slider_lock)
         "adjust_tech" => game_adjust_slider_group(g.eto@(arg(op, 0)).tech.slider, arg(op, 1), arg(op, 2), TECH_FIELD_NUM, g.eto@(arg(op, 0)).tech.slider_lock)
+        "limit_ships" => game_turn_limit_ships(g)
+        "countdown_ceasefire" => game_turn_countdown_ceasefire(g)
+        "mood_blunder" => game_turn_update_mood_blunder(g)
+        "init_z_finished" => game_turn_init_z_finished(g)
+        "send_transport" => game_turn_send_transport(g)
+        "build_eco" => game_turn_build_eco(g)
+        "update_trade" => game_turn_update_trade(g)
+        "build_def" => game_turn_build_def(g)
+        "build_ship" => game_turn_build_ship(g)
+        "reserve" => game_turn_reserve(g)
+        "build_ind" => game_turn_build_ind(g)
+        "disable_slider" => game_turn_finished_disable_slider(g, g.planet@(arg(op, 0)), arg(op, 1), arg(op, 2) != 0)
+        "remove_empty_fleets" => game_remove_empty_fleets(g)
+        "remove_player_fleets" => game_remove_player_fleets(g, arg(op, 0))
+        "fleet_unrefuel" => game_fleet_unrefuel(g)
+        "any_dest" => out("any_dest %d\n", cint(game_fleet_any_dest_player(g, arg(op, 0), arg(op, 1))))
+        "send_half" => {
+            ;; half of the ships of each design of a player at a planet
+            val pi = arg(op, 0)
+            val from = arg(op, 1)
+            val n = g.eto@(pi).shipdesigns_num
+            pin ships = carray(NUM_SHIPDESIGNS)
+            pin types = carray(NUM_SHIPDESIGNS)
+            loop i in n {
+                set types@(i) = n - 1 - i
+                set ships@(i) = g.eto@(pi).orbit@(from).ships@(n - 1 - i) // 2
+            }
+            val r = if arg(op, 3) != 0 => game_send_fleet_retreat(g, pi, from, arg(op, 2), ships, types, n) => game_send_fleet_from_orbit(g, pi, from, arg(op, 2), ships, types, n)
+            out("send %d\n", cint(r))
+        }
+        "redirect" => {
+            if arg(op, 0) < g.enroute_num {
+                game_fleet_redirect(g, g.enroute@(arg(op, 0)), arg(op, 1), arg(op, 2))
+            }
+        }
+        "fleet_speed" => {
+            if arg(op, 0) < g.enroute_num {
+                out("speed %d\n", game_fleet_get_speed(g, g.enroute@(arg(op, 0)), arg(op, 1), arg(op, 2)))
+            }
+        }
+        "stats" => {
+            pin d = game_stats_s()
+            game_stats_all(g, arg(op, 0), d)
+            out("stats %d:", d.num)
+            loop i in d.num {
+                out(" %d", d.p@(i))
+                loop s in 6 {
+                    out(",%d", d.v@(s)@(i))
+                }
+            }
+            out("\n")
+        }
+        "design_ai" => {
+            pin gd = game_design_s()
+            ;; the look: arg 2 within those of the hull and banner of the player
+            game_design_prepare_ai(g, gd, arg(op, 0), arg(op, 1), (g.eto@(arg(op, 0)).banner * SHIP_LOOK_PER_BANNER) + (arg(op, 1) * SHIP_LOOK_PER_HULL) + arg(op, 2))
+            out("design_ai %s %d %d %d\n", cstr(gd.sd.name), gd.sd.space, gd.sd.cost, gd.sd.engines)
+            game_design_add(g, arg(op, 0), gd.sd, true)
+        }
+        "design_scrap" => game_design_scrap(g, arg(op, 0), arg(op, 1), arg(op, 2) != 0)
+        "design_fit" => design_fit(op)
         else => {
             print("unknown op " ++ op)
             os.exit(1)
@@ -91,6 +224,7 @@ loop {
     do_op(args@(k))
     set k = k + 1
 }
+io.write(vector.join(outs, ""))
 pin f = io.open(args@1, "w")
 io.write(f, gamedump(g))
 io.close(f)

@@ -3,7 +3,9 @@
    whole state as text (tst/c/gamedump.h). Not part of the port.
    usage: state DATADIR OUT new OPT RACES BANNERS GSEED HUMANS IMPROVED NEBULAE [OP...]
           state DATADIR OUT load SAVE [OP...]
-   An OP is a name with its arguments after ':' (see ops below). */
+   An OP is a name with its arguments after ':' (see ops below). Some ops
+   also print (game_stat, game_design): the output is compared too.
+   game_turn.c is included, for its static phases. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -17,12 +19,19 @@
 #include "game_tech.h"
 #include "lbx.h"
 #include "os.h"
+#include "game_design.h"
+#include "game_fleet.h"
+#include "game_stat.h"
 #include "gamedump.h"
+#include "../../c/src/game/game_turn.c"
 
 int64_t hw_get_time_us(void) { struct timeval tv; gettimeofday(&tv, NULL); return (int64_t)tv.tv_usec + 1000000ll * (int64_t)tv.tv_sec; }
 void hw_log_message(const char *msg) { (void)msg; }
 void hw_log_warning(const char *msg) { (void)msg; }
 void hw_log_error(const char *msg) { fputs(msg, stdout); }
+
+/* Of game.c (not linked): an option, all false by default. */
+bool game_opt_message_filter[FINISHED_NUM] = { false, false, false, false, false, false };
 
 static struct game_s g;
 static struct game_aux_s gaux;
@@ -72,6 +81,77 @@ static void do_op(const char *op)
     OP(soil_enrich) { game_turn_soil_enrich(&g.planet[arg(op, 0)], arg(op, 1), arg(op, 2)); }
     OP(equalize_tech) { game_equalize_slider_group(g.eto[arg(op, 0)].tech.slider, TECH_FIELD_NUM, g.eto[arg(op, 0)].tech.slider_lock); }
     OP(adjust_tech) { game_adjust_slider_group(g.eto[arg(op, 0)].tech.slider, arg(op, 1), arg(op, 2), TECH_FIELD_NUM, g.eto[arg(op, 0)].tech.slider_lock); }
+    OP(limit_ships) { game_turn_limit_ships(&g); }
+    OP(countdown_ceasefire) { game_turn_countdown_ceasefire(&g); }
+    OP(mood_blunder) { game_turn_update_mood_blunder(&g); }
+    OP(init_z_finished) { game_turn_init_z_finished(&g); }
+    OP(send_transport) { game_turn_send_transport(&g); }
+    OP(build_eco) { game_turn_build_eco(&g); }
+    OP(update_trade) { game_turn_update_trade(&g); }
+    OP(build_def) { game_turn_build_def(&g); }
+    OP(build_ship) { game_turn_build_ship(&g); }
+    OP(reserve) { game_turn_reserve(&g); }
+    OP(build_ind) { game_turn_build_ind(&g); }
+    OP(disable_slider) { game_turn_finished_disable_slider(&g, &g.planet[arg(op, 0)], arg(op, 1), arg(op, 2)); }
+    OP(remove_empty_fleets) { game_remove_empty_fleets(&g); }
+    OP(remove_player_fleets) { game_remove_player_fleets(&g, arg(op, 0)); }
+    OP(fleet_unrefuel) { game_fleet_unrefuel(&g); }
+    OP(any_dest) { printf("any_dest %d\n", game_fleet_any_dest_player(&g, arg(op, 0), arg(op, 1))); }
+    OP(send_half) {
+        /* half of the ships of each design of a player at a planet */
+        int pi = arg(op, 0), from = arg(op, 1), n = g.eto[pi].shipdesigns_num;
+        shipcount_t ships[NUM_SHIPDESIGNS];
+        uint8_t types[NUM_SHIPDESIGNS];
+        for (int i = 0; i < n; ++i) { types[i] = n - 1 - i; ships[i] = g.eto[pi].orbit[from].ships[n - 1 - i] / 2; }
+        printf("send %d\n", arg(op, 3) ? game_send_fleet_retreat(&g, pi, from, arg(op, 2), ships, types, n)
+                                        : game_send_fleet_from_orbit(&g, pi, from, arg(op, 2), ships, types, n));
+    }
+    OP(redirect) { if (arg(op, 0) < g.enroute_num) { game_fleet_redirect(&g, &g.enroute[arg(op, 0)], arg(op, 1), arg(op, 2)); } }
+    OP(fleet_speed) { if (arg(op, 0) < g.enroute_num) { printf("speed %d\n", game_fleet_get_speed(&g, &g.enroute[arg(op, 0)], arg(op, 1), arg(op, 2))); } }
+    OP(stats) {
+        struct game_stats_s d;
+        game_stats_all(&g, arg(op, 0), &d);
+        printf("stats %d:", d.num);
+        for (int i = 0; i < d.num; ++i) { printf(" %d", d.p[i]); for (int s = 0; s < 6; ++s) { printf(",%d", d.v[s][i]); } }
+        printf("\n");
+    }
+    OP(design_ai) {
+        struct game_design_s gd;
+        /* the look: arg 2 within those of the hull and banner of the player */
+        game_design_prepare_ai(&g, &gd, arg(op, 0), arg(op, 1), g.eto[arg(op, 0)].banner * SHIP_LOOK_PER_BANNER + arg(op, 1) * SHIP_LOOK_PER_HULL + arg(op, 2));
+        printf("design_ai %s %d %d %d\n", gd.sd.name, gd.sd.space, gd.sd.cost, gd.sd.engines);
+        game_design_add(&g, arg(op, 0), &gd.sd, true);
+    }
+    OP(design_scrap) { game_design_scrap(&g, arg(op, 0), arg(op, 1), arg(op, 2)); }
+    OP(design_fit) {
+        /* every table of the design screen, for a design of a player */
+        struct game_design_s gd;
+        struct design_data_s d;
+        int8_t buf[WEAPON_NUM];
+        int pi = arg(op, 0);
+        game_design_prepare(&g, &gd, pi, &g.srd[pi].design[arg(op, 1)]);
+        printf("prepare %d %d:", gd.lookbase, gd.sd_num);
+        for (int i = 0; i < SHIP_HULL_NUM; ++i) { printf(" %d %s", gd.tbl_shiplook_hull[i], gd.names[i]); }
+        printf("\n");
+        d.g = &g; d.gd = &gd; d.api = pi;
+        game_design_init_maxtech_haveflags(&d);
+        printf("flags %d %d %d %d %d %d %d %d %d:", d.last_avail_tech_weap, d.last_avail_tech_special, d.flag_disable_cspeed, d.flag_disable_comp, d.flag_disable_jammer, d.flag_disable_shield, d.flag_disable_armor, d.flag_disable_engine, gd.sd.hp);
+        for (int i = 0; i < WEAPON_SLOT_NUM; ++i) { printf(" %d,%d,%d", d.flag_tbl_weapon[i], d.flag_tbl_weap_up[i], d.flag_tbl_weap_dn[i]); }
+        for (int i = 0; i < SPECIAL_SLOT_NUM; ++i) { printf(" %d", d.flag_tbl_special[i]); }
+        for (int i = 0; i < SHIP_HULL_NUM; ++i) { printf(" %d", d.flag_tbl_hull[i]); }
+        printf("\n");
+#define FIT(n_, ...) { int last = game_design_build_tbl_fit_##n_(&g, &gd, buf __VA_ARGS__); printf(#n_ " %d:", last); for (int i = 0; i <= last; ++i) { printf(" %d", buf[i]); } printf("\n"); }
+        FIT(comp) FIT(shield) FIT(jammer) FIT(armor) FIT(engine) FIT(man)
+        FIT(weapon, , 0, WEAPON_GROUP_ALL) FIT(weapon, , 1, WEAPON_GROUP_BEAMS) FIT(weapon, , 2, WEAPON_GROUP_MISSILES) FIT(weapon, , 3, WEAPON_GROUP_BOMBS)
+        FIT(special, , 0) FIT(special, , 2)
+        for (int i = 0; i < 13; ++i) { printf(" %d/%d", game_design_calc_cost_item(&gd, i, 1), game_design_calc_space_item(&gd, i, 1)); }
+        printf("\n");
+        game_design_look_next(&gd); printf("look %d", gd.sd.look);
+        game_design_look_prev(&gd); game_design_look_prev(&gd); printf(" %d", gd.sd.look);
+        game_design_look_fix(&g, pi, &gd.sd); printf(" %d", gd.sd.look);
+        game_design_compact_slots(&gd.sd);
+        game_design_clear(&gd); printf(" %s %d %d\n", gd.sd.name, gd.sd.space, gd.sd.cost);
+    }
     else { printf("unknown op %s\n", op); exit(1); }
 }
 
