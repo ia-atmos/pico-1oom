@@ -28,3 +28,5 @@ var ui_gmap_basic_start_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_start
 var ui_gmap_basic_draw_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_draw_frame") }
 var ui_gmap_basic_finish_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_finish_frame") }
 var ui_gmap_basic_shutdown = func (ctx) { ui_not_set("ui_gmap_basic_shutdown") }
+
+var ui_newtech = func (g, pi) { ui_not_set("ui_newtech") }

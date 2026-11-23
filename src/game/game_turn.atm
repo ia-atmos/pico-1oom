@@ -607,12 +607,7 @@ func game_turn_finished_disable_slider (g, p, from, build_ind) {
         return nil
     }
     val first = if build_ind => PLANET_SLIDER_IND => PLANET_SLIDER_TECH
-    game_turn_finished_switch_slider(g, p, from, first)
-    || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_TECH)
-    || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_SHIP)
-    || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_DEF)
-    || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_IND)
-    || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_ECO)
+    game_turn_finished_switch_slider(g, p, from, first) || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_TECH) || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_SHIP) || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_DEF) || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_IND) || game_turn_finished_switch_slider(g, p, from, PLANET_SLIDER_ECO)
 }
 
 func game_turn_build_ind (g) {
@@ -1205,6 +1200,165 @@ func game_turn_update_have_met (g) {
                 set e.have_met@(j) = 1
                 set e.treaty@(j) = TREATY_NONE
                 set g.eto@(j).treaty@(i) = TREATY_NONE
+            }
+        }
+    }
+}
+
+func game_turn_contact_broken (g, pi, bv) {
+    val e = g.eto@(pi)
+    if !IS_ALIVE(g, pi) {
+        return nil
+    }
+    loop i in g.players {
+        if (i != pi) && IS_ALIVE(g, i) && BOOLVEC_IS0(e.contact, i) && BOOLVEC_IS1(bv, i) {
+            val e2 = g.eto@(i)
+            set e.mood_trade@(i) = 0
+            set e.trade_bc@(i) = 0
+            set e.trade_percent@(i) = 0
+            set e.spymode@(i) = SPYMODE_HIDE
+            BOOLVEC_SET1(e.contact_broken, i)
+            set e2.mood_trade@(pi) = 0
+            set e2.trade_bc@(pi) = 0
+            set e2.trade_percent@(pi) = 0
+            set e2.spymode@(pi) = SPYMODE_HIDE
+            BOOLVEC_SET1(e2.contact_broken, pi)
+        }
+    }
+}
+
+func game_turn_update_seen (g) {
+    game_update_visibility(g)
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        loop pi in g.players {
+            var can_see = BOOLVEC_IS1(p.within_srange, pi) || (p.owner == pi)
+            if !can_see {   ;; WASBUG handled only on game load (game_update_seen_by_orbit)
+                val os = g.eto@(pi).orbit@(i).ships
+                loop j in NUM_SHIPDESIGNS {
+                    if os@(j) != 0 {
+                        set can_see = true
+                        break
+                    }
+                }
+            }
+            val s = g.seen@(pi)@(i)
+            if can_see {
+                set s.owner = p.owner
+                set s.pop = u16(p.pop)
+                set s.bases = p.missile_bases
+                set s.factories = u16(p.factories)
+            } else {
+                if (p.owner != PLAYER_NONE) && BOOLVEC_IS1(g.eto@(pi).contact, p.owner) {
+                    set s.owner = p.owner
+                }
+            }
+        }
+    }
+}
+
+func game_turn_finished_slider (g) {
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        val pi = p.owner
+        if (pi == PLAYER_NONE) || IS_AI(g, pi) {
+            BOOLVEC_CLEAR(p.finished, FINISHED_NUM)
+            skip
+        }
+        val e = g.eto@(pi)
+        var cond_build_ind = p.factories < (p.pop * e.colonist_oper_factories)
+        if game_num_cond_switch_to_ind_fix {
+            set cond_build_ind = p.factories < (p.max_pop3 * e.colonist_oper_factories)
+        }
+        if game_num_factory_cost_fix {
+            set cond_build_ind = cond_build_ind || (p.pop_oper_fact < e.colonist_oper_factories)
+        }
+        if BOOLVEC_IS1(p.finished, FINISHED_SOILATMOS) && !(game_num_slider_eco_done_fix && game_planet_can_terraform(g, p, p.owner, true)) {
+            game_turn_finished_disable_slider(g, p, PLANET_SLIDER_ECO, cond_build_ind)
+            game_add_planet_to_build_finished(g, pli, pi, FINISHED_SOILATMOS)
+        }
+        if (p.pop >= p.max_pop3) && (p.unrest == PLANET_UNREST_NORMAL) {
+            var v = (p.prod_after_maint * p.slider@(PLANET_SLIDER_ECO)) // 100
+            var flag_pending_ecoproj = false
+            if v > 0 {
+                if (e.have_atmos_terra && (p.growth == PLANET_GROWTH_HOSTILE)) || (e.have_soil_enrich && (p.growth == PLANET_GROWTH_NORMAL)) || (e.have_adv_soil_enrich && ((p.growth == PLANET_GROWTH_NORMAL) || (p.growth == PLANET_GROWTH_FERTILE))) || ((p.max_pop3 - p.max_pop2) < e.have_terraform_n) {
+                    set flag_pending_ecoproj = true
+                }
+            }
+            if !flag_pending_ecoproj {
+                pin r_waste = [waste = 0]   ;; int waste = 0
+                val w = game_planet_get_waste_percent(r_waste, g, p, false)
+                set v = SUBSAT0(v, r_waste.waste)
+                if ((game_get_pop_growth_for_eco(g, p, v) // 10) > 0) || ((p.slider@(PLANET_SLIDER_ECO) != 0) && (e.race == RACE_SILICOID)) {
+                    if (p.pop > p.pop_prev) || (p.slider@(PLANET_SLIDER_ECO) > (w + game_num_eco_slider_slack)) {
+                        game_turn_finished_disable_slider(g, p, PLANET_SLIDER_ECO, cond_build_ind)
+                        if p.pop > p.pop_prev {
+                            game_add_planet_to_build_finished(g, pli, pi, FINISHED_POPMAX)
+                        }
+                    }
+                }
+                if (p.slider@(PLANET_SLIDER_ECO) > 0) && ((e.race == RACE_SILICOID) || ((e.ind_waste_scale == 0) && (p.waste == 0))) {
+                    game_turn_finished_disable_slider(g, p, PLANET_SLIDER_ECO, cond_build_ind)
+                }
+            }
+        }
+        if BOOLVEC_IS1(p.finished, FINISHED_SHIELD) {
+            game_turn_finished_disable_slider(g, p, PLANET_SLIDER_DEF, false)
+            game_add_planet_to_build_finished(g, pli, pi, FINISHED_SHIELD)
+        }
+        if BOOLVEC_IS1(p.finished, FINISHED_STARGATE) {
+            ;; WASBUG MOO1 has DEF, not SHIP
+            ;; p->slider[PLANET_SLIDER_TECH] += p->slider[PLANET_SLIDER_SHIP];
+            ;; p->slider[PLANET_SLIDER_SHIP] = 0;
+            game_turn_finished_disable_slider(g, p, PLANET_SLIDER_SHIP, false)
+            game_add_planet_to_build_finished(g, pli, pi, FINISHED_STARGATE)
+        }
+    }
+}
+
+func game_turn_claim (g) {
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        set p.claim = p.owner
+        if p.owner == PLAYER_NONE {
+            loop pi in g.players {
+                val e = g.eto@(pi)
+                loop i in e.shipdesigns_num {
+                    if e.orbit@(pli).ships@(i) != 0 {
+                        set p.claim = pi
+                        break
+                    }
+                }
+            }
+        }
+    }
+}
+
+func game_turn_update_final_war (g) {
+    if g.end != GAME_END_FINAL_WAR {
+        return nil
+    }
+    game_tech_final_war_share(g)
+    loop i in g.players {
+        if IS_HUMAN(g, i) {
+            game_tech_finish_new(g, i)
+            ui_newtech(g, i)
+        }
+    }
+    loop pi1 in g.players {
+        val e1 = g.eto@(pi1)
+        loop pi2 in (pi1 + 1, g.players - 1) {
+            val e2 = g.eto@(pi2)
+            if BOOLVEC_IS1(g.refuse, pi1) == BOOLVEC_IS1(g.refuse, pi2) {
+                set e1.treaty@(pi2) = TREATY_ALLIANCE
+                set e2.treaty@(pi1) = TREATY_ALLIANCE
+                set e1.relation1@(pi2) = 100
+                set e2.relation1@(pi1) = 100
+            } else {
+                set e1.treaty@(pi2) = TREATY_FINAL_WAR
+                set e2.treaty@(pi1) = TREATY_FINAL_WAR
+                set e1.relation1@(pi2) = -100
+                set e2.relation1@(pi1) = -100
             }
         }
     }
