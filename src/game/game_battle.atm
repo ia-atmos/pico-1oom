@@ -1,0 +1,593 @@
+;; Port of c/src/game/game_battle.c and game_battle.h. It includes
+;; game_battle_human.atm (each of the two calls the other in C).
+
+include "../boolvec.atm"
+include "../comp.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "../log.atm"
+include "../ui.atm"
+include "../util_math.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_aux.atm"
+include "game_diplo.atm"
+include "game_fleet.atm"
+include "game_num.atm"
+include "game_parsed.atm"
+include "game_planet_c.atm"
+include "game_str.atm"
+
+val BATTLE_AREA_W = 10
+val BATTLE_AREA_H = 8
+
+val SIDE_L = 0
+val SIDE_R = 1
+val SIDE_NONE = 2
+
+func battle_wpn_s () {
+    [
+        t        = 0,   ;; weapon_t
+        n        = 0,   ;; uint8_t
+        numfire  = 0,   ;; int8_t
+        numshots = 0,   ;; int8_t
+    ]
+}
+
+func battle_item_s () {
+    [
+        gfx           = nil,    ;; uint8_t * (of the interface)
+        name          = carray(SHIP_NAME_LEN),  ;; char[]
+        shiptbli      = 0,      ;; uint8_t
+        complevel     = 0,      ;; int8_t
+        special       = carray(SPECIAL_SLOT_NUM),   ;; ship_special_t[]
+        hp1           = 0,      ;; uint16_t
+        hp2           = 0,      ;; uint16_t
+        hull          = 0,      ;; ship_hull_t
+        man           = 0,      ;; uint8_t
+        defense       = 0,      ;; int8_t
+        misdefense    = 0,      ;; int8_t
+        absorb        = 0,      ;; uint8_t
+        repair        = 0,      ;; uint8_t
+        misshield     = 0,      ;; uint8_t
+        pshield       = 0,      ;; uint8_t
+        extrarange    = 0,      ;; uint8_t
+        num           = 0,      ;; shipcount_t
+        look          = 0,      ;; uint8_t
+        pulsar        = 0,      ;; int8_t (temporarily used as antidote for planets)
+        stream        = 0,      ;; int8_t
+        stasis        = 0,      ;; int8_t
+        cloak         = 0,      ;; int8_t
+        subspace      = 0,      ;; int8_t
+        warpdis       = 0,      ;; int8_t
+        blackhole     = 0,      ;; int8_t
+        technull      = 0,      ;; int8_t
+        repulsor      = 0,      ;; int8_t
+        sbmask        = 0,      ;; uint16_t
+        retreat       = 0,      ;; uint8_t
+        sx            = 0,      ;; int8_t (-1, 0..BATTLE_AREA_W - 1)
+        sy            = 0,      ;; int8_t (-1, 0..BATTLE_AREA_H - 1)
+        selected      = 0,      ;; uint8_t (0, 1, 2=moving)
+        stasisby      = 0,      ;; uint8_t
+        unman         = 0,      ;; uint8_t
+        can_retaliate = false,  ;; bool
+        side          = 0,      ;; battle_side_i_t
+        actman        = 0,      ;; int8_t
+        hploss        = 0,      ;; uint16_t
+        maxrange      = 0,      ;; int8_t
+        missile       = 0,      ;; int8_t (-1=none, 0=disabled, 1=enabled)
+        wpn           = carrayf(WEAPON_SLOT_NUM, battle_wpn_s),
+    ]
+}
+
+val BATTLE_ROCK_MAX = 7
+
+func battle_rock_s () {
+    [
+        sx  = 0,    ;; int8_t (-1, 0..9)
+        sy  = 0,    ;; int8_t (-1, 0..9)
+        gfx = nil,  ;; uint8_t * (of the interface)
+    ]
+}
+
+val BATTLE_MISSILE_MAX = 30
+val MISSILE_TARGET_NONE = -1
+
+func battle_missile_s () {
+    [
+        wpnt        = 0,    ;; weapon_t
+        nummissiles = 0,    ;; uint16_t
+        damagemul2  = 0,    ;; uint16_t
+        x           = 0,    ;; int16_t
+        y           = 0,    ;; int16_t
+        source      = 0,    ;; int8_t (item index)
+        target      = 0,    ;; int8_t (item index or MISSILE_TARGET_NONE)
+        fuel        = 0,    ;; uint8_t
+        speed       = 0,    ;; uint8_t
+    ]
+}
+
+func battle_side_s () {
+    [
+        party            = 0,       ;; int
+        race             = 0,       ;; race_t
+        tbl_ships        = carray(NUM_SHIPDESIGNS),     ;; shipcount_t[]
+        tbl_shiptype     = carray(NUM_SHIPDESIGNS),     ;; uint8_t[]
+        num_types        = 0,       ;; uint8_t
+        items            = 0,       ;; uint8_t (not counting planet)
+        apparent_force   = 0,       ;; uint32_t
+        flag_have_scan   = false,
+        flag_base_missile = false,
+        flag_human       = false,
+        flag_auto        = 0,       ;; int16_t (HACK type is for uiobj)
+    ]
+}
+
+val BATTLE_ITEM_MAX = (NUM_SHIPDESIGNS * 2) + 1     ;; + planet
+
+func battle_s () {
+    [
+        g                = nil,     ;; struct game_s *
+        uictx            = nil,     ;; void *
+        planet_i         = 0,       ;; uint8_t
+        planet_side      = 0,       ;; battle_side_i_t
+        pop              = 0,       ;; int16_t
+        fact             = 0,       ;; uint16_t
+        bases            = 0,       ;; uint16_t
+        biodamage        = 0,       ;; uint16_t
+        s                = carrayf(2, battle_side_s),
+        autoresolve      = false,
+        autoretreat      = false,
+        has_attacked     = false,
+        bases_using_mirv = false,
+        turn_done        = false,
+        num_repulsed     = 0,       ;; uint8_t
+        flag_human_att   = false,
+        flag_cur_item_destroyed = false,
+        items_num        = 0,       ;; uint8_t (in item table, not counting planet at 0)
+        items_num2       = 0,       ;; uint8_t (in item table, not counting planet at 0)
+        cur_item         = 0,       ;; uint8_t (in item table)
+        special_button   = 0,       ;; int8_t
+        popdamage        = 0,       ;; uint32_t
+        factdamage       = 0,       ;; uint32_t
+        num_turn         = 0,       ;; uint16_t
+        have_subspace_int = false,
+        antidote         = 0,       ;; uint8_t
+        item             = carrayf(BATTLE_ITEM_MAX, battle_item_s),
+        prio_i           = 0,       ;; uint8_t
+        priority         = carray(BATTLE_ITEM_MAX),     ;; int16_t[]
+        num_rocks        = 0,       ;; uint8_t
+        rock             = carrayf(BATTLE_ROCK_MAX, battle_rock_s),
+        num_missile      = 0,       ;; uint8_t
+        missile          = carrayf(BATTLE_MISSILE_MAX, battle_missile_s),
+        ;; -100 : rock
+        ;; -30 : enemy planet, out of weapon range
+        ;; -itemi : enemy item, out of weapon range
+        ;; 0 : empty, too far or friendly planet
+        ;; 1 : empty, can move to
+        ;; 10 + itemi : friendly item
+        ;; 30 + itemi : enemy item, in weapon range
+        area             = carray2(BATTLE_AREA_H, BATTLE_AREA_W),   ;; int8_t[][]
+    ]
+}
+
+;; ---------------------------------------------------------------------------
+
+val PARTY_NUM = PLAYER_NUM + MONSTER_NUM
+
+;; `COPY_BOOL_TO_INT`: 1 if a flag of `sbmask` is set.
+func battle_sbmask_int (b, f) {
+    if (b.sbmask & (1 << f)) != 0 => 1 => 0
+}
+
+func game_battle_item_from_parsed (b, sp) {
+    cstruct_copy(b, battle_item_s())
+    set b.look = sp.look
+    lib_strcpy(b.name, sp.name, SHIP_NAME_LEN)
+    set b.hull = sp.hull
+    loop i in SPECIAL_SLOT_NUM {
+        set b.special@(i) = sp.special@(i)
+    }
+    set b.repair = sp.repair
+    set b.misshield = sp.misshield
+    set b.look = sp.look
+    set b.pulsar = i8(sp.pulsar)
+    set b.stream = i8(sp.stream)
+    set b.pshield = sp.pshield
+    set b.sbmask = sp.sbmask
+    set b.extrarange = sp.extrarange
+    set b.num = sp.num
+    set b.complevel = i8(sp.complevel)
+    set b.defense = i8(sp.defense)
+    set b.misdefense = i8(sp.misdefense)
+    set b.hp1 = sp.hp
+    set b.hp2 = sp.hp
+    set b.absorb = sp.absorb
+    set b.man = sp.man
+    loop i in WEAPON_SLOT_NUM {
+        set b.wpn@(i).t = sp.wpnt@(i)
+        set b.wpn@(i).n = sp.wpnn@(i)
+    }
+    set b.stasis = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_STASIS)
+    set b.subspace = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_SUBSPACE)
+    set b.blackhole = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_BLACKHOLE)
+    set b.warpdis = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_WARPDIS)
+    set b.technull = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_TECHNULL)
+    set b.repulsor = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_REPULSOR)
+    set b.cloak = battle_sbmask_int(b, SHIP_SPECIAL_BOOL_CLOAK)
+}
+
+func game_battle_item_add (bt, sp, side) {
+    var b
+    var itemi
+    var shiptbli
+    match side {
+        SIDE_L => {
+            set bt.s@(SIDE_L).items = u8(bt.s@(SIDE_L).items + 1)
+            set itemi = bt.s@(SIDE_L).items
+            set b = bt.item@(itemi)
+            set shiptbli = itemi - 1
+        }
+        SIDE_R => {
+            set bt.s@(SIDE_R).items = u8(bt.s@(SIDE_R).items + 1)
+            set itemi = bt.s@(SIDE_R).items + bt.s@(SIDE_L).items
+            set b = bt.item@(itemi)
+            set shiptbli = bt.s@(SIDE_R).items - 1
+        }
+        else => {   ;; SIDE_NONE: planet
+            set itemi = 0
+            set shiptbli = 0
+            set b = bt.item@(itemi)
+            game_battle_item_from_parsed(b, sp)
+            set b.absorb = u8(b.absorb + b.pshield)
+            set b.wpn@(0).numshots = -1
+            set b.wpn@(1).numshots = -1
+            if bt.bases == 0 {
+                set b.wpn@(0).t = 0
+                set b.wpn@(0).n = 0
+            }
+            set b.gfx = ui_gfx_get_planet(b.look)
+        }
+    }
+    if side != SIDE_NONE {
+        game_battle_item_from_parsed(b, sp)
+        if (b.sbmask & (1 << SHIP_SPECIAL_BOOL_SCANNER)) != 0 {
+            set bt.s@(side).flag_have_scan = true
+        }
+        set b.side = side
+        set b.gfx = ui_gfx_get_ship(b.look)
+        set b.shiptbli = shiptbli
+    }
+}
+
+func game_battle_post (g, loser, winner, from) {
+    if loser >= PLAYER_NUM {
+        match loser - PLAYER_NUM {
+            MONSTER_CRYSTAL => { set g.evn.crystal.killer = winner }
+            MONSTER_AMOEBA => { set g.evn.amoeba.killer = winner }
+            MONSTER_GUARDIAN => {
+                set g.evn.have_guardian = false
+                set g.guardian_killer = winner
+            }
+            else => nil
+        }
+    } else {
+        val e = g.eto@(loser)
+        val o = e.orbit@(from)
+        val pf = g.planet@(from)
+        var dest = PLANET_NONE  ;; uint8_t
+        var mindist = 10000
+        pin ships = carray(NUM_SHIPDESIGNS)     ;; shipcount_t[]
+        pin shiptypes = carray(NUM_SHIPDESIGNS) ;; uint8_t[]
+        val numtypes = e.shipdesigns_num
+        loop i in numtypes {
+            set shiptypes@(i) = i
+            set ships@(i) = o.ships@(i)
+        }
+        loop i in g.galaxy_stars {
+            val pt = g.planet@(i)
+            if (i != from) && (pt.owner == loser) {
+                val dist = util_math_dist_fast(pf.x, pf.y, pt.x, pt.y)
+                if dist < mindist {
+                    set mindist = dist
+                    set dest = i
+                }
+            }
+        }
+        if dest != PLANET_NONE {    ;; && (numtypes > 0)
+            game_send_fleet_retreat(g, loser, from, dest, ships, shiptypes, numtypes)
+        }
+        loop i in NUM_SHIPDESIGNS {
+            set o.ships@(i) = 0
+        }
+    }
+}
+
+func game_battle_prepare_p1 (bt, side, planet_i) {
+    val g = bt.g
+    val e = g.eto@(bt.s@(side).party)
+    val sd = g.srd@(bt.s@(side).party).design
+    set bt.s@(side).apparent_force = 0
+    loop i in e.shipdesigns_num {
+        set bt.s@(side).apparent_force = u32(bt.s@(side).apparent_force + ((sd@(i).hull + 1) * e.orbit@(planet_i).ships@(i)))
+    }
+    set bt.s@(side).race = e.race
+}
+
+func game_battle_prepare_add_ships (bt, side, planet_i) {
+    val g = bt.g
+    val e = g.eto@(bt.s@(side).party)
+    val sd = g.srd@(bt.s@(side).party).design
+    val flag_shield_disable = g.planet@(planet_i).battlebg == 0
+    pin sp = shipparsed_t()
+    var num_types = 0
+    loop i in e.shipdesigns_num {
+        val s = e.orbit@(planet_i).ships@(i)
+        if s > 0 {
+            set bt.s@(side).tbl_ships@(num_types) = s
+            set bt.s@(side).tbl_shiptype@(num_types) = i
+            game_parsed_from_design(sp, sd@(i), s)
+            if bt.s@(side).race == RACE_MRRSHAN {
+                set sp.complevel = u8(sp.complevel + 4)
+            }
+            if bt.s@(side).race == RACE_ALKARI {
+                set sp.defense = u8(sp.defense + 3)
+                set sp.misdefense = u8(sp.misdefense + 3)
+            }
+            if flag_shield_disable {
+                set sp.pshield = 0
+                set sp.absorb = 0
+                set sp.shield = 0
+            }
+            game_battle_item_add(bt, sp, side)
+            set num_types = num_types + 1
+        }
+    }
+    set bt.s@(side).num_types = num_types
+    set bt.s@(side).flag_human = IS_HUMAN(g, bt.s@(side).party)
+    set bt.s@(side).flag_auto = cint(!bt.s@(side).flag_human)
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_battle_prepare (bt, party_r, party_l, planet_i) {
+    val g = bt.g
+    val p = g.planet@(planet_i)
+    pin sp = shipparsed_t()
+    do {
+        val t = bt.flag_human_att
+        cstruct_copy(bt, battle_s())
+        set bt.flag_human_att = t
+    }
+    set bt.g = g
+    set bt.s@(SIDE_R).party = party_r
+    set bt.s@(SIDE_L).party = party_l
+    set bt.planet_i = planet_i
+    set bt.pop = p.pop
+    set bt.fact = u16(p.factories)
+    game_battle_prepare_p1(bt, SIDE_L, planet_i)
+    if party_r < PLAYER_NUM {
+        game_battle_prepare_p1(bt, SIDE_R, planet_i)
+    } else {
+        set bt.s@(SIDE_R).apparent_force = 1
+        set bt.s@(SIDE_R).race = RACE_NUM   ;; monster
+        set bt.s@(SIDE_R).flag_human = false
+        set bt.s@(SIDE_R).flag_auto = 1
+    }
+    do {
+        val owner = p.owner
+        if (owner != PLAYER_NONE) && ((owner == party_l) || (owner == party_r)) {
+            set bt.planet_side = if owner == party_l => SIDE_L => SIDE_R
+            set bt.bases = p.missile_bases
+            game_parsed_from_planet(sp, g, p)
+            game_battle_item_add(bt, sp, SIDE_NONE)     ;; planet
+        } else {
+            set bt.planet_side = SIDE_NONE
+        }
+    }
+    game_battle_prepare_add_ships(bt, SIDE_L, planet_i)
+    if party_r >= PLAYER_NUM {
+        val mi = party_r - PLAYER_NUM
+        cstruct_copy(sp, tbl_monster@(mi)@(g.difficulty))
+        ;; strncpy of the name, its last byte 0
+        val nm = game_str_tbl_monsh_names@(mi)
+        loop k in SHIP_NAME_LEN {
+            set sp.name@(k) = if k < #nm => string.byte(nm, k) => 0
+        }
+        set sp.name@(SHIP_NAME_LEN - 1) = 0
+        game_battle_item_add(bt, sp, SIDE_R)
+        set bt.s@(SIDE_R).num_types = 1
+        ;; BUG? these were uninitialized
+        set bt.s@(SIDE_R).tbl_ships@(0) = 1
+        set bt.s@(SIDE_R).tbl_shiptype@(0) = 0
+    } else {
+        game_battle_prepare_add_ships(bt, SIDE_R, planet_i)
+    }
+}
+
+func game_battle_finish (bt) {
+    val g = bt.g
+    val p = g.planet@(bt.planet_i)
+    if bt.planet_side != SIDE_NONE {
+        set p.max_pop3 = i16(p.max_pop3 - bt.biodamage)
+        set p.max_pop3 = SETMAX(p.max_pop3, 10)
+        set p.missile_bases = bt.bases
+        if (p.pop == 0) && (bt.s@(SIDE_R).party < PLAYER_NUM) {
+            game_planet_destroy(g, bt.planet_i, bt.s@(SIDE_R).party)
+        }
+    }
+    loop side in (SIDE_L, SIDE_R) {
+        if bt.s@(side).party < PLAYER_NUM {
+            val e = g.eto@(bt.s@(side).party)
+            val sd = g.srd@(bt.s@(side).party).design
+            val os = e.orbit@(bt.planet_i).ships
+            loop i in bt.s@(side).num_types {
+                val st = bt.s@(side).tbl_shiptype@(i)
+                val n = bt.s@(side).tbl_ships@(i)
+                set os@(st) = n
+                set bt.s@(side).apparent_force = u32(bt.s@(side).apparent_force - ((sd@(st).hull + 1) * n))
+            }
+        }
+    }
+    game_diplo_battle_finish(g, bt.s@(SIDE_L).party, bt.s@(SIDE_R).party, bt.pop - p.pop, bt.s@(SIDE_L).apparent_force, bt.biodamage, bt.s@(SIDE_R).apparent_force, bt.planet_i)
+}
+
+;; `shipsum_t force[2][SHIP_HULL_NUM]` of C: here it is given back.
+func game_battle_count_hulls (bt, force) {
+    val g = bt.g
+    loop s in 2 {
+        val party = bt.s@(s).party
+        loop h in SHIP_HULL_NUM {
+            set force@(s)@(h) = 0
+        }
+        if party < PLAYER_NUM {
+            val sd = g.srd@(party).design
+            val ships = g.eto@(party).orbit@(bt.planet_i).ships
+            loop i in NUM_SHIPDESIGNS {
+                val n = ships@(i)
+                if n != 0 {
+                    set force@(s)@(sd@(i).hull) = u32(force@(s)@(sd@(i).hull) + n)
+                }
+            }
+        } else {
+            val b = bt.item@(bt.s@(SIDE_L).items + 1)
+            set force@(s)@(b.hull) = u32(force@(s)@(b.hull) + b.num)
+        }
+    }
+}
+
+include "game_battle_human.atm"
+
+func game_battle_handle_all (g) {
+    pin bt = battle_s()
+    pin monster_planet = carray(MONSTER_NUM, PLANET_NONE)   ;; uint8_t[]
+    set bt.g = g
+    loop i in (MONSTER_CRYSTAL, MONSTER_AMOEBA) {
+        val m = if i == MONSTER_CRYSTAL => g.evn.crystal => g.evn.amoeba
+        if m.exists != 0 {
+            val p = g.planet@(m.dest)
+            if (m.x == p.x) && (m.y == p.y) {
+                set monster_planet@(i) = m.dest
+            }
+        }
+    }
+    if g.evn.have_guardian {
+        set monster_planet@(MONSTER_GUARDIAN) = g.evn.planet_orion_i
+    }
+    ;; FIXME refactor this so that human/AI conflicts can be resolved in parallel in (non-local) multiplayer
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        pin tbl_have_force = BOOLVEC_DECLARE(PARTY_NUM)
+        BOOLVEC_CLEAR(tbl_have_force, PARTY_NUM)
+        val owner = p.owner
+        loop i in g.players {
+            val e = g.eto@(i)
+            if (owner == i) && (p.missile_bases > 0) {
+                BOOLVEC_SET1(tbl_have_force, i)
+            } else {
+                loop j in e.shipdesigns_num {
+                    if e.orbit@(pli).ships@(j) > 0 {
+                        BOOLVEC_SET1(tbl_have_force, i)
+                        break
+                    }
+                }
+            }
+        }
+        loop i in MONSTER_NUM {
+            if pli == monster_planet@(i) {
+                BOOLVEC_SET1(tbl_have_force, PLAYER_NUM + i)
+            } else {
+                if game_num_monster_rest_att && (i != MONSTER_GUARDIAN) {
+                    ;; 1oom option: allow fighting resting monsters
+                    val m = if i == MONSTER_CRYSTAL => g.evn.crystal => g.evn.amoeba
+                    if (m.counter >= 0) && (m.x == p.x) && (m.y == p.y) {
+                        BOOLVEC_SET1(tbl_have_force, PLAYER_NUM + i)
+                    }
+                }
+            }
+        }
+        var sum_forces = 0
+        loop i in PARTY_NUM {
+            if BOOLVEC_IS1(tbl_have_force, i) {
+                set sum_forces = sum_forces + 1
+            }
+        }
+        loop {
+            while sum_forces > 1
+            pin tbl_party = carray(PARTY_NUM)   ;; int[]
+            var num_party = 0
+            set tbl_party@(0) = -1
+            if (owner != PLAYER_NONE) && BOOLVEC_IS1(tbl_have_force, owner) {
+                set tbl_party@(0) = owner
+                set num_party = 1
+            }
+            loop i in PARTY_NUM {
+                if (i != tbl_party@(0)) && BOOLVEC_IS1(tbl_have_force, i) {
+                    set tbl_party@(num_party) = i
+                    set num_party = num_party + 1
+                }
+            }
+            var party_def = tbl_party@(0)
+            if (num_party < 2) || (party_def >= PLAYER_NUM) {
+                break
+            }
+            val e = g.eto@(party_def)
+            var party_att = tbl_party@(1)
+            if (party_att < PLAYER_NUM) && ((e.treaty@(party_att) == TREATY_ALLIANCE) || ((e.treaty@(party_att) == TREATY_NONAGGRESSION) && (party_def != owner))) {
+                ;; TODO BUG? the scenario of owner dying to attacker and an alliance partner not doing anything
+                ;; afterwards on the same turn could be fixed
+                BOOLVEC_SET0(tbl_have_force, party_att)
+            } else {
+                if (!IS_HUMAN(g, party_def)) && (!IS_HUMAN(g, party_att)) {
+                    game_battle_prepare(bt, party_att, party_def, pli)
+                    if game_ai.battle_ai_ai_resolve(bt) {
+                        ;; HACK _att won, swap variables
+                        val t = party_def
+                        set party_def = party_att
+                        set party_att = t
+                    }
+                    ;; _def won
+                    BOOLVEC_SET0(tbl_have_force, party_att)
+                    game_battle_post(g, party_att, party_def, pli)
+                } else {
+                    ;; 11926
+                    ;; BUG? first check not in MOO1, reads past table if monster
+                    if (party_att < PLAYER_NUM) && IS_AI(g, party_att) && (g.evn.ceasefire@(party_def)@(party_att) > 0) {
+                        BOOLVEC_SET0(tbl_have_force, party_att)
+                        game_battle_post(g, party_att, party_def, pli)
+                    } else {
+                        ;; 1195f
+                        var party_l
+                        var party_r
+                        if IS_HUMAN(g, party_def) {
+                            set party_l = party_def
+                            set party_r = party_att
+                            set bt.flag_human_att = false
+                        } else {
+                            set party_l = party_att
+                            set party_r = party_def
+                            set bt.flag_human_att = true
+                        }
+                        game_battle_prepare(bt, party_r, party_l, pli)
+                        if game_battle_with_human(bt) {
+                            ;; HACK _r won, swap variables
+                            val t = party_r
+                            set party_r = party_l
+                            set party_l = t
+                        }
+                        ;; _l won
+                        BOOLVEC_SET0(tbl_have_force, party_r)
+                        game_battle_post(g, party_r, party_l, pli)
+                    }
+                }
+            }
+            ;; 119eb
+            set sum_forces = 0
+            loop i in PARTY_NUM {
+                if BOOLVEC_IS1(tbl_have_force, i) {
+                    set sum_forces = sum_forces + 1
+                }
+            }
+        }
+    }
+}
