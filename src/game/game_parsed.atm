@@ -1,0 +1,560 @@
+;; Port of c/src/game/game_parsed.c and game_parsed.h.
+
+include "../comp.atm"
+include "../ctypes.atm"
+include "../lib.atm"
+include "game.atm"
+include "game_num.atm"
+include "game_planet.atm"
+include "game_shipdesign.atm"
+include "game_shiptech.atm"
+include "game_tech.atm"
+include "game_techtypes.atm"
+
+func shipparsed_t () {
+    [
+        name       = carray(SHIP_NAME_LEN),     ;; char[]
+        hull       = 0,     ;; ship_hull_t
+        comp       = 0,     ;; ship_comp_t
+        jammer     = 0,     ;; ship_jammer_t
+        shield     = 0,     ;; ship_shield_t
+        armor      = 0,     ;; ship_armor_t
+        engine     = 0,     ;; ship_engine_t
+        special    = carray(SPECIAL_SLOT_NUM),  ;; ship_special_t[]
+        wpnt       = carray(WEAPON_SLOT_NUM),   ;; weapon_t[] (weapon type)
+        wpnn       = carray(WEAPON_SLOT_NUM),   ;; uint8_t[] (weapon num)
+        hp         = 0,     ;; uint16_t (hit points)
+        man        = 0,     ;; uint8_t (maneuverability)
+        complevel  = 0,     ;; uint8_t
+        defense    = 0,     ;; uint8_t
+        misdefense = 0,     ;; uint8_t
+        absorb     = 0,     ;; uint8_t
+        repair     = 0,     ;; uint8_t
+        misshield  = 0,     ;; uint8_t
+        pshield    = 0,     ;; uint8_t
+        extrarange = 0,     ;; uint8_t
+        num        = 0,     ;; shipcount_t
+        look       = 0,     ;; uint8_t
+        pulsar     = 0,     ;; uint8_t (also antidote for planets)
+        stream     = 0,     ;; uint8_t
+        sbmask     = 0,     ;; uint16_t
+    ]
+}
+
+;; A `shipparsed_t` of an initializer of C: the fields given, the others 0.
+func shipparsed_with (fields) {
+    val sp = shipparsed_t()
+    cstruct_copy(sp, fields)
+    sp
+}
+
+;; ---------------------------------------------------------------------------
+
+pin tbl_monster = [
+    [   ;; crystal
+        shipparsed_with([ ;; simple
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_CLASS_V,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_BLACK_HOLE_GENERATOR, SHIP_SPECIAL_LIGHTNING_SHIELD, 0 ],
+            wpnt = [ WEAPON_CRYSTAL_RAY, 0, 0, 0 ],
+            wpnn = [ 10, 0, 0, 0 ],
+            hp = 3000,
+            man = 2,
+            complevel = 10,
+            defense = 1,
+            misdefense = 1,
+            absorb = 5,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x90,
+            pulsar = 0,
+            stream = 0,
+            sbmask = (1 << SHIP_SPECIAL_BOOL_BLACKHOLE),
+        ]),
+        shipparsed_with([ ;; easy
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_CLASS_V,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_BLACK_HOLE_GENERATOR, SHIP_SPECIAL_LIGHTNING_SHIELD, 0 ],
+            wpnt = [ WEAPON_CRYSTAL_RAY, 0, 0, 0 ],
+            wpnn = [ 10, 0, 0, 0 ],
+            hp = 4000,
+            man = 2,
+            complevel = 10,
+            defense = 2,
+            misdefense = 2,
+            absorb = 5,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x90,
+            pulsar = 0,
+            stream = 0,
+            sbmask = (1 << SHIP_SPECIAL_BOOL_BLACKHOLE),
+        ]),
+        shipparsed_with([ ;; medium
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_CLASS_V,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_BLACK_HOLE_GENERATOR, SHIP_SPECIAL_LIGHTNING_SHIELD, 0 ],
+            wpnt = [ WEAPON_CRYSTAL_RAY, 0, 0, 0 ],
+            wpnn = [ 10, 0, 0, 0 ],
+            hp = 5000,
+            man = 2,
+            complevel = 10,
+            defense = 3,
+            misdefense = 3,
+            absorb = 5,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x90,
+            pulsar = 0,
+            stream = 0,
+            sbmask = (1 << SHIP_SPECIAL_BOOL_BLACKHOLE),
+        ]),
+        shipparsed_with([ ;; hard
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_CLASS_V,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_BLACK_HOLE_GENERATOR, SHIP_SPECIAL_LIGHTNING_SHIELD, 0 ],
+            wpnt = [ WEAPON_CRYSTAL_RAY, 0, 0, 0 ],
+            wpnn = [ 10, 0, 0, 0 ],
+            hp = 6000,
+            man = 2,
+            complevel = 10,
+            defense = 4,
+            misdefense = 4,
+            absorb = 5,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x90,
+            pulsar = 0,
+            stream = 0,
+            sbmask = (1 << SHIP_SPECIAL_BOOL_BLACKHOLE),
+        ]),
+        shipparsed_with([ ;; impossible
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_CLASS_V,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_BLACK_HOLE_GENERATOR, SHIP_SPECIAL_LIGHTNING_SHIELD, 0 ],
+            wpnt = [ WEAPON_CRYSTAL_RAY, 0, 0, 0 ],
+            wpnn = [ 10, 0, 0, 0 ],
+            hp = 7000,
+            man = 2,
+            complevel = 10,
+            defense = 5,
+            misdefense = 5,
+            absorb = 5,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x90,
+            pulsar = 0,
+            stream = 0,
+            sbmask = (1 << SHIP_SPECIAL_BOOL_BLACKHOLE),
+        ]),
+    ],
+    [   ;; amoeba
+        shipparsed_with([ ;; simple
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_NONE,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_ADV_DAMAGE_CONTROL, 0, 0 ],
+            wpnt = [ WEAPON_AMEOBA_STREAM, 0, 0, 0 ],
+            wpnn = [ 1, 0, 0, 0 ],
+            hp = 1000,
+            man = 2,
+            complevel = 10,
+            defense = 1,
+            misdefense = 1,
+            absorb = 0,
+            repair = 50,
+            misshield = 0,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x91,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; easy
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_NONE,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_ADV_DAMAGE_CONTROL, 0, 0 ],
+            wpnt = [ WEAPON_AMEOBA_STREAM, 0, 0, 0 ],
+            wpnn = [ 1, 0, 0, 0 ],
+            hp = 2000,
+            man = 2,
+            complevel = 10,
+            defense = 2,
+            misdefense = 2,
+            absorb = 0,
+            repair = 50,
+            misshield = 0,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x91,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; medium
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_NONE,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_ADV_DAMAGE_CONTROL, 0, 0 ],
+            wpnt = [ WEAPON_AMEOBA_STREAM, 0, 0, 0 ],
+            wpnn = [ 1, 0, 0, 0 ],
+            hp = 3000,
+            man = 2,
+            complevel = 10,
+            defense = 3,
+            misdefense = 3,
+            absorb = 0,
+            repair = 50,
+            misshield = 0,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x91,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; hard
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_NONE,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_ADV_DAMAGE_CONTROL, 0, 0 ],
+            wpnt = [ WEAPON_AMEOBA_STREAM, 0, 0, 0 ],
+            wpnn = [ 1, 0, 0, 0 ],
+            hp = 4000,
+            man = 2,
+            complevel = 10,
+            defense = 4,
+            misdefense = 4,
+            absorb = 0,
+            repair = 50,
+            misshield = 0,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x91,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; impossible
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = 0,
+            shield = SHIP_SHIELD_NONE,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_ADV_DAMAGE_CONTROL, 0, 0 ],
+            wpnt = [ WEAPON_AMEOBA_STREAM, 0, 0, 0 ],
+            wpnn = [ 1, 0, 0, 0 ],
+            hp = 5000,
+            man = 2,
+            complevel = 10,
+            defense = 5,
+            misdefense = 5,
+            absorb = 0,
+            repair = 50,
+            misshield = 0,
+            pshield = 0,
+            extrarange = 0,
+            num = 1,
+            look = 0x91,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+    ],
+    [   ;; guardian
+        shipparsed_with([ ;; simple
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = SHIP_JAMMER_JAMMER_X,
+            shield = SHIP_SHIELD_CLASS_V,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_HIGH_ENERGY_FOCUS, 0, SHIP_SPECIAL_LIGHTNING_SHIELD ],
+            wpnt = [ WEAPON_SCATTER_PACK_X_5, WEAPON_DEATH_RAY, WEAPON_STELLAR_CONVERTER, WEAPON_PLASMA_TORPEDO ],
+            wpnn = [ 5, 1, 5, 6 ],
+            hp = 2000,
+            man = 2,
+            complevel = 10,
+            defense = 1,
+            misdefense = 1,
+            absorb = 5,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 3,
+            num = 1,
+            look = 0x92,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; easy
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = SHIP_JAMMER_JAMMER_X,
+            shield = SHIP_SHIELD_CLASS_VI,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_HIGH_ENERGY_FOCUS, 0, SHIP_SPECIAL_LIGHTNING_SHIELD ],
+            wpnt = [ WEAPON_SCATTER_PACK_X_5, WEAPON_DEATH_RAY, WEAPON_STELLAR_CONVERTER, WEAPON_PLASMA_TORPEDO ],
+            wpnn = [ 25, 1, 15, 9 ],
+            hp = 4000,
+            man = 2,
+            complevel = 10,
+            defense = 3,
+            misdefense = 3,
+            absorb = 6,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 3,
+            num = 1,
+            look = 0x92,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; medium
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = SHIP_JAMMER_JAMMER_X,
+            shield = SHIP_SHIELD_CLASS_VII,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_HIGH_ENERGY_FOCUS, 0, SHIP_SPECIAL_LIGHTNING_SHIELD ],
+            wpnt = [ WEAPON_SCATTER_PACK_X_5, WEAPON_DEATH_RAY, WEAPON_STELLAR_CONVERTER, WEAPON_PLASMA_TORPEDO ],
+            wpnn = [ 45, 1, 25, 12 ],
+            hp = 6000,
+            man = 2,
+            complevel = 10,
+            defense = 5,
+            misdefense = 5,
+            absorb = 7,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 3,
+            num = 1,
+            look = 0x92,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; hard
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = SHIP_JAMMER_JAMMER_X,
+            shield = SHIP_SHIELD_CLASS_IX,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_HIGH_ENERGY_FOCUS, SHIP_SPECIAL_ADV_DAMAGE_CONTROL, SHIP_SPECIAL_LIGHTNING_SHIELD ],
+            wpnt = [ WEAPON_SCATTER_PACK_X_5, WEAPON_DEATH_RAY, WEAPON_STELLAR_CONVERTER, WEAPON_PLASMA_TORPEDO ],
+            wpnn = [ 65, 1, 35, 15 ],
+            hp = 8000,
+            man = 2,
+            complevel = 10,
+            defense = 7,
+            misdefense = 7,
+            absorb = 8,
+            repair = 15,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 3,
+            num = 1,
+            look = 0x92,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+        shipparsed_with([ ;; impossible
+            hull = SHIP_HULL_HUGE,
+            comp = SHIP_COMP_MARK_X,
+            jammer = SHIP_JAMMER_JAMMER_X,
+            shield = SHIP_SHIELD_CLASS_XI,
+            armor = 0,
+            engine = 0,
+            special = [ SHIP_SPECIAL_HIGH_ENERGY_FOCUS, 0, SHIP_SPECIAL_LIGHTNING_SHIELD ],
+            wpnt = [ WEAPON_SCATTER_PACK_X_5, WEAPON_DEATH_RAY, WEAPON_STELLAR_CONVERTER, WEAPON_PLASMA_TORPEDO ],
+            wpnn = [ 85, 1, 45, 18 ],
+            hp = 10000,
+            man = 2,
+            complevel = 10,
+            defense = 9,
+            misdefense = 9,
+            absorb = 9,
+            repair = 0,
+            misshield = 100,
+            pshield = 0,
+            extrarange = 3,
+            num = 1,
+            look = 0x92,
+            pulsar = 0,
+            stream = 0,
+            sbmask = 0,
+        ]),
+    ],
+]
+
+func get_best_armor (g, owner) {
+    val e = g.eto@(owner)
+    val srd = g.srd@(owner)
+    var best = 0    ;; uint8_t
+    ;; (i <= completed: one more than the techs completed, as C does)
+    loop i in (0, e.tech.completed@(TECH_FIELD_CONSTRUCTION)) {
+        match srd.researchcompleted@(TECH_FIELD_CONSTRUCTION)@(i) {
+            TECH_CONS_DURALLOY_ARMOR => { set best = 1 }
+            TECH_CONS_ZORTIUM_ARMOR => { set best = 2 }
+            TECH_CONS_ANDRIUM_ARMOR => { set best = 3 }
+            TECH_CONS_TRITANIUM_ARMOR => { set best = 4 }
+            TECH_CONS_ADAMANTIUM_ARMOR => { set best = 5 }
+            TECH_CONS_NEUTRONIUM_ARMOR => { set best = 6 }
+            else => nil
+        }
+    }
+    best
+}
+
+;; `COPY_MAX_SPECIAL`: the highest value of a field of the specials of a
+;; design.
+func copy_max_special (sd, key) {
+    var smax = 0
+    loop i in SPECIAL_SLOT_NUM {
+        val v = tbl_shiptech_special@(sd.special@(i))@(key)
+        set smax = SETMAX(smax, v)
+    }
+    smax
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_parsed_from_design (sp, sd, num) {
+    lib_strcpy(sp.name, sd.name, SHIP_NAME_LEN)
+    set sp.hull = sd.hull
+    set sp.comp = sd.comp
+    set sp.jammer = sd.jammer
+    set sp.shield = sd.shield
+    set sp.armor = sd.armor
+    set sp.engine = sd.engine
+    loop i in SPECIAL_SLOT_NUM {
+        set sp.special@(i) = sd.special@(i)
+    }
+    set sp.pshield = 0
+    loop i in WEAPON_SLOT_NUM {
+        set sp.wpnt@(i) = sd.wpnt@(i)
+        set sp.wpnn@(i) = sd.wpnn@(i)
+    }
+    set sp.hp = sd.hp
+    set sp.repair = u8(copy_max_special(sd, "repair"))
+    val extraman = u8(copy_max_special(sd, "extraman"))     ;; uint8_t
+    set sp.man = u8(((sd.man + 3) // 2) + (extraman // 2))
+    set sp.complevel = tbl_shiptech_comp@(sd.comp).level
+    set sp.defense = u8(sd.man + tbl_shiptech_hull@(sd.hull).defense + extraman + 1)
+    set sp.misdefense = u8(sp.defense + tbl_shiptech_jammer@(sd.jammer).level)
+    set sp.absorb = tbl_shiptech_shield@(sd.shield).absorb
+    set sp.misshield = u8(copy_max_special(sd, "misshield"))
+    set sp.extrarange = u8(copy_max_special(sd, "extrarange"))
+    set sp.num = u16(num)
+    set sp.look = sd.look
+    set sp.pulsar = u8(copy_max_special(sd, "pulsar"))
+    set sp.stream = u8(copy_max_special(sd, "stream"))
+    do {
+        var m = 0   ;; uint16_t
+        loop i in SPECIAL_SLOT_NUM {
+            set m = m | tbl_shiptech_special@(sd.special@(i)).boolmask
+        }
+        set sp.sbmask = m
+        if (m & (1 << SHIP_SPECIAL_BOOL_SCANNER)) != 0 {
+            set sp.complevel = u8(sp.complevel + 1)
+        }
+    }
+}
+
+func game_parsed_from_planet (sp, g, p) {
+    val e = g.eto@(p.owner)
+    cstruct_copy(sp, shipparsed_t())
+    lib_strcpy(sp.name, p.name, SHIP_NAME_LEN)
+    set sp.comp = e.base_comp + 1
+    set sp.complevel = sp.comp
+    if e.race == RACE_MRRSHAN {
+        set sp.complevel = u8(sp.complevel + 4)
+    }
+    set sp.shield = e.base_shield
+    set sp.absorb = tbl_shiptech_shield@(e.base_shield).absorb
+    set sp.hp = game_num_base_hp@(get_best_armor(g, p.owner))
+    set sp.defense = 1
+    set sp.misdefense = u8(game_get_best_jammer(g, p.owner, e.tech.percent@(TECH_FIELD_COMPUTER)) + 1)
+    if p.missile_bases > 0 {
+        var m = 1 << SHIP_SPECIAL_BOOL_SCANNER  ;; uint16_t
+        set sp.num = p.missile_bases
+        if e.have_sub_space_int {
+            set m = m | (1 << SHIP_SPECIAL_BOOL_SUBSPACE)
+        }
+        set sp.sbmask = m
+    }
+    set sp.pulsar = e.antidote  ;; HACK
+    set sp.look = p.infogfx
+    set sp.pshield = p.shield
+    set sp.wpnt@(0) = e.base_weapon
+    set sp.wpnn@(0) = 3
+    set sp.wpnt@(1) = game_get_base_weapon_2(g, p.owner, e.tech.percent@(TECH_FIELD_WEAPON), e.base_weapon)
+    set sp.wpnn@(1) = 3
+    if p.battlebg == 0 {
+        set sp.pshield = 0
+        set sp.absorb = 0
+        set sp.shield = 0
+    }
+}
