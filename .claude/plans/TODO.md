@@ -31,6 +31,7 @@ Last update: 2026-11-25
 | #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
 | #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C; the port throws there | remark | open |
 | #12 | The enums of C are unsigned (gcc): a negative `int` with an enum is unsigned arithmetic | remark | open: a check to keep doing |
+| #13 | The battle AI reads `bt->item[-1]` in C; the port gives the same bytes | remark | open, by the session, to be confirmed |
 
 ## A. Decisions waiting for an answer
 
@@ -79,25 +80,36 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   `game_spy.c`, `game_bomb.c`, `game_ground.c`, `game_news.c`,
   `game_election.c`, `game_event.c`, `game_audience.c`, `game_end.h`, the
   ship names (`game_str_shipnames.c`), `strbuild` and `lib_strcat`; and
-  every phase of `game_turn.c` but `game_turn_process` itself. `src/ui.atm`
-  holds the functions of `ui.h` that the logic calls: each is a `var` that
-  an interface sets; unset, it throws (by the session, reversible).
-  Checked by `tst/state.sh`: on the 109 saves, sixteen groups of
-  operations (updates, techs, planets, the build phases, fleets, stats and
-  the design screen, diplomacy, moves and transports, contacts and sliders,
-  spies, espionage, bombs and ground combat, news and the election, random
-  events at two years, the end of the game, audiences), the whole state
-  and what the operations print compared with the C after each. The C
-  driver includes `game_turn.c` to reach its static phases. Both drivers
-  have an interface that prints each call and answers by fixed rules, and
-  replace the functions of the AI that are not ported yet (bomb, ground,
-  tech_next, vote, the events, the audiences) by fixed answers: the logic
-  around the AI is checked before the AI itself. Where C reads memory that
-  was never set (the stack of an earlier call, a pointer to a stack that
-  is gone), the checks leave that value out of what they print.
-  Next: `game_battle.c` and `game_battle_human.c`, then the AI
-  (`game_ai_classic.c`, 4500 lines), then `game_turn_process`, which needs
-  all of them.
+  every phase of `game_turn.c` but `game_turn_process` itself. Done
+  (2026-11-25): `game_parsed.c`, `game_battle.c`, `game_battle_human.c`,
+  and all of `game_ai_classic.c` (step (e) of decision 5, done with the
+  turn: new game, techs, bombs, ground combat, votes, events, diplomacy,
+  audiences, the battle AI, and the turn p1/p2/p3). `src/ui.atm` holds the
+  functions of `ui.h` that the logic calls: each is a `var` that an
+  interface sets; unset, it throws (by the session, reversible).
+  Checked by `tst/state.sh`: on the 109 saves, 21 groups of operations
+  (2289 runs; the earlier sixteen, plus battles, the AI diplomacy twice,
+  the AI designs/sliders/spies by year, and eight turns of the AI fleets),
+  the whole state and what the operations print compared with the C after
+  each. The C driver includes `game_turn.c` to reach its static phases.
+  Both drivers have an interface that prints each call and answers by
+  fixed rules; no function of the AI is replaced any more. Where C reads
+  memory that was never set (the stack of an earlier call, a pointer to a
+  stack that is gone), the checks leave that value out of what they print.
+  `game_ai.atm` no longer includes `game_ai_classic.atm` (an include cycle
+  left a table undeclared): the main program includes it, and at its end
+  it sets `game_ai` and `game_ais` (by the session, reversible).
+  Found on the way: in `tbl_shiptech_weap` the weapon "none" had
+  `is_bio = 0`, which is true in Atmos; `tools/game_shiptech.py` now
+  writes a C bool as `false`/`true`. Next: `game_turn_process`, then
+  step (f), the textual interface.
+- #13 With no target (`target_i == -1`), `game_battle_ai_best_range` and
+  `get_possible_distance_increase` read `bt->item[-1]` (undefined
+  behaviour, before the table). On x86-64 these are the bytes of `bt->s[0]`
+  and `bt->s[1]`; `bt_item` in `game_ai_classic.atm` builds that item from
+  them, so the result is the C's (the checks met it on 5 of 8 saves). By
+  the session, to be confirmed; a bug to report to the original project
+  is not reported (nothing goes upstream).
 - #11 In `game_turn_transport`, when the owner of the transports has
   combat transporters and the planet has no owner, C reads
   `g->eto[p->owner].have_sub_space_int` with `p->owner == PLAYER_NONE`,
@@ -198,8 +210,9 @@ Other sessions:
   (session_011eECohhJbc4GMpAj3yyeEo); measurements of the ports and the
   merges into `main` stay with `atmos-lang`. Item numbers stay local to
   this session (`#N` here, `pico-1oom#N` outside), as confirmed by the
-  author on 2026-11-25 (only `atmos` and `atmos-lang` share `ISSUES.md`). The
-  pause until next week's credits holds: no new work, only what arrives.
+  author on 2026-11-25 (only `atmos` and `atmos-lang` share `ISSUES.md`).
+  The pause until next week's credits ended on 2026-11-25 (relayed by
+  `atmos`): approved work and the rule of work with no input resume.
 - Findings about `pin` go to `atmos-pin`
   (session_011eECogSDhkVfyt7qme5DLh), with a small program; everything
   else of the compiler to `atmos-lang` (session_011eECogKVQ7ZzmWCoMST2wK).
