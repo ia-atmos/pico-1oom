@@ -182,59 +182,6 @@ void ui_battle_ai_pre(const struct battle_s *bt) { }
 bool ui_battle_ai_post(const struct battle_s *bt) { return false; }
 void ui_sound_play_sfx(int sfxi) { }
 
-/* The functions of the AI that are not ported yet, replaced by fixed
-   answers that print each call; the others are those of the classic AI. */
-static void test_ai_plague(struct game_s *g_, uint8_t planet) { printf("ai_plague %d\n", planet); }
-static void test_ai_nova(struct game_s *g_, uint8_t planet) { printf("ai_nova %d\n", planet); }
-static void test_ai_comet(struct game_s *g_, uint8_t planet) { printf("ai_comet %d\n", planet); }
-static void test_ai_pirates(struct game_s *g_, uint8_t planet) { printf("ai_pirates %d\n", planet); }
-/* The turn of an item in a battle: attack the first enemy in reach, or
-   move to the free square nearest to an enemy and attack from there. */
-static bool test_ai_battle_try_attack(struct battle_s *bt)
-{
-    int itemi = bt->cur_item;
-    struct battle_item_s *b = &(bt->item[itemi]);
-    game_battle_area_setup(bt);
-    for (int i = 0; i <= bt->items_num; ++i) {
-        struct battle_item_s *bd = &(bt->item[i]);
-        if ((bd->side != SIDE_NONE) && (bd->side != b->side) && (bt->area[bd->sy][bd->sx] >= 30)) {
-            printf("ai_battle_attack %d %d\n", itemi, i);
-            game_battle_attack(bt, itemi, i, false);
-            return true;
-        }
-    }
-    return false;
-}
-static void test_ai_battle_turn(struct battle_s *bt)
-{
-    int itemi = bt->cur_item, bestx = -1, besty = -1, bestd = 1000;
-    struct battle_item_s *b = &(bt->item[itemi]);
-    if (test_ai_battle_try_attack(bt)) { return; }
-    for (int sy = 0; sy < BATTLE_AREA_H; ++sy) {
-        for (int sx = 0; sx < BATTLE_AREA_W; ++sx) {
-            if (bt->area[sy][sx] == 1) {
-                for (int i = 0; i <= bt->items_num; ++i) {
-                    struct battle_item_s *bd = &(bt->item[i]);
-                    if ((bd->side != SIDE_NONE) && (bd->side != b->side)) {
-                        int d = util_math_dist_maxabs(sx, sy, bd->sx, bd->sy);
-                        if (d < bestd) { bestd = d; bestx = sx; besty = sy; }
-                    }
-                }
-            }
-        }
-    }
-    if (bestx >= 0) {
-        printf("ai_battle_move %d %d %d\n", itemi, bestx, besty);
-        game_battle_item_move(bt, itemi, bestx, besty);
-        if (!bt->flag_cur_item_destroyed) {
-            test_ai_battle_try_attack(bt);
-        }
-    }
-}
-static bool test_ai_battle_ai_retreat(struct battle_s *bt) { return false; }
-static bool test_ai_battle_ai_ai_resolve(struct battle_s *bt) { printf("ai_battle_resolve %d %d %d\n", bt->planet_i, bt->s[0].party, bt->s[1].party); return ((bt->planet_i + bt->s[0].party) & 1) != 0; }
-static struct game_ai_s test_ai;
-
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
 void ui_gmap_basic_start_player(void *ctx, int pi) { }
 void ui_gmap_basic_start_frame(void *ctx, int pi) { }
@@ -489,15 +436,6 @@ static void do_op(const char *op)
 int main(int argc, char **argv)
 {
     int k;
-    memcpy(&test_ai, game_ai, sizeof(test_ai));
-    test_ai.plague = test_ai_plague;
-    test_ai.nova = test_ai_nova;
-    test_ai.comet = test_ai_comet;
-    test_ai.pirates = test_ai_pirates;
-    test_ai.battle_ai_turn = test_ai_battle_turn;
-    test_ai.battle_ai_retreat = test_ai_battle_ai_retreat;
-    test_ai.battle_ai_ai_resolve = test_ai_battle_ai_ai_resolve;
-    game_ai = &test_ai;
     os_set_path_data(argv[1]);
     lbxfile_init();
     game_aux_init(&gaux, &g);
