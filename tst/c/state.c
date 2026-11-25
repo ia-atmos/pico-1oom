@@ -188,21 +188,6 @@ static void test_ai_plague(struct game_s *g_, uint8_t planet) { printf("ai_plagu
 static void test_ai_nova(struct game_s *g_, uint8_t planet) { printf("ai_nova %d\n", planet); }
 static void test_ai_comet(struct game_s *g_, uint8_t planet) { printf("ai_comet %d\n", planet); }
 static void test_ai_pirates(struct game_s *g_, uint8_t planet) { printf("ai_pirates %d\n", planet); }
-static void test_ai_aud_start_human(struct audience_s *au) { printf("ai_aud_start_human\n"); au->dtype = 22; au->mode = 0; }
-static int test_ai_aud_si(const char *what, struct audience_s *au) { ++aud_n; printf("ai_%s %d\n", what, aud_n % 4); return aud_n % 4; }
-static int test_ai_aud_treaty_nap(struct audience_s *au) { return test_ai_aud_si("aud_nap", au); }
-static int test_ai_aud_treaty_alliance(struct audience_s *au) { return test_ai_aud_si("aud_alliance", au); }
-static int test_ai_aud_treaty_peace(struct audience_s *au) { return test_ai_aud_si("aud_peace", au); }
-static int test_ai_aud_treaty_declare_war(struct audience_s *au) { return test_ai_aud_si("aud_declare_war", au); }
-static int test_ai_aud_treaty_break_alliance(struct audience_s *au) { return test_ai_aud_si("aud_break_alliance", au); }
-static int test_ai_aud_trade(struct audience_s *au) { return test_ai_aud_si("aud_trade", au); }
-static bool test_ai_aud_sweeten(struct audience_s *au, int *bcptr, tech_field_t *fieldptr, uint8_t *techptr) { ++aud_n; *bcptr = 25 * (aud_n % 3); *fieldptr = 0; *techptr = 0; printf("ai_aud_sweeten %d\n", *bcptr); return (aud_n % 2) == 0; }
-static uint8_t test_ai_aud_threaten(struct audience_s *au) { printf("ai_aud_threaten\n"); return 73; }
-static void test_ai_aud_tribute_bc(struct audience_s *au, int selected, int bc) { printf("ai_aud_tribute_bc %d %d\n", selected, bc); au->tribute_bc = bc; }
-static void test_ai_aud_tribute_tech(struct audience_s *au, int selected, tech_field_t field, uint8_t tech) { printf("ai_aud_tribute_tech %d %d %d\n", selected, field, tech); au->tribute_field = field; au->tribute_tech = tech; }
-static int test_ai_aud_tech_scale(struct audience_s *au) { printf("ai_aud_tech_scale\n"); return 100; }
-static uint8_t test_ai_aud_get_dtype(struct audience_s *au, uint8_t dtype, int a2) { printf("ai_aud_get_dtype %d %d\n", dtype, a2); return dtype; }
-static bool test_ai_aud_later(struct audience_s *au) { ++aud_n; printf("ai_aud_later %d\n", (aud_n % 5) == 4); return (aud_n % 5) == 4; }
 /* The turn of an item in a battle: attack the first enemy in reach, or
    move to the free square nearest to an enemy and attack from there. */
 static bool test_ai_battle_try_attack(struct battle_s *bt)
@@ -510,20 +495,6 @@ int main(int argc, char **argv)
     test_ai.battle_ai_turn = test_ai_battle_turn;
     test_ai.battle_ai_retreat = test_ai_battle_ai_retreat;
     test_ai.battle_ai_ai_resolve = test_ai_battle_ai_ai_resolve;
-    test_ai.aud_start_human = test_ai_aud_start_human;
-    test_ai.aud_treaty_nap = test_ai_aud_treaty_nap;
-    test_ai.aud_treaty_alliance = test_ai_aud_treaty_alliance;
-    test_ai.aud_treaty_peace = test_ai_aud_treaty_peace;
-    test_ai.aud_treaty_declare_war = test_ai_aud_treaty_declare_war;
-    test_ai.aud_treaty_break_alliance = test_ai_aud_treaty_break_alliance;
-    test_ai.aud_trade = test_ai_aud_trade;
-    test_ai.aud_sweeten = test_ai_aud_sweeten;
-    test_ai.aud_threaten = test_ai_aud_threaten;
-    test_ai.aud_tribute_bc = test_ai_aud_tribute_bc;
-    test_ai.aud_tribute_tech = test_ai_aud_tribute_tech;
-    test_ai.aud_tech_scale = test_ai_aud_tech_scale;
-    test_ai.aud_get_dtype = test_ai_aud_get_dtype;
-    test_ai.aud_later = test_ai_aud_later;
     game_ai = &test_ai;
     os_set_path_data(argv[1]);
     lbxfile_init();

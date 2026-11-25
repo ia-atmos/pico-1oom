@@ -246,12 +246,6 @@ set ui_audience_ask4 = func (au) { au_ask("au_ask4", au) }
 set ui_audience_newtech = func (au, pi) { out("au_newtech %d\n", pi) }
 set ui_audience_end = func (au) { au_print("au_end", au) }
 
-func test_ai_aud_si (what, au) {
-    set aud_n = aud_n + 1
-    out("ai_%s %d\n", what, aud_n % 4)
-    aud_n % 4
-}
-
 ;; The battle, as tst/c/state.c has it.
 set ui_gfx_get_ship = func (look) { nil }
 set ui_gfx_get_planet = func (look) { nil }
@@ -353,49 +347,6 @@ pin game_ai_test = [
     nova          = func (g_, planet) { out("ai_nova %d\n", planet) },
     comet         = func (g_, planet) { out("ai_comet %d\n", planet) },
     pirates       = func (g_, planet) { out("ai_pirates %d\n", planet) },
-    aud_start_human = func (au) {
-        out("ai_aud_start_human\n")
-        set au.dtype = 22
-        set au.mode = 0
-    },
-    aud_treaty_nap = func (au) { test_ai_aud_si("aud_nap", au) },
-    aud_treaty_alliance = func (au) { test_ai_aud_si("aud_alliance", au) },
-    aud_treaty_peace = func (au) { test_ai_aud_si("aud_peace", au) },
-    aud_treaty_declare_war = func (au) { test_ai_aud_si("aud_declare_war", au) },
-    aud_treaty_break_alliance = func (au) { test_ai_aud_si("aud_break_alliance", au) },
-    aud_trade = func (au) { test_ai_aud_si("aud_trade", au) },
-    aud_sweeten = func (au) {
-        set aud_n = aud_n + 1
-        val bc = 25 * (aud_n % 3)
-        out("ai_aud_sweeten %d\n", bc)
-        return ((aud_n % 2) == 0, bc, 0, 0)
-    },
-    aud_threaten = func (au) {
-        out("ai_aud_threaten\n")
-        73
-    },
-    aud_tribute_bc = func (au, selected, bc) {
-        out("ai_aud_tribute_bc %d %d\n", selected, bc)
-        set au.tribute_bc = bc
-    },
-    aud_tribute_tech = func (au, selected, field, tech) {
-        out("ai_aud_tribute_tech %d %d %d\n", selected, field, tech)
-        set au.tribute_field = field
-        set au.tribute_tech = tech
-    },
-    aud_tech_scale = func (au) {
-        out("ai_aud_tech_scale\n")
-        100
-    },
-    aud_get_dtype = func (au, dtype, a2) {
-        out("ai_aud_get_dtype %d %d\n", dtype, a2)
-        dtype
-    },
-    aud_later = func (au) {
-        set aud_n = aud_n + 1
-        out("ai_aud_later %d\n", cint((aud_n % 5) == 4))
-        (aud_n % 5) == 4
-    },
     battle_ai_turn = test_ai_battle_turn,
     battle_ai_retreat = func (bt) { false },
     battle_ai_ai_resolve = func (bt) {
