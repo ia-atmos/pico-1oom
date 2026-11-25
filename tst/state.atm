@@ -345,24 +345,10 @@ func test_ai_battle_turn (bt) {
 }
 
 ;; The functions of the AI that are not ported yet, replaced by fixed answers
-;; that print each call, as tst/c/state.c does.
-set game_ai = [
-    id            = game_ai.id,
-    name          = game_ai.name,
-    new_game_init = game_ai.new_game_init,
-    new_game_tech = game_ai.new_game_tech,
-    bomb          = func (g_, player, planet, pop_inbound) {
-        out("ai_bomb %d %d %d\n", player, planet, pop_inbound)
-        ((planet + player) & 1) == 0
-    },
-    tech_next     = func (g_, player, field, tbl, num) {
-        out("ai_tech_next %d %d %d\n", player, field, num)
-        tbl@((player + field) % num)
-    },
-    vote          = func (el, player) {
-        out("ai_vote %d\n", player)
-        (player + el.g.year) % 3
-    },
+;; that print each call, as tst/c/state.c does; the others are those of the
+;; classic AI.
+val game_ai_real = game_ai
+pin game_ai_test = [
     plague        = func (g_, planet) { out("ai_plague %d\n", planet) },
     nova          = func (g_, planet) { out("ai_nova %d\n", planet) },
     comet         = func (g_, planet) { out("ai_comet %d\n", planet) },
@@ -416,10 +402,13 @@ set game_ai = [
         out("ai_battle_resolve %d %d %d\n", bt.planet_i, bt.s@(0).party, bt.s@(1).party)
         ((bt.planet_i + bt.s@(0).party) & 1) != 0
     },
-    ground        = func (g_, def, att, planet, pop_killed, owner_changed) {
-        out("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, cint(owner_changed))
-    },
 ]
+loop k,v in game_ai_real {
+    if game_ai_test@(k) == nil {
+        set game_ai_test@(k) = v
+    }
+}
+set game_ai = game_ai_test
 set ui_gmap_basic_init = func (g_, show_player_switch) { nil }
 set ui_gmap_basic_start_player = func (ctx, pi) { nil }
 set ui_gmap_basic_start_frame = func (ctx, pi) { nil }

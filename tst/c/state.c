@@ -183,11 +183,7 @@ bool ui_battle_ai_post(const struct battle_s *bt) { return false; }
 void ui_sound_play_sfx(int sfxi) { }
 
 /* The functions of the AI that are not ported yet, replaced by fixed
-   answers that print each call. */
-static bool test_ai_bomb(struct game_s *g_, player_id_t player, uint8_t planet, int pop_inbound) { printf("ai_bomb %d %d %d\n", player, planet, pop_inbound); return ((planet + player) & 1) == 0; }
-static void test_ai_ground(struct game_s *g_, player_id_t def, player_id_t att, uint8_t planet, int pop_killed, bool owner_changed) { printf("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, owner_changed); }
-static uint8_t test_ai_tech_next(struct game_s *g_, player_id_t player, tech_field_t field, uint8_t *tbl, int num) { printf("ai_tech_next %d %d %d\n", player, field, num); return tbl[(player + field) % num]; }
-static int test_ai_vote(struct election_s *el, player_id_t player) { printf("ai_vote %d\n", player); return (player + el->g->year) % 3; }
+   answers that print each call; the others are those of the classic AI. */
 static void test_ai_plague(struct game_s *g_, uint8_t planet) { printf("ai_plague %d\n", planet); }
 static void test_ai_nova(struct game_s *g_, uint8_t planet) { printf("ai_nova %d\n", planet); }
 static void test_ai_comet(struct game_s *g_, uint8_t planet) { printf("ai_comet %d\n", planet); }
@@ -507,10 +503,6 @@ int main(int argc, char **argv)
 {
     int k;
     memcpy(&test_ai, game_ai, sizeof(test_ai));
-    test_ai.bomb = test_ai_bomb;
-    test_ai.ground = test_ai_ground;
-    test_ai.tech_next = test_ai_tech_next;
-    test_ai.vote = test_ai_vote;
     test_ai.plague = test_ai_plague;
     test_ai.nova = test_ai_nova;
     test_ai.comet = test_ai_comet;
