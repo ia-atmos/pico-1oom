@@ -27,7 +27,7 @@ Last update: 2026-11-25
 | #6 | Step 1 done, and how the C becomes Atmos | report | reported 2026-11-17; he asked about the structure 2026-11-18 |
 | #7 | Work with no input (atmos-lang#95): #1, #3, #4 done without his answer | report | reported 2026-11-20 |
 | #8 | Step 3 of the port: a new game from a seed | work | done 2026-11-22 |
-| #9 | Step 4 of the port: the turn, one phase at a time | work | in course |
+| #9 | Step 4 of the port: the turn, one phase at a time | work | done 2026-11-25, with step (e), the AI |
 | #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
 | #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C; the port throws there | remark | open |
 | #12 | The enums of C are unsigned (gcc): a negative `int` with an enum is unsigned arithmetic | remark | open: a check to keep doing |
@@ -73,23 +73,24 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   driver (`tst/c/game_new.c`) gives the same save as the init save of
   `1oom_cmdline`. Not ported: `game_generate_load` (it throws), which is
   only called when `game_num_update_on_load` is false (it is true).
-- #9 Step 4, the turn, in course. Done (2026-11-22): `game_tech.c` and
+- #9 Step 4, the turn: **done** (2026-11-25). Done (2026-11-22): `game_tech.c` and
   `game_misc.c` (all of them), with two functions of `game_planet.c` and
   `lib_sprintf`. Done (2026-11-23): the logic of `game_planet.c`; all of
   `game_fleet.c`, `game_stat.c`, `game_design.c`, `game_diplo.c`,
   `game_spy.c`, `game_bomb.c`, `game_ground.c`, `game_news.c`,
   `game_election.c`, `game_event.c`, `game_audience.c`, `game_end.h`, the
   ship names (`game_str_shipnames.c`), `strbuild` and `lib_strcat`; and
-  every phase of `game_turn.c` but `game_turn_process` itself. Done
-  (2026-11-25): `game_parsed.c`, `game_battle.c`, `game_battle_human.c`,
+  every phase of `game_turn.c`. Done (2026-11-25): `game_turn_process`,
+  `game_parsed.c`, `game_battle.c`, `game_battle_human.c`,
   and all of `game_ai_classic.c` (step (e) of decision 5, done with the
   turn: new game, techs, bombs, ground combat, votes, events, diplomacy,
   audiences, the battle AI, and the turn p1/p2/p3). `src/ui.atm` holds the
   functions of `ui.h` that the logic calls: each is a `var` that an
   interface sets; unset, it throws (by the session, reversible).
-  Checked by `tst/state.sh`: on the 109 saves, 21 groups of operations
-  (2289 runs; the earlier sixteen, plus battles, the AI diplomacy twice,
-  the AI designs/sliders/spies by year, and eight turns of the AI fleets),
+  Checked by `tst/state.sh`: on the 109 saves, 22 groups of operations
+  (2398 runs; the earlier sixteen, plus battles, the AI diplomacy twice,
+  the AI designs/sliders/spies by year, eight turns of the AI fleets, and
+  ten whole turns of `game_turn_process`),
   the whole state and what the operations print compared with the C after
   each. The C driver includes `game_turn.c` to reach its static phases.
   Both drivers have an interface that prints each call and answers by
@@ -101,8 +102,8 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   it sets `game_ai` and `game_ais` (by the session, reversible).
   Found on the way: in `tbl_shiptech_weap` the weapon "none" had
   `is_bio = 0`, which is true in Atmos; `tools/game_shiptech.py` now
-  writes a C bool as `false`/`true`. Next: `game_turn_process`, then
-  step (f), the textual interface.
+  writes a C bool as `false`/`true`. Next: step (f), the textual
+  interface (`c/src/ui/cmdline`).
 - #13 With no target (`target_i == -1`), `game_battle_ai_best_range` and
   `get_possible_distance_increase` read `bt->item[-1]` (undefined
   behaviour, before the table). On x86-64 these are the bytes of `bt->s[0]`
