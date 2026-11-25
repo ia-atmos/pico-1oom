@@ -1,7 +1,7 @@
 ;; Port of c/src/game/game_ai_classic.c, in part (step 5, #9): the functions
 ;; of a new game, of techs, bombs, ground combat, votes, the battle,
-;; diplomacy and audiences. The rest (the turn) is still to come; the
-;; table `game_ai_classic` holds the functions ported so far.
+;; diplomacy, audiences and the turn p2/p3. The rest (the turn p1) is still
+;; to come; the table `game_ai_classic` holds the functions ported so far.
 ;;
 ;; The "Classic" AI mimics MOO1 v1.3 behaviour.
 ;; Minor bug fixes are allowed.
@@ -11,10 +11,16 @@
 include "../rnd.atm"
 include "../util_math.atm"
 include "game.atm"
+include "game_ai.atm"
 include "game_diplo.atm"
 include "game_election.atm"
 include "game_fleet.atm"
 include "game_battle.atm"
+include "game_design.atm"
+include "game_misc.atm"
+include "game_str.atm"
+include "../lib.atm"
+include "../log.atm"
 include "game_num.atm"
 include "game_spy.atm"
 include "game_tech.atm"
@@ -83,6 +89,827 @@ func game_ai_classic_new_game_tech (g) {
                 val e = g.eto@(pli)
                 set e.tech.project@(field) = tech
                 set e.tech.cost@(field) = u32(tech * tech * 50)
+            }
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+;; The ship designs (turn p2).
+
+func ai_turn_p2_s () {
+    [
+        gd             = game_design_s(),
+        shiptype       = 0,         ;; int (0 colony, 1 fighter, 2 bomber)
+        hull           = 0,         ;; ship_hull_t
+        shiplook       = 0,         ;; uint8_t
+        have_pulsar    = false,
+        have_repulwarp = false,
+    ]
+}
+
+func game_ai_classic_design_scrap (g, pi, shipi) {
+    val e = g.eto@(pi)
+    game_design_scrap(g, pi, shipi, false)
+    var si = e.shipi_colony
+    ifs {
+        si == shipi => { set si = -1 }
+        si > shipi => { set si = si - 1 }
+        else => nil
+    }
+    set e.shipi_colony = i8(si)
+    set si = e.shipi_bomber
+    ifs {
+        si == shipi => { set si = -1 }
+        si > shipi => { set si = si - 1 }
+        else => nil
+    }
+    set e.shipi_bomber = i8(si)
+}
+
+func game_ai_classic_design_ship_get_look (g, pi, hull) {
+    val e = g.eto@(pi)
+    val srd = g.srd@(pi)
+    pin tbl_in_use = carray(SHIP_LOOK_PER_HULL, false)
+    val lookbase = u8((SHIP_LOOK_PER_HULL * hull) + (e.banner * SHIP_LOOK_PER_BANNER))
+    val lookmax = u8(lookbase + (SHIP_LOOK_PER_HULL - 1))
+    loop i in e.shipdesigns_num {
+        val look = srd.design@(i).look
+        if (look >= lookbase) && (look <= lookmax) {
+            set tbl_in_use@(look - lookbase) = true
+        }
+    }
+    var look = 0
+    loop {
+        while (look < SHIP_LOOK_PER_HULL) && tbl_in_use@(look)
+        set look = look + 1
+    }
+    if look > (SHIP_LOOK_PER_HULL - 1) {
+        set look = 0
+    }
+    u8(look + lookbase)
+}
+
+func count_havebuf_items (tbl, last) {
+    var num = 0
+    loop i in last {
+        if tbl@(i) > 0 {
+            set num = num + 1
+        }
+    }
+    num
+}
+
+func find_havebuf_item (tbl, num0) {
+    var num = num0
+    var i = 0
+    loop {
+        while num > 0
+        if tbl@(i) > 0 {
+            set num = num - 1
+        }
+        set i = i + 1
+    }
+    if i != 0 => (i - 1) => 0
+}
+
+func game_ai_classic_design_ship_get_item (g, num0, chance0) {
+    var num = num0
+    var chance = chance0
+    loop {
+        while (rnd_1_n(100, g) > chance) && (num > 1)
+        set chance = chance * 2
+        set num = num - 1
+    }
+    num
+}
+
+func game_ai_classic_design_update_engines_space (gd) {
+    val sd = gd.sd
+    game_design_update_engines(sd)
+    set sd.space = u16(game_design_calc_space(gd))
+    sd.space
+}
+
+pin tbl_chance_special = [  ;; uint8_t[SHIP_SPECIAL_NUM][SHIP_HULL_NUM]
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 0, 0 ],
+    [ 0, 0, 30, 80 ],
+    [ 0, 10, 50, 80 ],
+    [ 0, 0, 25, 80 ],
+    [ 0, 0, 20, 70 ],
+    [ 0, 5, 20, 60 ],
+    [ 20, 30, 50, 80 ],
+    [ 0, 10, 40, 70 ],
+    [ 0, 0, 25, 50 ],
+    [ 0, 0, 20, 40 ],
+    [ 20, 30, 40, 70 ],
+    [ 0, 0, 20, 30 ],
+    [ 10, 20, 25, 35 ],
+    [ 0, 0, 20, 30 ],
+    [ 0, 0, 20, 40 ],
+    [ 10, 20, 30, 40 ],
+    [ 0, 10, 30, 50 ],
+    [ 0, 0, 30, 60 ],
+    [ 0, 0, 0, 50 ],
+    [ 0, 10, 20, 30 ],
+    [ 10, 20, 40, 60 ],
+    [ 10, 20, 40, 60 ],
+    [ 10, 20, 40, 60 ],
+]
+pin tbl_chance_comp = [ 10, 20, 35, 50 ]
+pin tbl_chance_shield = [ 5, 15, 40, 70 ]
+pin tbl_chance_armor = [ 1, 2, 4, 8 ]
+pin tbl_chance_man = [ 30, 20, 20, 15 ]
+pin tbl_chance_jammer = [ 2, 8, 20, 30 ]
+
+func game_ai_classic_design_ship_base_special (g, ait, tbl_have, si, hull) {
+    val sd = ait.gd.sd
+    var st = SHIP_SPECIAL_NONE
+    val v = game_design_build_tbl_fit_special(g, ait.gd, tbl_have, si)
+    loop i in (SHIP_SPECIAL_RESERVE_FUEL_TANKS, SHIP_SPECIAL_BATTLE_SCANNER - 1) {
+        set tbl_have@(i) = 0
+    }
+    loop i in (0, v) {
+        if (rnd_1_n(100, g) <= tbl_chance_special@(i)@(hull)) && (tbl_have@(i) > 0) {
+            set st = i
+        }
+    }
+    set sd.special@(si) = st
+}
+
+func game_ai_classic_design_ship_base (g, ait, pi) {
+    pin tbl_have = carray(SHIP_SPECIAL_NUM)     ;; int8_t[] (largest of the used)
+    val sd = ait.gd.sd
+    val hull = sd.hull
+    do {
+        var v = game_design_build_tbl_fit_engine(g, ait.gd, tbl_have)
+        set v = count_havebuf_items(tbl_have, v)
+        if (g.ai_id == GAME_AI_CLASSIC) || (v < 2) {
+            set v = game_ai_classic_design_ship_get_item(g, v, 60)
+        } else {
+            if v > 2 {
+                val best = find_havebuf_item(tbl_have, v)
+                val next = find_havebuf_item(tbl_have, v - 1)
+                if (next > 1) && ((best - next) < 3) {
+                    set v = game_ai_classic_design_ship_get_item(g, v, 45 + ((best - next) * 15))
+                }
+            }   ;; else v = v;
+        }
+        set sd.engine = find_havebuf_item(tbl_have, v)
+    }
+    val space = game_ai_classic_design_update_engines_space(ait.gd) // 3
+    if ait.shiptype == 0 {  ;; colony
+        var v = game_design_build_tbl_fit_special(g, ait.gd, tbl_have, 0)
+        set tbl_have@(SHIP_SPECIAL_RESERVE_FUEL_TANKS) = 0
+        loop i in (SHIP_SPECIAL_BATTLE_SCANNER, v) {
+            set tbl_have@(i) = 0
+        }
+        set v = count_havebuf_items(tbl_have, v)
+        if v >= 2 {
+            set v = find_havebuf_item(tbl_have, v)
+            if v < SHIP_SPECIAL_STANDARD_COLONY_BASE {
+                ;; (C: LOG_DEBUG "BUG: invalid colony special")
+                set v = SHIP_SPECIAL_STANDARD_COLONY_BASE
+            }
+        } else {
+            set v = SHIP_SPECIAL_STANDARD_COLONY_BASE
+        }
+        set sd.special@(0) = v
+        if ait.gd.percent@(TECH_FIELD_CONSTRUCTION) > 5 {
+            set sd.special@(1) = SHIP_SPECIAL_RESERVE_FUEL_TANKS
+        }
+        ;; BUG? no update_engines
+    }
+    do {
+        var v = game_design_build_tbl_fit_comp(g, ait.gd, tbl_have)
+        set v = count_havebuf_items(tbl_have, v)
+        set v = game_ai_classic_design_ship_get_item(g, v, tbl_chance_comp@(hull))
+        set sd.comp = find_havebuf_item(tbl_have, v)
+    }
+    if game_ai_classic_design_update_engines_space(ait.gd) < space {
+        return nil
+    }
+    do {
+        var v = game_design_build_tbl_fit_shield(g, ait.gd, tbl_have)
+        set v = count_havebuf_items(tbl_have, v)
+        set v = game_ai_classic_design_ship_get_item(g, v, tbl_chance_shield@(hull))
+        set sd.shield = find_havebuf_item(tbl_have, v)
+    }
+    if game_ai_classic_design_update_engines_space(ait.gd) < space {
+        return nil
+    }
+    do {
+        var v = game_design_build_tbl_fit_armor(g, ait.gd, tbl_have)
+        if (rnd_1_n(100, g) <= tbl_chance_armor@(hull)) && ((v & 1) == 1) {
+            ;; NOP
+        } else {
+            set v = v - (v & 1)    ;; v &= ~1
+        }
+        set sd.armor = v
+    }
+    if game_ai_classic_design_update_engines_space(ait.gd) < space {
+        return nil
+    }
+    if ait.shiptype == 0 {  ;; colony
+        return nil
+    }
+    loop si in (0, 1) {
+        game_ai_classic_design_ship_base_special(g, ait, tbl_have, si, hull)
+        if game_ai_classic_design_update_engines_space(ait.gd) < space {
+            return nil
+        }
+    }
+    do {
+        var v = game_design_build_tbl_fit_man(g, ait.gd, tbl_have)
+        set v = count_havebuf_items(tbl_have, v)
+        set v = game_ai_classic_design_ship_get_item(g, v, tbl_chance_man@(hull))
+        set sd.man = find_havebuf_item(tbl_have, v)
+    }
+    if game_ai_classic_design_update_engines_space(ait.gd) < space {
+        return nil
+    }
+    do {
+        var v = game_design_build_tbl_fit_jammer(g, ait.gd, tbl_have)
+        set v = count_havebuf_items(tbl_have, v)
+        set v = game_ai_classic_design_ship_get_item(g, v, tbl_chance_jammer@(hull))
+        set sd.jammer = find_havebuf_item(tbl_have, v)
+    }
+    game_ai_classic_design_ship_base_special(g, ait, tbl_have, 2, hull)
+}
+
+func game_ai_classic_design_ship_sub2 (g, ait, pi) {
+    pin tbl_have = carray(SHIP_SPECIAL_NUM)     ;; int8_t[]
+    val sd = ait.gd.sd
+    val hull = sd.hull
+    if (sd.special@(2) != SHIP_SPECIAL_NONE) || (hull < SHIP_HULL_LARGE) {
+        return nil
+    }
+    game_design_build_tbl_fit_special(g, ait.gd, tbl_have, 2)
+    if tbl_have@(SHIP_SPECIAL_BATTLE_SCANNER) > 0 {
+        set sd.special@(2) = SHIP_SPECIAL_BATTLE_SCANNER
+    }
+    if (ait.gd.percent@(TECH_FIELD_PROPULSION) < 30) || (sd.special@(1) != SHIP_SPECIAL_NONE) {
+        return nil
+    }
+    game_design_build_tbl_fit_special(g, ait.gd, tbl_have, 2)   ;; BUG should be slot 1
+    if tbl_have@(SHIP_SPECIAL_INERTIAL_STABILIZER) > 0 {
+        set sd.special@(1) = SHIP_SPECIAL_INERTIAL_STABILIZER
+    }
+}
+
+func game_ai_classic_design_ship_weapon (g, ait, pi, sloti, numshots_ignore, c1, c2) {
+    pin tbl_have = carray(WEAPON_NUM)   ;; int8_t[]
+    val sd = ait.gd.sd
+    var v = game_design_build_tbl_fit_weapon(g, ait.gd, tbl_have, sloti, WEAPON_GROUP_ALL)
+    if (sloti == 0) && tbl_shiptech_weap@(v).is_bomb && (ait.shiptype != 2) {  ;; bomber
+        set v = v - 1
+    }
+    set v = SETMAX(v, 1)
+    loop i in v {   ;; FIXME <= v ?
+        if tbl_have@(i) > 0 {
+            if false
+              || (tbl_shiptech_weap@(i).numshots == numshots_ignore)
+              || (ait.have_repulwarp && (tbl_shiptech_weap@(i).range == 1)) {
+                set tbl_have@(i) = 0
+            }
+        }
+    }
+    loop i in sloti {
+        set tbl_have@(sd.wpnt@(i)) = 0
+    }
+    set v = count_havebuf_items(tbl_have, v)
+    if v > 1 {
+        set v = find_havebuf_item(tbl_have, v)
+        set sd.wpnt@(sloti) = v
+        val w = tbl_shiptech_weap@(v)
+        val r = if (w.numfire > 0) || (w.nummiss > 0) => 41 => 11
+        set sd.wpnn@(sloti) = u8((tbl_have@(v) * (rnd_1_n((c2 - c1) + r, g) + c1)) // 100)
+    }
+}
+
+pin tbl_chance_2 = [ 0, 50, 75, 100 ]
+pin tbl_chance_3 = [ 0, 0, 50, 100 ]
+pin tbl_chance_4 = [ 0, 0, 25, 50 ]
+pin tbl_c1 = [  ;; uint8_t[WEAPON_SLOT_NUM][WEAPON_SLOT_NUM]
+    [ 100, 100, 100, 100 ],
+    [ 60, 100, 100, 100 ],
+    [ 40, 40, 100, 100 ],
+    [ 40, 40, 60, 100 ],
+]
+pin tbl_c2 = [  ;; uint8_t[WEAPON_SLOT_NUM][WEAPON_SLOT_NUM]
+    [ 100, 100, 100, 100 ],
+    [ 80, 100, 100, 100 ],
+    [ 70, 70, 100, 100 ],
+    [ 60, 60, 80, 100 ],
+]
+
+func game_ai_classic_design_ship_weapons (g, ait, pi) {
+    var weapnum = 1
+    val numshots_ignore = if rnd_0_nm1(2, g) != 0 => 2 => 5
+    do {
+        val hull = ait.gd.sd.hull
+        if rnd_1_n(100, g) <= tbl_chance_2@(hull) {
+            set weapnum = 2
+            if rnd_1_n(100, g) <= tbl_chance_3@(hull) {
+                set weapnum = 3
+                if rnd_1_n(100, g) <= tbl_chance_4@(hull) {
+                    set weapnum = 4
+                }
+            }
+        }
+    }
+    loop i in weapnum {
+        game_ai_classic_design_ship_weapon(g, ait, pi, i, numshots_ignore, tbl_c1@(weapnum - 1)@(i), tbl_c2@(weapnum - 1)@(i))
+    }
+}
+
+pin tbl_hulldiff = [ 0, 0, 3, 0, 0, -3, -3, 3, 3, 0 ]   ;; int8_t[RACE_NUM]
+pin tbl_hull = [ 0, 1, 1, 1, 2, 2, 2, 2, 2, 3, 3, 3 ]   ;; ship_hull_t[12]
+
+func game_ai_classic_design_ship (g, ait, pi) {
+    val sd = ait.gd.sd
+    val e = g.eto@(pi)
+    val temp_repulwarp = ait.have_repulwarp
+    var loops = 0
+    loop {  ;; again:
+        set loops = loops + 1
+        if loops >= 100000 {
+            log_fatal_and_die("BUG: %s looped %i times\n", "game_ai_classic_design_ship", loops)
+        }
+        if ait.shiptype != 0 {  ;; colony
+            var v = rnd_0_nm1(12, g) + tbl_hulldiff@(e.race)
+            set v = SETMAX(v, 0)
+            if ait.have_pulsar {
+                set v = v + 1
+            }
+            set v = SETMIN(v, 11)
+            set ait.hull = tbl_hull@(v)
+        } else {
+            set ait.hull = SHIP_HULL_LARGE
+        }
+        set ait.shiplook = game_ai_classic_design_ship_get_look(g, pi, ait.hull)
+        set sd.wpnn@(0) = 0
+        var loops2 = 0
+        loop {
+            while (sd.wpnn@(0) == 0) && (loops2 < 100000)
+            game_design_prepare_ai(g, ait.gd, pi, ait.hull, ait.shiplook)
+            game_ai_classic_design_ship_base(g, ait, pi)
+            game_ai_classic_design_ship_sub2(g, ait, pi)
+            game_ai_classic_design_ship_weapons(g, ait, pi)
+            game_design_set_hp(sd)
+            game_design_compact_slots(sd)
+            if ait.shiptype == 0 {  ;; colony
+                lib_strcpy(sd.name, game_str_ai_colonyship, SHIP_NAME_LEN)
+                if sd.wpnn@(0) == 0 {
+                    set sd.wpnt@(0) = WEAPON_LASER
+                    set sd.wpnn@(0) = 1
+                }
+            }
+            set sd.cost = u16(game_design_calc_cost(ait.gd))
+            set loops2 = loops2 + 1
+        }
+        if sd.wpnn@(0) == 0 {
+            if ait.have_repulwarp {
+                log_warning("%s: failure to design against repulsor/warpdis (hull %i)\n", "game_ai_classic_design_ship", ait.hull)
+                if ait.hull == SHIP_HULL_SMALL {
+                    log_warning("%s: trying again\n", "game_ai_classic_design_ship")
+                } else {
+                    set ait.have_repulwarp = false
+                    log_warning("%s: relaxing 1 rng limit\n", "game_ai_classic_design_ship")
+                }
+                skip    ;; goto again
+            } else {
+                log_fatal_and_die("BUG: %s loops2\n", "game_ai_classic_design_ship")
+            }
+        }
+        var flag_again = false
+        val wt = sd.wpnt@(0)
+        val is_missile = tbl_shiptech_weap@(wt).damagemin == tbl_shiptech_weap@(wt).damagemax
+        if is_missile || tbl_shiptech_weap@(wt).is_bomb {
+            loop i in SPECIAL_SLOT_NUM {
+                if sd.special@(i) == SHIP_SPECIAL_HIGH_ENERGY_FOCUS {
+                    set flag_again = true
+                }
+            }
+        }
+        if is_missile {
+            loop i in SPECIAL_SLOT_NUM {
+                if sd.special@(i) == SHIP_SPECIAL_ORACLE_INTERFACE {
+                    set flag_again = true
+                }
+            }
+        }
+        if !flag_again {
+            break
+        }
+    }
+    game_design_add(g, pi, sd, false)
+    set ait.have_repulwarp = temp_repulwarp
+}
+
+func game_ai_classic_turn_p2_shipi (g, pi) {
+    val e = g.eto@(pi)
+    val srd = g.srd@(pi)
+    loop i in e.shipdesigns_num {
+        val sd = srd.design@(i)
+        loop j in SPECIAL_SLOT_NUM {
+            val s = sd.special@(j)
+            if (s >= SHIP_SPECIAL_STANDARD_COLONY_BASE) && (s <= SHIP_SPECIAL_RADIATED_COLONY_BASE) {
+                set e.shipi_colony = i
+            }
+        }
+        if tbl_shiptech_weap@(sd.wpnt@(0)).is_bomb {
+            set e.shipi_bomber = i
+        }
+    }
+}
+
+func game_ai_classic_turn_p2_do (g, pi) {
+    pin ait = ai_turn_p2_s()
+    val e = g.eto@(pi)
+    val srd = g.srd@(pi)
+    var num_non0 = 0
+    set ait.have_pulsar = false
+    set ait.have_repulwarp = false
+    loop p2 in g.players {
+        if IS_AI(g, p2) || (!IS_ALIVE(g, p2)) {
+            skip
+        }
+        val sn = g.eto@(p2).shipdesigns_num
+        loop i in sn {
+            val ss = g.srd@(p2).design@(i).special
+            loop j in SPECIAL_SLOT_NUM {
+                val s = ss@(j)
+                if (s == SHIP_SPECIAL_ENERGY_PULSAR) || (s == SHIP_SPECIAL_IONIC_PULSAR) {
+                    set ait.have_pulsar = true
+                }
+                if (s == SHIP_SPECIAL_REPULSOR_BEAM) || (s == SHIP_SPECIAL_WARP_DISSIPATOR) {
+                    set ait.have_repulwarp = true
+                }
+            }
+        }
+    }
+    set e.ai_p2_countdown = i8(rnd_1_n(12, g) + 8)
+    game_update_maint_costs(g)
+    set e.shipi_colony = -1
+    set e.shipi_bomber = -1
+    loop i in e.shipdesigns_num {
+        if srd.shipcount@(i) != 0 {
+            set num_non0 = num_non0 + 1
+        }
+    }
+    game_ai_classic_turn_p2_shipi(g, pi)
+    var i = 0
+    loop {
+        while (i < e.shipdesigns_num) && (num_non0 > 1)
+        if false
+          || ((g.year < 100) && ((g.year - srd.year@(i)) > 50))
+          || ((g.year >= 100) && ((g.year - srd.year@(i)) > 100)) {
+            game_ai_classic_design_scrap(g, pi, i)
+            set num_non0 = num_non0 - 1     ;; BUG this could be a non-non0 ship design
+        }
+        set i = i + 1
+    }
+    set num_non0 = 0
+    loop i in e.shipdesigns_num {
+        if srd.shipcount@(i) != 0 {
+            set num_non0 = num_non0 + 1
+        }
+    }
+    do {
+        var shipi_remove = -1
+        ifs {
+            num_non0 > 4 => {
+                var year_oldest = 0xffff
+                loop i in e.shipdesigns_num {
+                    val sy = srd.year@(i)
+                    if sy < year_oldest {
+                        set year_oldest = sy
+                        set shipi_remove = i
+                    }
+                }
+            }
+            e.shipdesigns_num > 1 => {
+                loop i in e.shipdesigns_num {
+                    if srd.shipcount@(i) == 0 {
+                        set shipi_remove = i
+                        break
+                    }
+                }
+            }
+            else => nil
+        }
+        if shipi_remove != -1 {
+            game_ai_classic_design_scrap(g, pi, shipi_remove)
+        }
+    }
+    var loops = 0
+    loop {
+        while (e.shipdesigns_num < NUM_SHIPDESIGNS) && (loops < 10000)
+        val si = e.shipdesigns_num
+        ifs {
+            e.shipi_colony == -1 => {
+                set e.shipi_colony = si
+                set ait.shiptype = 0    ;; colony
+            }
+            e.shipi_bomber == -1 => {
+                set e.shipi_bomber = si
+                set ait.shiptype = 2    ;; bomber
+            }
+            else => {
+                set ait.shiptype = 1    ;; fighter
+            }
+        }
+        game_ai_classic_design_ship(g, ait, pi)
+        set loops = loops + 1
+    }
+    if e.shipdesigns_num < NUM_SHIPDESIGNS {
+        log_fatal_and_die("BUG: %s hang\n", "game_ai_classic_turn_p2_do")
+    }
+    game_ai_classic_turn_p2_shipi(g, pi)
+    pin tbl_i = carray(NUM_SHIPDESIGNS)     ;; uint8_t[]
+    pin tbl_year = carray(NUM_SHIPDESIGNS)  ;; uint16_t[]
+    loop i in NUM_SHIPDESIGNS {
+        set tbl_i@(i) = i
+        set tbl_year@(i) = srd.year@(i)
+        if i == e.shipi_colony {
+            set tbl_year@(i) = 0
+        }
+    }
+    loop j in NUM_SHIPDESIGNS - 1 {
+        loop i in NUM_SHIPDESIGNS - 1 {
+            val y1 = tbl_year@(i + 1)
+            val y = tbl_year@(i)
+            if y1 > y {
+                set tbl_year@(i + 1) = y
+                set tbl_year@(i) = y1
+                val t = tbl_i@(i)
+                set tbl_i@(i) = tbl_i@(i + 1)
+                set tbl_i@(i + 1) = t
+            }
+        }
+    }
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if p.owner == pi {
+            var n
+            if (!p.have_stargate) && e.have_stargates && (rnd_0_nm1(2, g) != 0) {
+                set n = BUILDSHIP_STARGATE
+            } else {
+                set n = tbl_i@(rnd_0_nm1(3, g))
+            }
+            set p.buildship = n
+        }
+    }
+}
+
+func game_ai_classic_turn_p2 (g) {
+    loop pi in g.players {
+        if IS_AI(g, pi) && IS_ALIVE(g, pi) {
+            val e = g.eto@(pi)
+            set e.ai_p2_countdown = i8(e.ai_p2_countdown - 1)
+            if e.ai_p2_countdown <= 0 {
+                game_ai_classic_turn_p2_do(g, pi)
+            }
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+;; The sliders and spies (turn p3).
+
+func game_ai_classic_turn_p3_sub1 (g, pi) {
+    val e = g.eto@(pi)
+    loop pi2 in g.players {
+        set e.spymode_next@(pi2) = SPYMODE_HIDE
+        ifs {
+            IS_HUMAN(g, pi2) && (g.evn.ceasefire@(pi2)@(pi2) > 0) => {   ;; FIXME BUG should be [pi2][pi]
+                set e.spymode_next@(pi2) = SPYMODE_HIDE     ;; FIXME redundant
+            }
+            (pi != pi2) && BOOLVEC_IS1(e.contact, pi2) => {
+                ifs {
+                    e.treaty@(pi2) >= TREATY_WAR => {
+                        set e.spymode_next@(pi2) = SPYMODE_SABOTAGE
+                    }
+                    e.spymode_next@(pi2) == SPYMODE_HIDE => {   ;; FIXME BUG always true
+                        if (e.race == RACE_DARLOK) || (rnd_0_nm1(2, g) != 0) {
+                            if rnd_1_n(200, g) > ((e.relation1@(pi2) * 2) + 200) {
+                                set e.spymode_next@(pi2) = SPYMODE_ESPIONAGE
+                            }
+                        } else {
+                            set e.spymode_next@(pi2) = SPYMODE_HIDE     ;; FIXME redundant
+                        }
+                    }
+                    else => {
+                        if rnd_1_n(100, g) > (e.relation1@(pi2) + 100) {
+                            set e.spymode_next@(pi2) = SPYMODE_SABOTAGE
+                        }
+                    }
+                }
+            }
+            else => nil
+        }
+    }
+}
+
+;; AI p3 slider weights
+;;   [0..3] ship/def/ind/eco
+;;   [4..8] computer/construction/force field/planetology/propulsion
+pin ai_p3_tbl_w = [     ;; int8_t[TRAIT2_NUM + 1 (war)][9]
+    [ 1, 2, 4, 1,  2, 2, 4, 2, 3 ],
+    [ 4, 1, 2, 1,  3, 1, 4, 2, 1 ],
+    [ 2, 4, 1, 1,  1, 1, 3, 5, 2 ],
+    [ 1, 2, 3, 1,  4, 2, 3, 2, 2 ],
+    [ 1, 2, 4, 1,  1, 5, 4, 1, 2 ],
+    [ 1, 1, 2, 4,  1, 2, 4, 1, 5 ],
+    [ 4, 1, 1, 1,  2, 2, 4, 2, 1 ],    ;; War
+]
+
+func game_ai_classic_turn_p3 (g) {
+    loop pi in g.players {
+        val e = g.eto@(pi)
+        if IS_HUMAN(g, pi) {
+            skip
+        }
+        val race = e.race
+        ;; BUG this was inside the if (--countdown) and ti is used later outside it
+        var ti = e.trait2
+        loop pi2 in g.players {
+            if e.treaty@(pi2) >= TREATY_WAR {
+                set ti = TRAIT2_NUM     ;; war
+            }
+        }
+        val tw = ai_p3_tbl_w@(ti)
+        set e.ai_p3_countdown = i8(e.ai_p3_countdown - 1)
+        if e.ai_p3_countdown <= 0 {
+            set e.ai_p3_countdown = i8(rnd_1_n(5, g) + 1)
+            game_update_eco_on_waste(g, pi, true)
+            val w_ship = tw@(0)
+            val w_def = w_ship + tw@(1)
+            val w_ind = w_def + tw@(2)
+            val w_eco = w_ind + tw@(2)
+            loop i in g.galaxy_stars {
+                val p = g.planet@(i)
+                if p.owner == pi {
+                    val sl = p.slider
+                    set sl@(PLANET_SLIDER_SHIP) = 0
+                    set sl@(PLANET_SLIDER_DEF) = 0
+                    set sl@(PLANET_SLIDER_IND) = 0
+                    set sl@(PLANET_SLIDER_TECH) = 0
+                    if sl@(PLANET_SLIDER_ECO) < 96 {
+                        set sl@(PLANET_SLIDER_SHIP) = 5
+                    }
+                    if sl@(PLANET_SLIDER_ECO) < 91 {
+                        set sl@(PLANET_SLIDER_DEF) = 5
+                    }
+                    if sl@(PLANET_SLIDER_ECO) < 81 {
+                        set sl@(PLANET_SLIDER_IND) = 10
+                    }
+                    if sl@(PLANET_SLIDER_ECO) < 71 {
+                        set sl@(PLANET_SLIDER_TECH) = 25
+                    }
+                    if p.pop < ((p.max_pop3 * 3) // 4) {
+                        set sl@(PLANET_SLIDER_IND) = 50
+                    }
+                    if ((race == RACE_BULRATHI) || (race == RACE_SAKKRA)) && (p.pop < p.max_pop2) {
+                        set sl@(PLANET_SLIDER_ECO) = i16(sl@(PLANET_SLIDER_ECO) + 10)
+                    }
+                    if (race == RACE_KLACKON) && (p.pop < p.max_pop2) {
+                        set sl@(PLANET_SLIDER_ECO) = i16(sl@(PLANET_SLIDER_ECO) + 15)
+                    }
+                    if race == RACE_MEKLAR {
+                        set sl@(PLANET_SLIDER_IND) = i16(sl@(PLANET_SLIDER_IND) + 20)
+                    }
+                    if race == RACE_PSILON {
+                        set sl@(PLANET_SLIDER_TECH) = i16(sl@(PLANET_SLIDER_TECH) + 20)
+                    }
+                    if race == RACE_MRRSHAN {
+                        set sl@(PLANET_SLIDER_SHIP) = i16(sl@(PLANET_SLIDER_SHIP) + 15)
+                    }
+                    if (p.special == PLANET_SPECIAL_ARTIFACTS) || (p.special == PLANET_SPECIAL_4XTECH) {
+                        set sl@(PLANET_SLIDER_TECH) = i16(sl@(PLANET_SLIDER_TECH) + 20)
+                    }
+                    if p.special >= PLANET_SPECIAL_RICH {
+                        set sl@(PLANET_SLIDER_IND) = i16(sl@(PLANET_SLIDER_IND) + 20)
+                        set sl@(PLANET_SLIDER_SHIP) = i16(sl@(PLANET_SLIDER_SHIP) + 10)
+                    }
+                    var left = 100 - sl@(PLANET_SLIDER_SHIP) - sl@(PLANET_SLIDER_DEF) - sl@(PLANET_SLIDER_IND) - sl@(PLANET_SLIDER_ECO) - sl@(PLANET_SLIDER_TECH)
+                    loop {
+                        while left > 0
+                        val r1 = rnd_1_n(13, g)
+                        var r2 = rnd_1_n(8, g) + 2
+                        set r2 = SETMIN(r2, left)
+                        set left = left - r2
+                        val k = ifs {
+                            r1 <= w_ship => PLANET_SLIDER_SHIP
+                            r1 <= w_def => PLANET_SLIDER_DEF
+                            r1 <= w_ind => PLANET_SLIDER_IND
+                            r1 <= w_eco => PLANET_SLIDER_ECO
+                            else => PLANET_SLIDER_TECH
+                        }
+                        set sl@(k) = i16(sl@(k) + r2)
+                    }
+                }
+            }
+        }
+        loop i in g.galaxy_stars {
+            val p = g.planet@(i)
+            if p.owner == pi {
+                val sl = p.slider
+                if p.factories >= (p.pop * e.colonist_oper_factories) {
+                    val si = u8(sl@(PLANET_SLIDER_IND))
+                    set sl@(PLANET_SLIDER_DEF) = i16(sl@(PLANET_SLIDER_DEF) + (si // 2))
+                    set sl@(PLANET_SLIDER_TECH) = i16(sl@(PLANET_SLIDER_TECH) + ((si // 2) + (si % 2)))
+                    set sl@(PLANET_SLIDER_IND) = 0
+                }
+                if true
+                  && (p.missile_bases > 4)
+                  && ((p.missile_bases * 3) >= (p.pop // (5 - g.difficulty)))
+                  && (p.shield >= e.have_planet_shield) {
+                    var v   ;; uint16_t
+                    if game_num_ai_fleet_cheating_fix {
+                        set v = u16(sl@(PLANET_SLIDER_DEF))
+                    } else {
+                        set v = u16(sl@(PLANET_SLIDER_SHIP))    ;; BUG creates very large fleets
+                    }
+                    set sl@(PLANET_SLIDER_SHIP) = i16(sl@(PLANET_SLIDER_SHIP) + v)
+                    set sl@(PLANET_SLIDER_DEF) = 0
+                }
+            }
+        }
+        if (g.year % 10) == pi {
+            val sl = e.tech.slider
+            set sl@(TECH_FIELD_COMPUTER) = 5
+            set sl@(TECH_FIELD_CONSTRUCTION) = 5
+            set sl@(TECH_FIELD_FORCE_FIELD) = 5
+            set sl@(TECH_FIELD_PLANETOLOGY) = 5
+            set sl@(TECH_FIELD_PROPULSION) = 5
+            set sl@(TECH_FIELD_WEAPON) = 5
+            if (g.year < 30) && (rnd_0_nm1(2, g) != 0) {
+                set sl@(TECH_FIELD_PROPULSION) = 75
+            } else {
+                val flag_focus_own = rnd_0_nm1(4, g) == 0
+                ifs {
+                    ((race == RACE_BULRATHI) || (race == RACE_MRRSHAN)) && flag_focus_own => { set sl@(TECH_FIELD_WEAPON) = 75 }
+                    (race == RACE_DARLOK) && flag_focus_own => { set sl@(TECH_FIELD_COMPUTER) = 75 }
+                    (race == RACE_MEKLAR) && flag_focus_own => {
+                        set sl@(if rnd_0_nm1(2, g) != 0 => TECH_FIELD_CONSTRUCTION => TECH_FIELD_PLANETOLOGY) = 75
+                    }
+                    (race == RACE_ALKARI) && flag_focus_own => { set sl@(TECH_FIELD_PROPULSION) = 75 }
+                    (race == RACE_SAKKRA) && flag_focus_own => { set sl@(TECH_FIELD_PLANETOLOGY) = 75 }
+                    else => {
+                        val r1 = rnd_1_n(16, g)
+                        val w_comp = tw@(4)
+                        val w_cons = w_comp + tw@(5)
+                        val w_ff = w_cons + tw@(6)
+                        val w_prop = w_ff + tw@(8)
+                        val w_plan = w_prop + tw@(7)
+                        ifs {
+                            r1 <= w_comp => { set sl@(TECH_FIELD_COMPUTER) = 75 }
+                            r1 <= w_cons => { set sl@(TECH_FIELD_CONSTRUCTION) = 75 }
+                            r1 <= w_ff => { set sl@(TECH_FIELD_FORCE_FIELD) = 75 }
+                            r1 <= w_prop => { set sl@(TECH_FIELD_PROPULSION) = 75 }
+                            r1 <= w_plan => { set sl@(TECH_FIELD_PLANETOLOGY) = 75 }
+                            else => { set sl@(TECH_FIELD_WEAPON) = 75 }
+                        }
+                    }
+                }
+            }
+        }
+        if g.year > 30 {
+            var totalspies = 0  ;; uint32_t
+            var sec     ;; int16_t
+            loop pi2 in g.players {
+                if BOOLVEC_IS1(e.contact, pi2) {
+                    set totalspies = totalspies + g.eto@(pi2).spies@(pi)
+                }
+            }
+            if totalspies == 0 {
+                set sec = 0
+            } else {
+                set sec = i16(rnd_0_nm1(2, g) * totalspies)
+            }
+            set sec = i16(sec + (g.difficulty * 8))
+            set sec = SETMIN(sec, 100)
+            set e.security = sec
+            game_ai_classic_turn_p3_sub1(g, pi)
+            loop pi2 in g.players {
+                set e.spying@(pi2) = 0
+                set e.spymode@(pi2) = SPYMODE_HIDE
+                if true
+                  && (pi != pi2) && BOOLVEC_IS1(e.contact, pi2) && (e.spymode_next@(pi2) != SPYMODE_HIDE)
+                  && (BOOLVEC_IS0(g.is_ai, pi2) || (rnd_0_nm1(3, g) == 0)) {
+                    set e.spymode@(pi2) = e.spymode_next@(pi2)
+                    set e.spying@(pi2) = rnd_1_n(5, g) + 5
+                }
             }
         }
     }
@@ -2295,6 +3122,8 @@ pin game_ai_classic = [
     name          = "Classic",
     new_game_init = game_ai_classic_new_game_init,
     new_game_tech = game_ai_classic_new_game_tech,
+    turn_p2       = game_ai_classic_turn_p2,
+    turn_p3       = game_ai_classic_turn_p3,
     battle_ai_ai_resolve = game_ai_classic_battle_ai_ai_resolve,
     battle_ai_turn = game_ai_classic_battle_ai_turn,
     battle_ai_retreat = game_ai_classic_battle_ai_retreat,
@@ -2329,6 +3158,8 @@ pin game_ai_classicplus = [
     name          = "Classic+",
     new_game_init = game_ai_classic_new_game_init,
     new_game_tech = game_ai_classic_new_game_tech,
+    turn_p2       = game_ai_classic_turn_p2,
+    turn_p3       = game_ai_classic_turn_p3,
     battle_ai_ai_resolve = game_ai_classic_battle_ai_ai_resolve,
     battle_ai_turn = game_ai_classic_battle_ai_turn,
     battle_ai_retreat = game_ai_classic_battle_ai_retreat,
@@ -2357,3 +3188,9 @@ pin game_ai_classicplus = [
     aud_get_dtype = game_ai_classic_aud_get_dtype,
     aud_later     = game_ai_classic_aud_later,
 ]
+
+;; Of game_ai.c (see game_ai.atm).
+set game_ai = game_ai_classic
+
+set game_ais@(GAME_AI_CLASSIC) = game_ai_classic
+set game_ais@(GAME_AI_CLASSICPLUS) = game_ai_classicplus

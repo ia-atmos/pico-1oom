@@ -1,18 +1,13 @@
 ;; Port of c/src/game/game_ai.c and game_ai.h.
+;;
+;; The modules that call the AI include this file, for the ids and `game_ai`.
+;; game_ai_classic.atm (which includes most modules) is not included here, as
+;; that would be an include cycle; the main program includes it, and at its
+;; end it sets `game_ai` and `game_ais` (of game_ai.c).
 
 val GAME_AI_CLASSIC = 0
 val GAME_AI_CLASSICPLUS = 1
 val GAME_AI_NUM = 2
 
-;; Declared before game_ai_classic.atm is included: the modules it includes
-;; use the ids and `game_ai`.
 var game_ai = nil
-
-include "game_ai_classic.atm"
-
-set game_ai = game_ai_classic
-
-pin game_ais = [
-    game_ai_classic,
-    game_ai_classicplus,
-]
+pin game_ais = [ nil, nil ]  ;; [GAME_AI_NUM]
