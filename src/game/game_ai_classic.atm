@@ -1,6 +1,6 @@
 ;; Port of c/src/game/game_ai_classic.c, in part (step 5, #9): the functions
-;; of a new game, of techs, bombs, ground combat, votes, diplomacy and
-;; audiences. The rest (the turn, the battle) is still to come; the
+;; of a new game, of techs, bombs, ground combat, votes, the battle,
+;; diplomacy and audiences. The rest (the turn) is still to come; the
 ;; table `game_ai_classic` holds the functions ported so far.
 ;;
 ;; The "Classic" AI mimics MOO1 v1.3 behaviour.
@@ -14,6 +14,7 @@ include "game.atm"
 include "game_diplo.atm"
 include "game_election.atm"
 include "game_fleet.atm"
+include "game_battle.atm"
 include "game_num.atm"
 include "game_spy.atm"
 include "game_tech.atm"
@@ -85,6 +86,1104 @@ func game_ai_classic_new_game_tech (g) {
             }
         }
     }
+}
+
+;; ---------------------------------------------------------------------------
+;; The battle (`bt` is a `struct battle_s`).
+
+;; `&bt->item[target_i]` of C, also for target_i == -1, which C reads before
+;; the table (undefined behaviour): the bytes of bt->s[0] and bt->s[1] that
+;; precede it (x86-64 layout, little endian). Only the fields that the AI
+;; reads there are given.
+func bt_item (bt, i) {
+    if i >= 0 {
+        return bt.item@(i)
+    }
+    val s0 = bt.s@(0)
+    val s1 = bt.s@(1)
+    val sx = (s1.tbl_ships@(1) >> 8) & 0xff
+    [
+        hp1    = s0.tbl_shiptype@(0) | (s0.tbl_shiptype@(1) << 8),
+        hp2    = s0.tbl_shiptype@(2) | (s0.tbl_shiptype@(3) << 8),
+        man    = s0.apparent_force & 0xff,
+        absorb = (s0.apparent_force >> 24) & 0xff,
+        repair = cint(s0.flag_have_scan),
+        num    = s0.flag_auto & 0xffff,
+        sbmask = s1.tbl_ships@(0),
+        sx     = i8(sx),
+        sy     = s1.tbl_ships@(2) & 0xff,
+        unman  = (s1.tbl_ships@(3) >> 8) & 0xff,
+    ]
+}
+
+func game_ai_classic_battle_ai_ai_get_weights (g, pi, tbl) {
+    val e = g.eto@(pi)
+    loop i in e.shipdesigns_num {
+        val sd = g.srd@(pi).design@(i)
+        set tbl@(i) = tbl@(i) + (sd.shield * 5)
+        set tbl@(i) = tbl@(i) + (sd.comp * 5)
+        set tbl@(i) = tbl@(i) + sd.wpnt@(0)
+        set tbl@(i) = tbl@(i) + (sd.armor * 10)
+        set tbl@(i) = tbl@(i) + (sd.special@(0) * 2)
+        set tbl@(i) = tbl@(i) + (sd.special@(1) * 2)
+        set tbl@(i) = tbl@(i) + (sd.special@(2) * 2)
+        set tbl@(i) = tbl@(i) + (e.tech.percent@(TECH_FIELD_CONSTRUCTION) // 2)
+        if (e.race == RACE_MRRSHAN) || (e.race == RACE_ALKARI) {
+            set tbl@(i) = tbl@(i) + (if g.ai_id == GAME_AI_CLASSIC => 15 => 20)
+        }
+        set tbl@(i) = tbl@(i) * game_num_tbl_hull_w@(sd.hull)
+    }
+}
+
+func game_ai_classic_battle_ai_ai_resolve_do (bt) {
+    val g = bt.g
+    pin tbl_weight_l = carray(NUM_SHIPDESIGNS)  ;; int[]
+    pin tbl_weight_r = carray(NUM_SHIPDESIGNS)  ;; int[]
+    var base_l = 0
+    var base_r = 0
+    var wl = 0
+    var wr = 0
+    set bt.biodamage = 0
+    if bt.s@(SIDE_L).party < PLAYER_NUM {
+        game_ai_classic_battle_ai_ai_get_weights(g, bt.s@(SIDE_L).party, tbl_weight_l)
+    }
+    if bt.s@(SIDE_R).party < PLAYER_NUM {
+        game_ai_classic_battle_ai_ai_get_weights(g, bt.s@(SIDE_R).party, tbl_weight_r)
+    }
+    match bt.planet_side {
+        SIDE_L => {
+            val e = g.eto@(bt.s@(SIDE_L).party)
+            set base_l = e.tech.percent@(TECH_FIELD_WEAPON) + e.tech.percent@(TECH_FIELD_FORCE_FIELD)
+        }
+        SIDE_R => {
+            val e = g.eto@(bt.s@(SIDE_R).party)
+            set base_r = e.tech.percent@(TECH_FIELD_WEAPON) + e.tech.percent@(TECH_FIELD_FORCE_FIELD)
+        }
+        else => nil
+    }
+    loop i in bt.s@(SIDE_L).num_types {
+        set wl = wl + (bt.s@(SIDE_L).tbl_ships@(i) * tbl_weight_l@(bt.s@(SIDE_L).tbl_shiptype@(i)))
+    }
+    loop i in bt.s@(SIDE_R).num_types {
+        set wr = wr + (bt.s@(SIDE_R).tbl_ships@(i) * tbl_weight_r@(bt.s@(SIDE_R).tbl_shiptype@(i)))
+    }
+    set wl = wl + (base_l * 75 * bt.bases)
+    set wr = wr + (base_r * 75 * bt.bases)
+    if bt.s@(SIDE_L).party >= PLAYER_NUM {
+        set wl = if (bt.s@(SIDE_L).party - PLAYER_NUM) == MONSTER_GUARDIAN => 100000 => 30000
+    }
+    if bt.s@(SIDE_R).party >= PLAYER_NUM {
+        set wr = if (bt.s@(SIDE_R).party - PLAYER_NUM) == MONSTER_GUARDIAN => 100000 => 30000
+    }
+    var wl2 = wl
+    var wr2 = wr
+    loop {
+        while (wl2 > 0) && (wr2 > 0)
+        var v = (rnd_1_n(10, g) * wl) // 100
+        set v = SETMAX(v, 1)
+        set wr2 = wr2 - v
+        set v = (rnd_1_n(10, g) * wr) // 100
+        set v = SETMAX(v, 1)
+        set wl2 = wl2 - v
+    }
+    set wl2 = SETMAX(wl2, 0)
+    set wr2 = SETMAX(wr2, 0)
+    val r_won = wr2 > 0
+    loop s in (SIDE_L, SIDE_R) {
+        if bt.s@(s).party < PLAYER_NUM {
+            val ws2 = if s == SIDE_L => wl2 => wr2
+            val ws = if s == SIDE_L => wl => wr
+            val ships = bt.s@(s).tbl_ships
+            if ws == 0 {
+                loop i in NUM_SHIPDESIGNS {
+                    set ships@(i) = 0
+                }
+            } else {
+                loop i in NUM_SHIPDESIGNS {
+                    if game_num_doom_stack_fix {
+                        set ships@(i) = u16((ships@(i) * ws2) // ws)
+                    } else {
+                        ;; WASBUG MOO1 uses 32bit math which results in negative overflows with large ws2,
+                        ;; giving negative ship counts which get limited to 32000 later.
+                        set ships@(i) = u16(i32(ships@(i) * ws2) // ws)
+                    }
+                }
+            }
+        }
+    }
+    if g.ai_id == GAME_AI_CLASSIC {
+        ;; WASBUG MOO1 uses ui_main_loop_action for the switch variable below;
+        ;; since it is UI_MAIN_LOOP_NEXT_TURN (== 8) at this point, bt->bases is unaffected.
+        return r_won
+    }
+    match bt.planet_side {
+        SIDE_L => { set bt.bases = if wl != 0 => u16((bt.bases * wl2) // wl) => 0 }
+        SIDE_R => { set bt.bases = if wr != 0 => u16((bt.bases * wr2) // wr) => 0 }
+        else => { set bt.bases = 0 }
+    }
+    ;; BUG? MOO1 passes pointers to pop1 and factories but does not touch them
+    r_won
+}
+
+func game_ai_classic_battle_ai_ai_resolve (bt) {
+    val r_won = game_ai_classic_battle_ai_ai_resolve_do(bt)
+    game_battle_finish(bt)
+    r_won
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_battle_missile_dmg (bt, missile_i) {
+    val m = bt.missile@(missile_i)
+    val b = bt.item@(m.target)
+    val bs = bt.item@(m.source)
+    val w = tbl_shiptech_weap@(m.wpnt)
+    var damagediv = 1
+    var miss_chance = 50 - ((bs.complevel - b.misdefense) * 10)
+    if b.cloak == 1 {
+        set miss_chance = miss_chance + 50
+    }
+    set miss_chance = miss_chance - (w.extraacc * 10)
+    set miss_chance = SETRANGE(miss_chance, 0, 95)
+    if (m.target == 0) && (!w.is_bomb) && (w.misstype > 0) {   ;; planet
+        set damagediv = 2
+    }
+    var damage = w.damagemax // damagediv
+    if bt.g.ai_id == GAME_AI_CLASSIC {
+        val absorbdiv = game_battle_get_absorbdiv(b, w, true)   ;; WASBUG checks target's Oracle
+        ;; WASBUG should be damage -= b->absorb / absorbdiv; if Oracle worked for missiles
+        set damage = damage - b.absorb
+        set damage = damage // absorbdiv
+    } else {
+        set damage = damage - b.absorb  ;; missiles are not affected by Oracle
+    }
+    set damage = damage * w.damagemul
+    set damage = SETMIN(damage, b.hp1)
+    set damage = damage * m.damagemul2
+    set damage = damage * m.nummissiles
+    var damagepotential = if damage > 0 => (((100 - miss_chance) * damage) // 100) => 0
+    SETMAX(damagepotential, 0)
+}
+
+func game_ai_battle_incoming_missiles_dmg (bt, itemi) {
+    var v = 0
+    if itemi == 0 {     ;; planet
+        return 0
+    }
+    val hp = bt.item@(itemi).hp1
+    loop i in bt.num_missile {
+        val m = bt.missile@(i)
+        if m.target == itemi {
+            set v = v + (game_ai_battle_missile_dmg(bt, i) // hp)
+        }
+    }
+    v
+}
+
+func game_ai_battle_dmgmax (bt, itemi) {
+    val b = bt.item@(itemi)
+    var v = 0
+    val num_weap = if itemi == 0 => 1 => 4  ;; planet
+    var flag_planet_opponent = false
+    if (b.side + bt.item@(0).side) == 1 {
+        set flag_planet_opponent = true
+    }
+    ;; (MOO1 also computes an unused v8, #if 0 in C)
+    loop i in num_weap {
+        val w = tbl_shiptech_weap@(b.wpn@(i).t)
+        if b.wpn@(i).numshots != 0 {
+            if w.is_bomb {
+                if flag_planet_opponent {
+                    var dmg = w.damagemax - bt.item@(0).absorb
+                    if dmg > 0 {
+                        set v = v + (dmg * b.wpn@(i).n * w.numfire)
+                    }
+                    if w.is_bio {
+                        set dmg = w.damagemax - bt.antidote
+                        if dmg > 0 {
+                            set v = v + (dmg * b.wpn@(i).n * w.numfire * 50)
+                        }
+                    }
+                }
+            } else {
+                set v = v + (w.damagemax * b.wpn@(i).n * w.numfire)
+            }
+        }
+    }
+    if b.blackhole == 1 {
+        set v = v + 1000
+    }
+    v
+}
+
+func game_ai_battle_dmggive (bt, itemi1, itemi2, a2) {
+    val b = bt.item@(itemi1)
+    val bd = bt.item@(itemi2)
+    var v = 0
+    val num_weap = if itemi1 == 0 => 1 => 4     ;; planet
+    var damagediv = 1
+    var dmg
+    if (bd.stasisby > 0) && ((a2 == 0) || (a2 == 2)) {
+        return 0
+    }
+    var miss_chance_beam = 50 - ((b.complevel - bd.defense) * 10)
+    var miss_chance_missile = 50 - ((b.complevel - bd.misdefense) * 10)
+    if bd.cloak == 1 {
+        set miss_chance_beam = miss_chance_beam + 50
+        set miss_chance_missile = miss_chance_missile + 50
+    }
+    set miss_chance_beam = SETRANGE(miss_chance_beam, 0, 95)
+    if bt.g.ai_id == GAME_AI_CLASSICPLUS {
+        set miss_chance_missile = SETMIN(miss_chance_missile, 95)
+    }
+    val dist = util_math_dist_maxabs(b.sx, b.sy, bd.sx, bd.sy)
+    loop i in num_weap {
+        val w = tbl_shiptech_weap@(b.wpn@(i).t)
+        ;; (classic: WASBUG checks target's oracle)
+        val absorbdiv = if bt.g.ai_id == GAME_AI_CLASSIC => game_battle_get_absorbdiv(bd, w, true) => game_battle_get_absorbdiv(b, w, false)
+        if itemi2 == 0 {    ;; planet
+            if (!w.is_bomb) && ((w.misstype > 0) || (w.damagemin != w.damagemax)) {
+                set damagediv = 2
+            } else {
+                set damagediv = 1
+            }
+        }
+        var range = 0
+        ifs {
+            (w.damagemin != w.damagemax) && (!w.is_bomb) => { set range = b.extrarange }
+            b.maxrange < 0 => { set range = b.maxrange }
+            else => nil
+        }
+        if itemi1 == 0 {    ;; planet
+            set range = range + 40
+        }
+        if true
+          && ((!w.is_bomb) || (itemi2 == 0))
+          && (b.wpn@(i).numshots != 0)
+          && (((w.range + range) >= dist) || (a2 > 0))
+          && ((b.wpn@(i).numfire > 0) || (a2 > 0)) {
+            if w.damagemin == w.damagemax {
+                ;; 584de
+                var miss_chance = miss_chance_missile - (w.extraacc * 10)
+                set miss_chance = SETRANGE(miss_chance, 0, 95)
+                if bt.g.ai_id == GAME_AI_CLASSIC {
+                    set miss_chance_missile = miss_chance   ;; WASBUG MOO1 substracts for every missile weapon
+                }
+                set dmg = ((100 - miss_chance) // 5) * (w.damagemax - (bd.absorb // absorbdiv))
+                set dmg = dmg // damagediv
+                set dmg = dmg * w.damagemul
+                set dmg = dmg * w.nummiss
+            } else {
+                ;; 585ae
+                var miss_chance = miss_chance_beam
+                if bd.absorb > w.damagemin {
+                    set miss_chance = miss_chance + (((100 - miss_chance) * (bd.absorb + 1 - w.damagemin)) // (w.damagemax + 1 - w.damagemin))
+                    if bt.g.ai_id == GAME_AI_CLASSICPLUS {
+                        set miss_chance = SETMIN(miss_chance, 95)
+                    }
+                }
+                if bt.g.ai_id == GAME_AI_CLASSIC {
+                    set miss_chance_beam = miss_chance  ;; WASBUG MOO1 adds for every beam weapon
+                }
+                ;; 5861e
+                if (w.damagemax // damagediv) > (bd.absorb // absorbdiv) {
+                    val dmgmax = (w.damagemax // damagediv) - (bd.absorb // absorbdiv)
+                    var dmgmin
+                    if bt.g.ai_id == GAME_AI_CLASSIC {
+                        set dmgmin = if w.damagemin > bd.absorb => (w.damagemin - bd.absorb) => 1    ;; WASBUG {damage,absorb}div?
+                    } else {
+                        set dmgmin = (w.damagemin // damagediv) - (bd.absorb // absorbdiv)
+                        set dmgmin = SETMAX(dmgmin, 1)
+                    }
+                    set dmg = (dmgmax + dmgmin) // 2
+                    set dmg = ((100 - miss_chance) * dmg) // 5
+                    set dmg = dmg * w.damagemul
+                } else {
+                    set dmg = 0
+                }
+            }
+            ;; 58729
+            if w.is_bio && (b.wpn@(i).numshots != 0) {
+                set dmg = 500 * w.damagemax
+            }
+            ;; 58785
+            if dmg <= 0 {
+                set dmg = cint((w.damagemax // damagediv) > (bd.absorb // absorbdiv))
+            }
+            if a2 > 0 {
+                set v = v + (b.wpn@(i).n * dmg * w.numfire)
+            } else {
+                ;; 5882d
+                set v = v + (b.wpn@(i).n * dmg * b.wpn@(i).numfire)
+            }
+            ;; 58873
+        }
+    }
+    if (b.warpdis == 1) && ((dist <= 3) || (a2 > 0)) && (itemi2 != 0) && (bd.unman < bd.man) {
+        set v = v + 100
+    }
+    if (b.blackhole == 1) && ((dist <= 1) || (a2 > 0)) {
+        set v = v + 1000
+    }
+    if (b.technull == 1) && ((dist <= 4) || (a2 > 0)) {
+        set v = v + 500
+    }
+    if (b.pulsar == 1) && (bt.special_button == 1) && ((dist <= 1) || (a2 > 0)) {
+        set dmg = (5 - bd.absorb) * bd.num  ;; FIXME BUG? should be b->num ?
+        if dmg > 0 {
+            set v = v + dmg
+        }
+    }
+    if (b.pulsar == 2) && (bt.special_button == 1) && ((dist <= 1) || (a2 > 0)) {
+        set dmg = (14 - bd.absorb) * bd.num     ;; FIXME BUG? should be b->num ?
+        if dmg > 0 {
+            set v = v + dmg
+        }
+    }
+    if (b.stream == 1) && ((dist <= 2) || (a2 > 0)) {
+        set dmg = ((bd.hp1 * ((b.num // 2) + 20)) // 100) * bd.num
+        if dmg > 0 {
+            set v = v + dmg
+        }
+    }
+    if (b.stream == 2) && ((dist <= 2) || (a2 > 0)) {
+        set dmg = ((bd.hp1 * (b.num + 40)) // 100) * bd.num
+        if dmg > 0 {
+            set v = v + dmg
+        }
+    }
+    v
+}
+
+func game_ai_battle_rival (bt, itemi, a2) {
+    val b = bt.item@(itemi)
+    var rival = -1
+    var maxw = 0
+    loop i in (0, bt.items_num) {
+        val b2 = bt.item@(i)
+        if ((b.side + b2.side) == 1) && (b.num > 0) {
+            var w
+            val dmgmissile = game_ai_battle_incoming_missiles_dmg(bt, i)
+            val dmgmax = game_ai_battle_dmgmax(bt, i)
+            var dmggive = game_ai_battle_dmggive(bt, itemi, i, a2)
+            val repair = (b2.repair * b2.hp2) // 100
+            if itemi == 0 {     ;; planet
+                var t = b.wpn@(0).t
+                set b.wpn@(0).t = b.wpn@(1).t
+                set b.wpn@(1).t = t
+                val dmgother = game_ai_battle_dmggive(bt, itemi, i, a2)
+                if dmgother > dmggive {
+                    set dmggive = dmgother
+                } else {
+                    set t = b.wpn@(0).t
+                    set b.wpn@(0).t = b.wpn@(1).t
+                    set b.wpn@(1).t = t
+                }
+            }
+            ;; 58fc7
+            var dmgmany = ((b.num * dmggive) - repair) // (b2.hp1 * 20)
+            if dmgmany > 0 {
+                val vt = b2.num - dmgmissile    ;; FIMXE BUG? num - dmg?
+                if vt < dmgmany {
+                    set dmgmany = vt
+                    set dmgmany = SETMAX(dmgmany, 0)
+                }
+                ;; 59099
+                set w = dmgmany * dmgmax * 20
+            } else {
+                ;; 590c1
+                if (dmgmissile > 0) && (dmggive > 0) {
+                    set w = 3
+                } else {
+                    ;; 590e1
+                    set w = ((dmggive - repair) * dmgmax) // b2.hp1
+                }
+                ;; 59124
+                set w = SETMAX(w, 0)
+                if dmggive > 0 {
+                    set w = SETMAX(w, 3)
+                }
+                if (w == 1) && (i != 0) {
+                    set w = 2
+                }
+            }
+            ;; 5917c
+            if (dmgmax <= 0) && (dmggive > 0) {
+                set w = if i == 0 => 1 => 2
+            }
+            if (itemi == 0) && (w > 0) {
+                val dist = util_math_dist_maxabs(b.sx, b.sy, b2.sx, b2.sy)
+                set w = w + ((10 - dist) * 750)
+            }
+            ;; 59221
+            if (i == 0) && (w == 1) {
+                loop j in WEAPON_SLOT_NUM {
+                    val wpnt = b.wpn@(j).t
+                    if tbl_shiptech_weap@(wpnt).is_bio && (b.wpn@(j).numshots != 0) {
+                        set dmggive = tbl_shiptech_weap@(wpnt).damagemax - bt.antidote
+                        if dmggive > 0 {
+                            set w = w + (dmggive * b.wpn@(j).n * 100)
+                        }
+                    }
+                }
+            }
+            ;; 59306
+            if w > maxw {
+                set rival = i
+                set maxw = w
+                set bt.bases_using_mirv = tbl_shiptech_weap@(bt.item@(0).wpn@(0).t).nummiss > 1
+            }
+        }
+    }
+    ;; 59354
+    if itemi == 0 {     ;; planet
+        val t = b.wpn@(0).t
+        val is_mirv = tbl_shiptech_weap@(t).nummiss > 1
+        if bt.bases_using_mirv != is_mirv {
+            set b.wpn@(0).t = b.wpn@(1).t
+            set b.wpn@(1).t = t
+        }
+    }
+    rival
+}
+
+func game_battle_missile_none_fired_by (bt, itemi) {
+    loop i in bt.num_missile {
+        if bt.missile@(i).source == itemi {
+            return false
+        }
+    }
+    true
+}
+
+func game_battle_stasis_target (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    var target_i = -1
+    var flag_have_unstasis = false
+    do {
+        var n = 0
+        val itembase = if b.side == SIDE_R => 1 => (bt.s@(SIDE_L).items + 1)
+        val itemnum = bt.s@(b.side ^ 1).items
+        loop i in itemnum {
+            if bt.item@(itembase + i).stasisby > 0 {
+                set n = n + 1
+            }
+        }
+        if (itemnum - 2) >= n {
+            set flag_have_unstasis = true
+        }
+    }
+    if flag_have_unstasis {
+        var vmax = 0
+        set b.stasis = 1
+        loop i in (1, bt.items_num) {
+            val bd = bt.item@(i)
+            if (b.side != bd.side) && (bd.stasisby == 0) && (bd.cloak != 1) {
+                val v = game_ai_battle_dmgmax(bt, i) * bd.num
+                if v > vmax {
+                    set vmax = v
+                    set target_i = i
+                }
+            }
+        }
+    } else {
+        set b.stasis = 2
+    }
+    target_i
+}
+
+func game_battle_ai_missile_evade (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    var evade = 0
+    if b.unman == b.man {
+        return 0
+    }
+    var i = 0
+    loop {
+        while (i < bt.num_missile) && (evade <= 1)
+        val m = bt.missile@(i)
+        if m.target == itemi {
+            var roomx
+            var sx = m.x // 32
+            if b.subspace == 1 {
+                set roomx = 9 - sx
+                set roomx = SETMAX(roomx, sx)
+            } else {
+                set sx = sx - b.sx
+                if sx < 0 {
+                    set roomx = 9 - b.sx
+                } else {    ;; WASBUG this was if > 0 and the == 0 case was unhandled
+                    set roomx = b.sx
+                }
+            }
+            var movex = (b.man - b.unman) * m.fuel
+            if (movex > roomx) || (b.subspace == 1) {
+                set movex = roomx
+            }
+            var dist = util_math_dist_fast((b.sx * 32) + 16, (b.sy * 24) + 12, m.x, m.y)
+            val dangerdist = (tbl_shiptech_weap@(m.wpnt).dtbl@(0) * m.fuel) + 13
+            if dist > dangerdist {
+                set evade = 1
+            }
+            set dist = dist + ((movex * 32) - 18)
+            if (rnd_1_n(3, bt.g) < bt.g.difficulty) && (dist > dangerdist) {
+                set evade = 2
+            }
+        }
+        set i = i + 1
+    }
+    evade
+}
+
+;; Tries to approximate by how much enemy ship can increase distance in 2 turns.
+func get_possible_distance_increase (bt, target_i) {
+    val b = bt.item@(bt.cur_item)
+    val bd = bt_item(bt, target_i)
+    val si = if b.sx < bd.sx => (BATTLE_AREA_W - bd.sx - 1) => bd.sx
+    val t = (bd.man - bd.unman) * 2
+    set b.maxrange = i8(-MIN(si, t))
+}
+
+func game_battle_ai_best_range (bt, target_i) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    val bd = bt_item(bt, target_i)
+    var bestrange = 1
+    var damagediv = 1
+    var weight1 = 0
+    if target_i == 0 {  ;; planet
+        return 1
+    }
+    loop i in (1, 9) {
+        var weight = 0
+        if (b.blackhole > 0) && (i <= 1) {
+            set weight = weight + 2000
+        }
+        if (b.stasis == 1) && (i <= 1) {
+            set weight = weight + 2000
+        }
+        if (b.pulsar == 1) && (i <= 1) {
+            val v = (6 - bd.absorb) * bd.num
+            if v > 0 {
+                set weight = weight + v
+            }
+        }
+        if (b.pulsar == 2) && (i <= 1) {
+            val v = (16 - bd.absorb) * bd.num
+            if v > 0 {
+                set weight = weight + v
+            }
+        }
+        if (b.stream == 1) && (i <= 2) {
+            val v = (((bd.hp1 * (b.num + 20)) + 99) // 100) * bd.num
+            if v > 0 {
+                set weight = weight + v
+            }
+        }
+        if (b.stream == 2) && (i <= 2) {
+            val v = (((bd.hp1 * (b.num + 40)) + 99) // 100) * bd.num
+            if v > 0 {
+                set weight = weight + v
+            }
+        }
+        loop j in WEAPON_SLOT_NUM {
+            val w = tbl_shiptech_weap@(b.wpn@(j).t)
+            var absorbdiv
+            if bt.g.ai_id == GAME_AI_CLASSIC {
+                set absorbdiv = game_battle_get_absorbdiv(bd, w, true)  ;; WASBUG checks target's oracle
+            } else {
+                set absorbdiv = if w.damagemin != w.damagemax => game_battle_get_absorbdiv(b, w, false) => 1
+            }
+            if target_i == 0 {  ;; planet
+                if (!w.is_bomb) && ((w.misstype > 0) || (w.damagemin != w.damagemax)) {
+                    set damagediv = 2
+                } else {
+                    set damagediv = 1   ;; WASBUG there was no else, so the 2 stuck
+                }
+            }
+            var range = if itemi == 0 => 12 => 0
+            ifs {
+                (w.damagemax != w.damagemin) && (!w.is_bomb) => { set range = b.extrarange }
+                !w.is_bomb => {
+                    ;; if missile (or no weapon but it doesn't matter)
+                    get_possible_distance_increase(bt, target_i)
+                    set range = b.maxrange
+                }
+                else => nil
+            }
+            if ((w.range + range) >= i) && (b.wpn@(j).numshots != 0) && ((!w.damagefade) || (i == 1)) {
+                var dmg = ((w.damagemax // damagediv) - (bd.absorb // absorbdiv)) * w.damagemul * b.wpn@(j).n * w.numfire
+                if w.is_bio {
+                    set dmg = w.damagemax * 100
+                }
+                set dmg = SETMAX(dmg, 0)
+                set weight = weight + dmg
+            }
+        }
+        if i == 1 {
+            set weight1 = weight
+        }
+        if weight == 0 {
+            break
+        }
+        if b.cloak == 1 {
+            if weight1 > weight {
+                break
+            }
+            set bestrange = i
+        } else {
+            if ((weight1 * 2) // (weight * 3)) <= 1 {
+                set bestrange = i
+            } else {
+                break
+            }
+        }
+    }
+    bestrange
+}
+
+;; Evaluate position (sx, sy) in case ship has pulsar.
+;; If position is next to friendly ship that can't absorb pulsar damage devaluate it.
+;; If position is next to enemy ship that can't absorb pulsar damage add value to it.
+func eval_pos_for_pulsar_use (bt, sx, sy) {
+    val b = bt.item@(bt.cur_item)
+    var weight = 0
+    val ndiv = if b.pulsar == 1 => 2 => 1
+    val rbase = if b.pulsar == 1 => 5 => 10
+    val dmg = rbase + (b.num // ndiv)
+    loop i in (0, bt.items_num) {
+        val bd = bt.item@(i)
+        if util_math_dist_maxabs(b.sx, b.sy, bd.sx, bd.sy) == 1 {
+            if b.side == bd.side {
+                if bd.absorb < dmg {
+                    set weight = weight - 4
+                }
+            } else {
+                if bd.absorb < dmg {
+                    set weight = weight + 3
+                }
+            }
+        }
+    }
+    weight
+}
+
+func game_battle_ai_target1_sub3 (bt, sx, sy, target_i, bestrange) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    val bd = bt.item@(target_i)
+    var si = 0
+    pin tblx = carray(20)
+    pin tbly = carray(20)
+    val dist = util_math_dist_maxabs(sx, sy, bd.sx, bd.sy)
+    val len = util_math_line_plot(sx, sy, bd.sx, bd.sy, tblx, tbly)
+    if dist == bestrange {
+        set si = 10
+    } else {
+        set si = si - (dist * 4)
+    }
+    if (b.pulsar == 1) || (b.pulsar == 2) {
+        set si = si + eval_pos_for_pulsar_use(bt, sx, sy)
+    }
+    if game_battle_area_check_line_ok(bt, tblx, tbly, len) < 1 {
+        set si = si - 2
+    }
+    if bt.area@(sy)@(sx) == (itemi + 10) {
+        set si = si + (if dist == bestrange => 1 => -1)
+    }
+    si
+}
+
+func game_battle_ai_target1_sub4 (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    var dist = 0
+    var mindist
+    var n = 0
+    var oppdist
+    pin tblxy = carray(10)  ;; uint8_t[]
+    if b.unman == b.man {
+        return nil
+    }
+    if b.subspace == 1 {
+        set oppdist = 0
+        loop sy in BATTLE_AREA_H {
+            loop sx in BATTLE_AREA_W {
+                if bt.area@(sy)@(sx) == 1 {
+                    loop i in (0, bt.items_num) {
+                        val bd = bt.item@(i)
+                        set mindist = 10    ;; FIXME BUG this results in always setting to last enemy dist
+                        if (b.side + bd.side) == 1 {
+                            set dist = util_math_dist_maxabs(sx, sy, bd.sx, bd.sy)
+                            set mindist = SETMIN(mindist, dist)
+                        }
+                    }
+                    if oppdist <= mindist {
+                        if oppdist < dist {
+                            set n = 0
+                        }
+                        set oppdist = dist
+                        set tblxy@(n) = BATTLE_XY_SET(sx, sy)
+                        set n = n + 1
+                        set n = SETMIN(n, #tblxy - 1)   ;; WASBUG? not limited in MOO1
+                    }
+                }
+            }
+        }
+        ;; 59d70
+        game_battle_item_move(bt, itemi, BATTLE_XY_GET_X(tblxy@(0)), BATTLE_XY_GET_Y(tblxy@(0)))
+    } else {
+        ;; 59d85
+        set oppdist = 10
+        loop i in (0, bt.items_num) {
+            val bd = bt.item@(i)
+            if (b.side + bd.side) == 1 {
+                set dist = util_math_dist_maxabs(b.sx, b.sy, bd.sx, bd.sy)
+                set oppdist = SETMIN(oppdist, dist)
+            }
+        }
+        loop {
+            while b.actman > 0
+            set n = 0
+            loop sx in (b.sx - 1, b.sx + 1) {
+                if (sx >= 0) && (sx < BATTLE_AREA_W) {
+                    loop sy in (b.sy - 1, b.sy) {   ;; (C: sy < (b->sy + 1))
+                        if (sy >= 0) && (sy < BATTLE_AREA_H) {
+                            if bt.area@(sy)@(sx) == 1 {
+                                set mindist = 10
+                                loop i in (0, bt.items_num) {
+                                    val bd = bt.item@(i)
+                                    if (b.side + bd.side) == 1 {
+                                        set dist = util_math_dist_maxabs(sx, sy, bd.sx, bd.sy)
+                                        set mindist = SETMIN(mindist, dist)
+                                    }
+                                }
+                                if mindist > oppdist {
+                                    set oppdist = mindist
+                                    set n = 1
+                                    set tblxy@(0) = BATTLE_XY_SET(sx, sy)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if n > 0 {
+                game_battle_item_move(bt, itemi, BATTLE_XY_GET_X(tblxy@(0)), BATTLE_XY_GET_Y(tblxy@(0)))
+            } else {
+                set b.actman = 0
+            }
+        }
+    }
+}
+
+func game_battle_ai_target1_sub5 (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    var dist = 0
+    var mindist = 10
+    var missdist = 0
+    var xy = BATTLE_XY_INVALID
+    if b.unman == b.man {
+        return nil
+    }
+    if b.subspace == 1 {
+        loop sy in BATTLE_AREA_H {
+            loop sx in BATTLE_AREA_W {
+                if bt.area@(sy)@(sx) == 1 {
+                    loop i in bt.num_missile {
+                        val m = bt.missile@(i)
+                        if (m.target == itemi) && (m.fuel < 8) {
+                            set mindist = 10    ;; FIXME BUG this results in always setting to last missile dist
+                            set dist = util_math_dist_maxabs(sx, sy, m.x // 32, m.y // 24)
+                            set mindist = SETMIN(mindist, dist)
+                        }
+                    }
+                    if missdist < mindist {
+                        set xy = BATTLE_XY_SET(sx, sy)
+                        set missdist = dist     ;; FIXME BUG? should be mindist ?
+                    }
+                }
+            }
+        }
+        if xy == BATTLE_XY_INVALID {
+            log_warning("BUG: subspace destination not found\n")
+            set xy = BATTLE_XY_SET(b.sx, b.sy)
+        }
+        game_battle_item_move(bt, itemi, BATTLE_XY_GET_X(xy), BATTLE_XY_GET_Y(xy))
+    } else {
+        ;; 5a0d8
+        loop {
+            while b.actman > 0
+            set missdist = 10
+            loop i in bt.num_missile {
+                val m = bt.missile@(i)
+                if (m.target == itemi) && (m.fuel < 8) {
+                    set dist = util_math_dist_maxabs(b.sx, b.sy, m.x // 32, m.y // 24)
+                    set missdist = SETMIN(missdist, dist)
+                }
+            }
+            set xy = BATTLE_XY_INVALID
+            loop sx in (b.sx - 1, b.sx + 1) {
+                if (sx >= 0) && (sx < BATTLE_AREA_W) {
+                    loop sy in (b.sy - 1, b.sy) {   ;; (C: sy < (b->sy + 1))
+                        if (sy >= 0) && (sy < BATTLE_AREA_H) {
+                            if (bt.area@(sy)@(sx) == 1) && ((b.sx != sx) || (b.sy != sy)) {
+                                set mindist = 10
+                                loop i in bt.num_missile {
+                                    val m = bt.missile@(i)
+                                    if (m.target == itemi) && (m.fuel < 8) {
+                                        set dist = util_math_dist_maxabs(sx, sy, m.x // 32, m.y // 24)
+                                        set mindist = SETMIN(mindist, dist)
+                                    }
+                                }
+                                if mindist > missdist {
+                                    set missdist = mindist
+                                    set xy = BATTLE_XY_SET(sx, sy)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if xy != BATTLE_XY_INVALID {
+                game_battle_item_move(bt, itemi, BATTLE_XY_GET_X(xy), BATTLE_XY_GET_Y(xy))
+            } else {
+                set b.actman = 0
+            }
+        }
+    }
+}
+
+func game_battle_ai_target1 (bt, target_i) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    val bestrange = game_battle_ai_best_range(bt, target_i)
+    if (b.actman > 0) || (b.subspace == 1) {
+        ifs {
+            (target_i != -1) && (game_battle_ai_missile_evade(bt) == 0) => {
+                var vmax = -999
+                var n = 1
+                pin tblxy = carray(20)  ;; uint8_t[]
+                loop sy in BATTLE_AREA_H {
+                    loop sx in BATTLE_AREA_W {
+                        if (bt.area@(sy)@(sx) == 1) || ((b.sx == sx) && (b.sy == sy)) {
+                            ;; 5a3dc
+                            val v = game_battle_ai_target1_sub3(bt, sx, sy, target_i, bestrange)
+                            ifs {
+                                v > vmax => {
+                                    set n = 1
+                                    set tblxy@(0) = BATTLE_XY_SET(sx, sy)
+                                    set vmax = v
+                                }
+                                (v == vmax) && (n < #tblxy) => {
+                                    set tblxy@(n) = BATTLE_XY_SET(sx, sy)
+                                    set n = n + 1
+                                }
+                                else => nil
+                            }
+                        }
+                    }
+                }
+                ;; 5a449
+                val i = if n < 2 => 0 => rnd_0_nm1(n, bt.g)
+                if itemi != 0 {     ;; planet
+                    game_battle_item_move(bt, itemi, BATTLE_XY_GET_X(tblxy@(i)), BATTLE_XY_GET_Y(tblxy@(i)))
+                }
+            }
+            target_i == -1 => {
+                ;; 5a494
+                game_battle_ai_target1_sub4(bt)
+            }
+            else => {
+                ;; 5a4a0
+                game_battle_ai_target1_sub5(bt)
+            }
+        }
+    }
+    bestrange
+}
+
+func game_ai_classic_battle_ai_turn (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    ;; 5a581
+    var target_i = 0    ;; FIXME WASBUG used uninitialized later ; proper value ?
+    var v4
+    game_battle_area_setup(bt)  ;; FIXME already done by caller
+    if true
+      && (b.side == SIDE_R)
+      && (game_ai_battle_rival(bt, itemi, 1) == -1)
+      && game_battle_missile_none_fired_by(bt, itemi) {
+        set b.retreat = u8(b.retreat + 1)
+    }
+    ;; 5a5cb
+    if (b.man - b.unman) == 0 {
+        set b.retreat = 0
+    }
+    ;; 5a604
+    if b.stasis > 0 {
+        set target_i = game_battle_stasis_target(bt)
+        if target_i != -1 {
+            game_battle_ai_target1(bt, target_i)
+            game_battle_area_setup(bt)
+            if !bt.flag_cur_item_destroyed {
+                val bd = bt.item@(target_i)
+                if util_math_dist_maxabs(b.sx, b.sy, bd.sx, bd.sy) <= 1 {
+                    get_possible_distance_increase(bt, target_i)
+                    game_battle_attack(bt, itemi, target_i, false)
+                }
+            }
+        }
+    }
+    ;; 5a69e
+    game_battle_area_setup(bt)
+    if (game_ai_battle_incoming_missiles_dmg(bt, itemi) > 0) && (target_i != -1) {     ;; BUG used uninitialized if b->stasis == 0
+        set target_i = game_ai_battle_rival(bt, itemi, 0)
+        if target_i > -1 {
+            if (b.pulsar == 1) || (b.pulsar == 2) {
+                if eval_pos_for_pulsar_use(bt, b.sx, b.sy) < 0 {
+                    set bt.special_button = 0
+                }
+            }
+            ;; 5a72a
+            get_possible_distance_increase(bt, target_i)
+            game_battle_attack(bt, itemi, target_i, false)
+        }
+    }
+    ;; 5a740
+    if bt.special_button == -1 {
+        set bt.special_button = 1
+    }
+    game_battle_area_setup(bt)
+    if b.retreat > 0 {
+        set target_i = -1
+    } else {
+        set target_i = game_ai_battle_rival(bt, itemi, 2)
+    }
+    if !bt.flag_cur_item_destroyed {
+        set v4 = game_battle_ai_target1(bt, target_i)
+    }
+    if !bt.flag_cur_item_destroyed {
+        if (b.pulsar == 1) || (b.pulsar == 2) {
+            if eval_pos_for_pulsar_use(bt, b.sx, b.sy) < 0 {
+                set bt.special_button = 0
+            }
+        }
+        set target_i = game_ai_battle_rival(bt, itemi, 0)
+        if (target_i == -1) && (itemi == 0) && (b.num > 0) {    ;; planet
+            val ii = if b.side == SIDE_R => 1 => (bt.s@(SIDE_L).items + 1)
+            if bt.item@(ii).side != b.side {
+                game_battle_attack(bt, itemi, ii, false)
+            }
+        }
+        ;; 5a866
+        var loops = 0
+        loop {
+            while target_i != -1
+            set target_i = game_ai_battle_rival(bt, itemi, 0)
+            set loops = loops + 1
+            if (b.cloak == 1) && (target_i != -1) {     ;; WASBUG no test for -1
+                val bd = bt.item@(target_i)
+                if util_math_dist_maxabs(b.sx, b.sy, bd.sx, bd.sy) != v4 {  ;; WASBUG bd at index -1
+                    set target_i = -1
+                }
+            }
+            if b.retreat > 0 {
+                set target_i = -1
+            }
+            ;; 5a8e1
+            if target_i > -1 {
+                get_possible_distance_increase(bt, target_i)
+                game_battle_attack(bt, itemi, target_i, false)
+            }
+            if loops > 10 {     ;; MOO1 does not need this but it does have the loop counter
+                ;; (C: LOG_DEBUG "BUG: break from loop")
+                break
+            }
+        }
+        ;; 5a91b
+        set b.selected = 0
+        set bt.turn_done = true
+    }
+    ;; 5a934
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_battle_ai_retreat (bt) {
+    pin missile = carray(BATTLE_ITEM_MAX)   ;; int[]
+    pin repair = carray(BATTLE_ITEM_MAX)    ;; uint32_t[]
+    pin dmg = carray(2)     ;; int64_t[]
+    pin hp = carray(2)      ;; uint32_t[]
+    loop i in BATTLE_ITEM_MAX {
+        val b = bt.item@(i)
+        set missile@(i) = 0
+        set repair@(i) = (b.hp1 * b.repair) // 5
+    }
+    loop i in bt.num_missile {
+        val m = bt.missile@(i)
+        if m.target != MISSILE_TARGET_NONE {
+            val s = bt.item@(m.target).side
+            set missile@(m.source) = missile@(m.source) + 2
+            set dmg@(s) = dmg@(s) + (game_ai_battle_missile_dmg(bt, i) // (missile@(m.source) + 1))
+            set dmg@(s) = dmg@(s) - repair@(m.target)
+            set repair@(m.target) = 0
+        }
+    }
+    loop i in (1, bt.items_num) {
+        val s = if i <= bt.s@(SIDE_L).items => SIDE_R => SIDE_L
+        val j = game_ai_battle_rival(bt, i, 1)
+        if j >= 0 {
+            val b = bt.item@(i)
+            set hp@(s ^ 1) = u32(hp@(s ^ 1) + (b.hp1 * b.num))
+            set dmg@(s) = dmg@(s) + (game_ai_battle_dmggive(bt, i, j, 1) * b.num)
+            set dmg@(s) = dmg@(s) - repair@(j)
+            set repair@(j) = 0
+        } else {
+            set hp@(s ^ 1) = u32(hp@(s ^ 1) + 1)
+        }
+    }
+    if bt.item@(0).num > 0 {    ;; planet
+        val b = bt.item@(0)
+        val s = if b.side == SIDE_L => SIDE_R => SIDE_L
+        set hp@(s ^ 1) = u32(hp@(s ^ 1) + ((b.hp1 * b.num * 7) // 10))
+        val j = game_ai_battle_rival(bt, 0, 1)
+        if j > 0 {
+            set dmg@(s) = dmg@(s) + ((game_ai_battle_dmggive(bt, 0, j, 1) * b.num * 7) // 10)
+            set dmg@(s) = dmg@(s) - ((repair@(j) * 7) // 10)
+            set repair@(j) = 0
+        }
+    }
+    if hp@(SIDE_L) == 0 {
+        return false
+    }
+    if hp@(SIDE_R) == 0 {
+        return false
+    }
+    if dmg@(SIDE_L) == 0 {
+        return true
+    }
+    var v = ((5 - bt.g.difficulty) * 5) + 5
+    match bt.item@(0).side {
+        SIDE_L => { set v = v + 10 }
+        SIDE_R => { set v = v + 20 }
+        else => nil
+    }
+    set v = v + rnd_1_n(15, bt.g)
+    var wr
+    var wl
+    if bt.g.ai_id == GAME_AI_CLASSICPLUS {
+        set wr = (dmg@(SIDE_R) * 100) // hp@(SIDE_R)
+        set wl = (dmg@(SIDE_L) * 100 * v) // hp@(SIDE_L)
+    } else {    ;; WASBUG MOO1 uses 32b vars which can overflow on extreme cases
+        ;; (an int32_t divided by the uint32_t hp: an unsigned division)
+        set wr = i32(u32(i32(dmg@(SIDE_R)) * 100) // hp@(SIDE_R))
+        set wl = i32(u32(i32(i32(dmg@(SIDE_L)) * 100) * v) // hp@(SIDE_L))
+    }
+    wr > wl
 }
 
 ;; ---------------------------------------------------------------------------
@@ -1196,9 +2295,16 @@ pin game_ai_classic = [
     name          = "Classic",
     new_game_init = game_ai_classic_new_game_init,
     new_game_tech = game_ai_classic_new_game_tech,
+    battle_ai_ai_resolve = game_ai_classic_battle_ai_ai_resolve,
+    battle_ai_turn = game_ai_classic_battle_ai_turn,
+    battle_ai_retreat = game_ai_classic_battle_ai_retreat,
     tech_next     = game_ai_classic_tech_next,
     bomb          = game_ai_classic_bomb,
     ground        = game_ai_classic_ground,
+    plague        = game_ai_classic_crank_tech,
+    nova          = game_ai_classic_crank_tech,
+    comet         = game_ai_classic_crank_ship,
+    pirates       = game_ai_classic_crank_ship,
     vote          = game_ai_classic_vote,
     turn_diplo_p1 = game_ai_classic_turn_diplo_p1,
     turn_diplo_p2 = game_ai_classic_turn_diplo_p2,
@@ -1223,9 +2329,16 @@ pin game_ai_classicplus = [
     name          = "Classic+",
     new_game_init = game_ai_classic_new_game_init,
     new_game_tech = game_ai_classic_new_game_tech,
+    battle_ai_ai_resolve = game_ai_classic_battle_ai_ai_resolve,
+    battle_ai_turn = game_ai_classic_battle_ai_turn,
+    battle_ai_retreat = game_ai_classic_battle_ai_retreat,
     tech_next     = game_ai_classic_tech_next,
     bomb          = game_ai_classic_bomb,
     ground        = game_ai_classic_ground,
+    plague        = game_ai_classic_crank_tech,
+    nova          = game_ai_classic_crank_tech,
+    comet         = game_ai_classic_crank_ship,
+    pirates       = game_ai_classic_crank_ship,
     vote          = game_ai_classic_vote,
     turn_diplo_p1 = game_ai_classic_turn_diplo_p1,
     turn_diplo_p2 = game_ai_classic_turn_diplo_p2,
