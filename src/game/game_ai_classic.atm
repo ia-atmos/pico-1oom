@@ -1,5 +1,7 @@
-;; Port of c/src/game/game_ai_classic.c, in part: the two functions of a new
-;; game. The rest (the turn, the battle, the diplomacy) comes with step 5.
+;; Port of c/src/game/game_ai_classic.c, in part (step 5, #9): the functions
+;; of a new game, of techs, bombs, ground combat and votes. The rest (the
+;; turn, the battle, the diplomacy, the audiences) is still to come; the
+;; table `game_ai_classic` holds the functions ported so far.
 ;;
 ;; The "Classic" AI mimics MOO1 v1.3 behaviour.
 ;; Minor bug fixes are allowed.
@@ -9,6 +11,8 @@
 include "../rnd.atm"
 include "../util_math.atm"
 include "game.atm"
+include "game_diplo.atm"
+include "game_election.atm"
 include "game_num.atm"
 
 ;; ---------------------------------------------------------------------------
@@ -82,12 +86,189 @@ func game_ai_classic_new_game_tech (g) {
 
 ;; ---------------------------------------------------------------------------
 
+func game_ai_classic_tech_next (g, player, field, tbl, num) {
+    var tech    ;; uint8_t
+    if rnd_1_n(6, g) < g.difficulty {
+        set tech = tbl@(num - 1)
+    } else {
+        set tech = tbl@(rnd_0_nm1(num, g))
+    }
+    tech
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_bomb (g, player, planet, pop_inbound0) {
+    var pop_inbound = pop_inbound0
+    val p = g.planet@(planet)
+    if g.eto@(player).race == RACE_BULRATHI {
+        if g.ai_id == GAME_AI_CLASSICPLUS {
+            ;; OSG states 2.15:1 average kill:death ratio for +20 (+Bulrathi -Defense) advantage
+            set pop_inbound = (pop_inbound * 215) // 100
+        } else {
+            set pop_inbound = pop_inbound + (pop_inbound // 5)
+        }
+    }
+    var flag_do_bomb = p.pop > pop_inbound
+    if IS_HUMAN(g, p.owner) && (g.evn.ceasefire@(p.owner)@(player) > 0) {
+        set flag_do_bomb = false
+    }
+    flag_do_bomb
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_ground (g, def, att, planet, pop_killed0, owner_changed) {
+    var pop_killed = pop_killed0
+    if IS_HUMAN(g, def) {
+        return nil
+    }
+    if IS_AI(g, att) {
+        ;; e996
+        set pop_killed = 1  ;; FIXME BUG? AI-AI ground diplo always sees 1 pop killed
+        ;; e9c4
+        game_diplo_act(g, -((rnd_1_n(4, g) + 4) * pop_killed), att, def, 0xa, planet, 0)
+    } else {
+        if owner_changed && IS_HUMAN(g, att) {
+            if g.eto@(att).treaty@(def) < TREATY_WAR {
+                game_diplo_act(g, -50 - rnd_1_n(50, g), att, def, 0xd, planet, 0)
+                game_diplo_start_war_swap(g, def, att)
+            } else {
+                ;; e93f
+                game_diplo_act(g, -50 - rnd_1_n(50, g), att, def, 0xa, planet, 0)
+            }
+        } else {
+            ;; e969
+            game_diplo_act(g, -((rnd_1_n(5, g) + 5) * pop_killed), att, def, 0xa, planet, 0)
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_add_reserve (g, p) {
+    val e = g.eto@(p.owner)
+    val v = e.reserve_bc // 5   ;; uint32_t
+    set e.reserve_bc = u32(e.reserve_bc - v)
+    set p.reserve = u32(p.reserve + v)
+}
+
+func game_ai_classic_crank_tech (g, planet) {
+    val p = g.planet@(planet)
+    if (p.owner == PLAYER_NONE) || IS_HUMAN(g, p.owner) {
+        return nil
+    }
+    var v = p.slider@(PLANET_SLIDER_SHIP)
+    set v = v + p.slider@(PLANET_SLIDER_IND)
+    set v = v + p.slider@(PLANET_SLIDER_DEF)
+    set p.slider@(PLANET_SLIDER_TECH) = i16(p.slider@(PLANET_SLIDER_TECH) + v)
+    set p.slider@(PLANET_SLIDER_SHIP) = 0
+    set p.slider@(PLANET_SLIDER_IND) = 0
+    set p.slider@(PLANET_SLIDER_DEF) = 0
+    game_ai_classic_add_reserve(g, p)
+}
+
+func game_ai_classic_crank_ship (g, planet) {
+    val p = g.planet@(planet)
+    if (p.owner == PLAYER_NONE) || IS_HUMAN(g, p.owner) {
+        return nil
+    }
+    var v = p.slider@(PLANET_SLIDER_TECH)
+    set v = v + p.slider@(PLANET_SLIDER_IND)
+    set v = v + p.slider@(PLANET_SLIDER_DEF)
+    set p.slider@(PLANET_SLIDER_SHIP) = i16(p.slider@(PLANET_SLIDER_SHIP) + v)
+    set p.slider@(PLANET_SLIDER_TECH) = 0
+    set p.slider@(PLANET_SLIDER_IND) = 0
+    set p.slider@(PLANET_SLIDER_DEF) = 0
+    game_ai_classic_add_reserve(g, p)
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_vote_w (g, player, cand) {
+    var v = 0
+    if g.planet@(g.evn.planet_orion_i).owner == cand {
+        set v = v + 20
+    }
+    if g.eto@(cand).race == RACE_HUMAN {
+        set v = v + 20
+    }
+    if g.evn.voted@(player) == cand {
+        set v = v + 40
+    }
+    v
+}
+
+func game_ai_classic_vote_like (g, player, cand) {
+    var v = g.eto@(player).relation1@(cand) // 4
+    set v = v + game_ai_classic_vote_w(g, player, cand)
+    rnd_1_n(100, g) < v
+}
+
+func game_ai_classic_vote_hate (g, player, c1, c2) {
+    var v = (-g.eto@(player).relation1@(c1)) // 4
+    set v = v + game_ai_classic_vote_w(g, player, c2)
+    rnd_1_n(100, g) < v
+}
+
+func game_ai_classic_vote (el, player) {
+    val g = el.g
+    val e = g.eto@(player)
+    val c1 = el.candidate@(0)
+    val c2 = el.candidate@(1)
+    if player == c1 {
+        return 1
+    }
+    if player == c2 {
+        return 2
+    }
+    if e.treaty@(c1) == TREATY_ALLIANCE {
+        return 1
+    }
+    if e.treaty@(c2) == TREATY_ALLIANCE {
+        return 2
+    }
+    if e.treaty@(c1) == TREATY_WAR {
+        return 2
+    }
+    if e.treaty@(c2) == TREATY_WAR {
+        return 1
+    }
+    if e.relation1@(c1) >= 0 {
+        if game_ai_classic_vote_like(g, player, c1) {
+            return 1
+        }
+    } else {
+        if game_ai_classic_vote_hate(g, player, c1, c2) {
+            return 2
+        }
+    }
+    if e.relation1@(c2) >= 0 {
+        if game_ai_classic_vote_like(g, player, c2) {
+            return 2
+        }
+    } else {
+        var v = (-g.eto@(player).relation1@(c2)) // 5     ;; FIXME BUG? the other case uses / 4
+        set v = v + game_ai_classic_vote_w(g, player, c1)
+        if rnd_1_n(100, g) < v {
+            return 1
+        }
+    }
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
 ;; The fields of `struct game_ai_s` that are ported so far.
 pin game_ai_classic = [
     id            = 0,      ;; GAME_AI_CLASSIC
     name          = "Classic",
     new_game_init = game_ai_classic_new_game_init,
     new_game_tech = game_ai_classic_new_game_tech,
+    tech_next     = game_ai_classic_tech_next,
+    bomb          = game_ai_classic_bomb,
+    ground        = game_ai_classic_ground,
+    vote          = game_ai_classic_vote,
 ]
 
 pin game_ai_classicplus = [
@@ -95,4 +276,8 @@ pin game_ai_classicplus = [
     name          = "Classic+",
     new_game_init = game_ai_classic_new_game_init,
     new_game_tech = game_ai_classic_new_game_tech,
+    tech_next     = game_ai_classic_tech_next,
+    bomb          = game_ai_classic_bomb,
+    ground        = game_ai_classic_ground,
+    vote          = game_ai_classic_vote,
 ]

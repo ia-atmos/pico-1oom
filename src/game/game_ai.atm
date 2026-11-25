@@ -1,12 +1,16 @@
 ;; Port of c/src/game/game_ai.c and game_ai.h.
 
-include "game_ai_classic.atm"
-
 val GAME_AI_CLASSIC = 0
 val GAME_AI_CLASSICPLUS = 1
 val GAME_AI_NUM = 2
 
-var game_ai = game_ai_classic
+;; Declared before game_ai_classic.atm is included: the modules it includes
+;; use the ids and `game_ai`.
+var game_ai = nil
+
+include "game_ai_classic.atm"
+
+set game_ai = game_ai_classic
 
 pin game_ais = [
     game_ai_classic,
