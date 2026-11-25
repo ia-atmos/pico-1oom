@@ -86,3 +86,18 @@ func util_str_tolower (buf, offs, bufsize) {
         set i = i + 1
     }
 }
+
+;; `util_table_remove_item_keep_order_zero(itemi, tbl, itemsz, itemnum)`: the
+;; items after `itemi` moved one down, and the last one zeroed (`zero` makes
+;; an item of zeros).
+func util_table_remove_item_keep_order_zero (itemi, tbl, itemnum, zero) {
+    if (itemi < 0) || (itemi >= itemnum) {
+        return nil
+    }
+    if itemi < (itemnum - 1) {
+        loop i in (itemi, itemnum - 2) {
+            cstruct_copy(tbl@(i), tbl@(i + 1))
+        }
+    }
+    cstruct_copy(tbl@(itemnum - 1), zero())
+}
