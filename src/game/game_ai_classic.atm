@@ -1,6 +1,6 @@
 ;; Port of c/src/game/game_ai_classic.c, in part (step 5, #9): the functions
-;; of a new game, of techs, bombs, ground combat, votes and audiences. The
-;; rest (the turn, the battle, the diplomacy) is still to come; the
+;; of a new game, of techs, bombs, ground combat, votes, diplomacy and
+;; audiences. The rest (the turn, the battle) is still to come; the
 ;; table `game_ai_classic` holds the functions ported so far.
 ;;
 ;; The "Classic" AI mimics MOO1 v1.3 behaviour.
@@ -13,6 +13,7 @@ include "../util_math.atm"
 include "game.atm"
 include "game_diplo.atm"
 include "game_election.atm"
+include "game_fleet.atm"
 include "game_num.atm"
 include "game_spy.atm"
 include "game_tech.atm"
@@ -257,6 +258,614 @@ func game_ai_classic_vote (el, player) {
         }
     }
     0
+}
+
+;; ---------------------------------------------------------------------------
+;; The diplomacy.
+
+func game_ai_classic_diplo_wage_war_fleet_w (g, p1, p2) {
+    pin fleetw = carray(2)  ;; int[2]
+    loop i in 2 {
+        val player = if i == 0 => p1 => p2
+        val e = g.eto@(player)
+        val srd = g.srd@(player)
+        set fleetw@(i) = 0
+        loop j in e.shipdesigns_num {
+            val v = u32(srd.shipcount@(j) * game_num_tbl_hull_w@(srd.design@(j).hull))
+            set fleetw@(i) = ADDSATT(fleetw@(i), v, 3250000)
+        }
+        set fleetw@(i) = SETMAX(fleetw@(i), 1)
+    }
+    var ratio = ((fleetw@(0) - fleetw@(1)) * 100) // fleetw@(1)
+    set ratio = SETRANGE(ratio, -300, 300)
+    ifs {
+        ratio == 0 => 0
+        ratio < 0 => -rnd_1_n(-ratio, g)
+        else => rnd_1_n(ratio, g)
+    }
+}
+
+func game_ai_classic_diplo_wage_war_do (g, p1, p2) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    if (e1.treaty@(p2) == TREATY_ALLIANCE) || (e1.treaty@(p2) == TREATY_NONAGGRESSION) {
+        if g.difficulty < DIFFICULTY_AVERAGE {
+            return nil
+        }
+        if false
+          || ((e1.treaty@(p2) == TREATY_ALLIANCE) && ((rnd_0_nm1(4, g) == 0) || ((rnd_0_nm1(2, g) == 0) && (e2.trait2 == TRAIT2_EXPANSIONIST))))
+          || ((e1.treaty@(p2) == TREATY_NONAGGRESSION) && ((rnd_0_nm1(2, g) == 0) || (e2.trait2 == TRAIT2_EXPANSIONIST))) {
+            game_diplo_act(g, -10000, p1, p2, 32, 0, 0)
+            game_diplo_break_treaty(g, p2, p1)
+            if e1.relation1@(p2) > 30 {
+                set e1.relation1@(p2) = 30
+                set e2.relation1@(p1) = 30
+            }
+        }
+    } else {
+        if g.evn.ceasefire@(p1)@(p2) <= 0 {
+            game_diplo_act(g, -10000, p1, p2, if e1.relation1@(p2) < 0 => 13 => 60, 0, 0)
+            game_diplo_start_war(g, p2, p1)
+        }
+    }
+}
+
+func game_ai_classic_diplo_wage_war_prod_w (g, p1, p2) {
+    val prod0 = i32(g.eto@(p1).total_production_bc)
+    val prod1 = SETRANGE(i32(g.eto@(p2).total_production_bc), 1, 3250000)  ;; FIXME BUG? only p2 prod limited
+    var ratio = ((prod0 - prod1) * 100) // prod1
+    set ratio = SETRANGE(ratio, -300, 300)
+    ifs {
+        ratio == 0 => 0
+        ratio < 0 => -rnd_1_n(-ratio, g)
+        else => rnd_1_n(ratio, g)
+    }
+}
+
+func game_ai_classic_diplo_wage_war (g, p1, p2) {
+    if g.end != GAME_END_NONE {
+        loop q1 in g.players {
+            val e1 = g.eto@(q1)
+            loop q2 in g.players {
+                if (q1 != q2) && (BOOLVEC_IS1(g.refuse, q1) == BOOLVEC_IS1(g.refuse, q2)) {
+                    set e1.treaty@(q2) = TREATY_ALLIANCE
+                }
+            }
+        }
+    } else {
+        val e1 = g.eto@(p1)
+        val e2 = g.eto@(p2)
+        if (e1.treaty@(p2) >= TREATY_WAR) || BOOLVEC_IS0(e1.contact, p2) || (!IS_ALIVE(g, p1)) {
+            return nil
+        }
+        if true
+          && (e2.trait1 == TRAIT1_ERRATIC)
+          && (rnd_1_n(300, g) <= g.difficulty)
+          && (IS_AI(g, p1) || (g.evn.ceasefire@(p1)@(p2) < 1)) {
+            set e1.diplo_type@(p2) = 61
+            set e1.diplo_val@(p2) = 2000
+            game_diplo_start_war(g, p2, p1)
+        } else {
+            if true
+              && (rnd_0_nm1(20, g) == 0)
+              && ((e2.trait2 == TRAIT2_MILITARIST) || (e2.trait2 == TRAIT2_EXPANSIONIST))
+              && (e2.trait1 != TRAIT1_HONORABLE)
+              && (IS_AI(g, p1) || (g.evn.ceasefire@(p1)@(p2) < 1)) {
+                var v = game_ai_classic_diplo_wage_war_fleet_w(g, p1, p2)
+                set v = e1.relation1@(p2) - v + game_diplo_tbl_reldiff@(e2.trait1) + e1.trust@(p2)
+                if v < -150 {
+                    game_ai_classic_diplo_wage_war_do(g, p1, p2)
+                }
+            }
+            ;; 1679f
+            if true
+              && (rnd_0_nm1(20, g) == 0)
+              && (IS_AI(g, p1) || (g.evn.ceasefire@(p1)@(p2) < 1)) {
+                var v = game_ai_classic_diplo_wage_war_prod_w(g, p1, p2)
+                set v = e1.relation1@(p2) - v + game_diplo_tbl_reldiff@(e2.trait1) + e1.trust@(p2)
+                if v < -150 {
+                    game_ai_classic_diplo_wage_war_do(g, p1, p2)
+                }
+            }
+        }
+        ;; 16829
+        loop p3 in g.players {
+            if !IS_HUMAN(g, p3) {
+                loop p4 in g.players {
+                    val e4 = g.eto@(p4)
+                    if !IS_AI(g, p4) {
+                        if true
+                          && (e4.treaty@(p3) == TREATY_WAR)
+                          && (e2.treaty@(p3) == TREATY_ALLIANCE)
+                          && (g.evn.ceasefire@(p4)@(p2) <= 0)
+                          && (rnd_0_nm1(10, g) == 0)
+                          && (e2.treaty@(p1) == TREATY_ALLIANCE) {
+                            game_ai_classic_diplo_wage_war_do(g, p1, p2)
+                        }
+                    }
+                }
+            }
+        }
+        if IS_HUMAN(g, p1) && (g.difficulty >= DIFFICULTY_AVERAGE) {
+            var num = 0
+            loop p3 in g.players {
+                if e1.treaty@(p3) >= TREATY_WAR {
+                    set num = num + 1
+                }
+            }
+            if num < g.difficulty {
+                ;; MOO1 does unused buggy count of planets ; overwrites local variable at tbl[-1] (which is also unused)
+                var v = e1.relation1@(p2)
+                if v < -30 {
+                    set v = (-v) // 10
+                    if rnd_1_n(10, g) <= v {
+                        game_ai_classic_diplo_wage_war_do(g, p1, p2)
+                    }
+                }
+            }
+        }
+    }
+}
+
+func game_ai_classic_turn_diplo_p1_sub1 (g) {
+    loop p1 in g.players {
+        val e1 = g.eto@(p1)
+        if !IS_HUMAN(g, p1) {
+            var p2 = p1 + 1
+            loop {
+                while p2 < g.players
+                val e2 = g.eto@(p2)
+                if !IS_HUMAN(g, p2) {
+                    ;; FIXME BUG? p2 + 1 ; BUG p3 < ; BUG ++p3
+                    ;; (C loops on p2, the variable of the outer loop, with p3 fixed)
+                    val p3 = p1 + 1
+                    loop {
+                        while p2 < g.players
+                        if !IS_HUMAN(g, p3) {
+                            if (e2.treaty@(p3) == TREATY_WAR) && (e1.treaty@(p2) == TREATY_ALLIANCE) && (e1.treaty@(p3) == TREATY_ALLIANCE) {
+                                game_diplo_break_treaty(g, p1, p2)
+                                game_diplo_break_treaty(g, p1, p3)
+                            }
+                        }
+                        set p2 = p2 + 1
+                    }
+                }
+                set p2 = p2 + 1
+            }
+        }
+    }
+}
+
+;; Gives (num, field, tech): the `fieldptr` and `techptr` of C.
+func game_ai_classic_turn_diplo_p1_get_ai_trade_tech (g, p1, p2) {
+    pin s = spy_esp_s()
+    var field = 0
+    var tech = 0
+    set s.target = p1
+    set s.spy = p2
+    val r = rnd_1_n(3, g)
+    val num = game_spy_esp_sub2(g, s, r)
+    ;; WASBUG
+    ;; MOO1 does field = s.tbl_field[0] and tech = s.tbl_tech2[0] but neither is set by game_spy_esp_sub2.
+    ;; MOO1 uses global variables for the tables; the values are from some previous spy call (possibly ground combat tech steal).
+    if num > 0 {
+        var i = (g.year ^ r) % num  ;; "random" value without advancing the rng
+        loop f in TECH_FIELD_NUM {
+            val n = s.tbl_num@(f)
+            if i < n {
+                set field = f
+                set tech = s.tbl_techi@(f)@(i)
+                break
+            }
+            set i = i - n
+        }
+    }
+    (num, field, tech)
+}
+
+func game_ai_classic_turn_diplo_p1 (g) {
+    loop p1 in g.players {
+        val e1 = g.eto@(p1)
+        if !IS_HUMAN(g, p1) {
+            loop p2 in g.players {
+                val e2 = g.eto@(p2)
+                if (p1 != p2) && !IS_HUMAN(g, p2) {
+                    if (rnd_0_nm1(15 - (g.difficulty * 2), g) == 0) && BOOLVEC_IS1(e1.contact, p2) {
+                        var v = e1.trust@(p2) + e1.relation1@(p2) + game_diplo_tbl_reldiff@(e2.trait1) + rnd_1_n(100, g)
+                        if e1.treaty@(p2) == TREATY_NONAGGRESSION {
+                            set v = v + 10
+                        }
+                        if e1.treaty@(p2) == TREATY_ALLIANCE {
+                            set v = v + 20
+                        }
+                        if e1.trade_bc@(p2) != 0 {
+                            set v = v + 10
+                        }
+                        ifs {
+                            ((v + e1.mood_treaty@(p2)) > 150) && (e1.treaty@(p2) != TREATY_ALLIANCE) => {
+                                game_diplo_set_treaty(g, p1, p2, TREATY_ALLIANCE)
+                            }
+                            ((v + e1.mood_treaty@(p2)) > 150) && (e1.treaty@(p2) != TREATY_NONAGGRESSION) => {    ;; BUG ignores Alliance, results in NAP/Alliance oscillation
+                                game_diplo_set_treaty(g, p1, p2, TREATY_NONAGGRESSION)
+                            }
+                            else => {
+                                ifs {
+                                    (e1.mood_tech@(p2) + 80) < v => {
+                                        val num0, field0, tech0 = game_ai_classic_turn_diplo_p1_get_ai_trade_tech(g, p1, p2)
+                                        val num1, field1, tech1 = game_ai_classic_turn_diplo_p1_get_ai_trade_tech(g, p2, p1)
+                                        if (num0 > 0) && (num1 > 0) {
+                                            game_tech_get_new(g, p2, field0, tech0, TECHSOURCE_TRADE, 0, PLAYER_NONE, false)
+                                            game_tech_get_new(g, p1, field1, tech1, TECHSOURCE_TRADE, 0, PLAYER_NONE, false)
+                                        }
+                                    }
+                                    v > 70 => {
+                                        var v1 = i32(e1.total_production_bc // 4)
+                                        val v2 = i32(e2.total_production_bc // 4)
+                                        set v1 = SETMIN(v1, v2)
+                                        set v1 = SETMIN(v1, 32000)
+                                        game_diplo_set_trade(g, p1, p2, v1)
+                                    }
+                                    else => nil
+                                }
+                            }
+                        }
+                        if rnd_0_nm1(20, g) == 0 {
+                            game_diplo_act(g, rnd_1_n(5, g), p1, p2, 1, 0, 0)
+                        }
+                        ;; WASBUG
+                        ;; MOO1 uses the last audience message variant index (diplo_msg_subtype, -1..13) in place of v.
+                        ;; This is weird, nondeterministic (in MOO1) and unworkable for multiplayer.
+                        ;; Whether v is what was intended is unknown, but it makes a whole lot more sense.
+                        if g.ai_id == GAME_AI_CLASSIC {
+                            set v = g.evn.diplo_msg_subtype
+                        }
+                        if (e1.treaty@(p2) == TREATY_WAR) && ((v + e1.mood_peace@(p2)) > 100) {
+                            game_diplo_stop_war(g, p1, p2)
+                        }
+                        game_diplo_annoy(g, p1, p2, 3)
+                        game_ai_classic_turn_diplo_p1_sub1(g)
+                        game_ai_classic_diplo_wage_war(g, p1, p2)
+                    }
+                }
+            }
+        }
+    }
+    loop p1 in g.players {
+        val e1 = g.eto@(p1)
+        if !IS_HUMAN(g, p1) {
+            loop p2 in g.players {
+                if (p1 != p2) && !IS_HUMAN(g, p2) {
+                    if e1.treaty@(p2) == TREATY_ALLIANCE {
+                        loop p3 in g.players {
+                            val e3 = g.eto@(p3)
+                            if (p1 != p3) && (p2 != p3) && IS_AI(g, p3) && (e3.treaty@(p1) == TREATY_WAR) && (e3.treaty@(p2) != TREATY_WAR) {
+                                game_diplo_start_war(g, p2, p3)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func game_ai_classic_turn_diplo_p2_offer (g, p1, p2) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    if rnd_0_nm1(4, g) != 0 {
+        set e1.offer_bc@(p2) = u16((((e2.total_production_bc // (rnd_1_n(3, g) + 1)) + g.year) // 25) * 25)
+    } else {
+        pin s = spy_esp_s()
+        set s.spy = p1
+        set s.target = p2
+        if game_spy_esp_sub1(g, s, 0, 2) > 0 {
+            set e1.offer_field@(p2) = s.tbl_field@(0)
+            set e1.offer_tech@(p2) = s.tbl_tech2@(0)
+        }
+    }
+}
+
+func game_ai_classic_turn_diplo_p2_sub1 (g, p1, p2) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    if BOOLVEC_IS0(e1.contact, p2) || (e1.treaty@(p2) >= TREATY_WAR) {  ;; WASBUG? MOO1 also tests for "|| (e1->diplo_val == 0)" ; note the missing [p2]
+        set e1.diplo_type@(p2) = 0
+        return nil
+    }
+    if game_fleet_any_dest_player(g, p2, p1) {
+        set e1.diplo_type@(p2) = 0
+        return nil
+    }
+    if (e1.diplo_type@(p2) != 0) && (rnd_0_nm1(2, g) == 0) {
+        return nil
+    }
+    var v4 = 0
+    var v = e1.trust@(p2) + e1.relation1@(p2) + (if e1.race == RACE_HUMAN => 50 => 0) + game_diplo_tbl_reldiff@(e2.trait1)
+    if (e1.treaty@(p2) == TREATY_NONE) && (e1.relation1@(p2) > 15) {
+        val v8 = v + rnd_1_n(100, g) + e1.mood_treaty@(p2)
+        if v8 > 50 {
+            set v4 = 1
+            set e1.diplo_type@(p2) = 24
+        }
+    }
+    ;; 41684
+    if ((e1.treaty@(p2) == TREATY_NONAGGRESSION) || (v4 == 1)) && (e1.relation1@(p2) > 50) {
+        val v8 = v + rnd_1_n(100, g) + e1.mood_treaty@(p2)
+        if v8 > 100 {
+            set v4 = 2
+            set e1.diplo_type@(p2) = 25
+        }
+    }
+    ;; 416e8
+    if v4 == 0 {
+        val v8 = v + rnd_1_n(150, g) + e1.mood_trade@(p2)
+        if v8 > 50 {
+            var prod = i32(MIN(e1.total_production_bc, e2.total_production_bc) // 4)
+            set prod = SETMIN(prod, 32000)
+            var want_trade = prod // 25
+            if want_trade != 0 {
+                set want_trade = rnd_1_n(want_trade, g) * 25
+            }
+            if e1.trade_bc@(p2) < want_trade {
+                set v4 = 3
+                set e1.diplo_type@(p2) = 26
+                set e1.au_want_trade@(p2) = u16(want_trade)
+            }
+        }
+    }
+    ;; 417f2
+    if v4 == 0 {
+        var pa = PLAYER_NONE
+        loop p3 in g.players {
+            if (p3 != p1) && (p3 != p2) && (e2.treaty@(p3) >= TREATY_WAR) && BOOLVEC_IS1(e1.contact, p3) {
+                set pa = p3
+            }
+        }
+        if (pa != PLAYER_NONE) && (rnd_0_nm1(10, g) == 0) && (e1.attack_bounty@(p2) == PLAYER_NONE) {
+            pin s = spy_esp_s()
+            set s.spy = p1
+            set s.target = p2
+            val num = game_spy_esp_sub1(g, s, 0, 2)
+            ;; game_spy_esp_get_random(g, s, &field, &tech); unused
+            var bc = 0
+            if num == 0 {
+                set bc = (((rnd_1_n(3, g) + 1) * g.year) // 50) * 50
+                set s.tbl_tech2@(0) = 0
+            }
+            if (bc != 0) || (num != 0) {
+                set v4 = 4
+                set e1.diplo_type@(p2) = 28
+                set e1.attack_bounty@(p2) = pa
+                set e1.attack_gift_field@(p2) = s.tbl_field@(0)
+                set e1.attack_gift_tech@(p2) = s.tbl_tech2@(0)
+                set e1.attack_gift_bc@(p2) = i16(bc)
+                set e1.bounty_collect@(p2) = PLAYER_NONE
+            }
+        }
+    }
+    ;; 418d2
+    if v4 == 0 {
+        var v8 = v + rnd_1_n(100, g) + e1.mood_trade@(p2)
+        if v8 > 25 {
+            pin s = spy_esp_s()
+            var v1c = e1.mood_tech@(p2)
+            if v1c > 0 {
+                set v1c = v1c // 5
+            }
+            set v1c = SETMIN(v1c, 30)
+            if e1.treaty@(p2) == TREATY_ALLIANCE {
+                set v1c = v1c + 25
+            }
+            set v = e1.trust@(p2) + (e1.relation1@(p2) // 2) + (if e2.race == RACE_HUMAN => 50 => 0) + game_diplo_tbl_reldiff@(e2.trait1) + v1c - 125
+            set v8 = v + rnd_1_n(100, g) + v1c - 125
+            var v14 = if v8 < 0 => (math.abs(v8) + 100) => (20000 // (v8 + 200))
+            set v14 = SETMIN(v14, 50)
+            set s.spy = p2
+            set s.target = p1
+            var num = game_spy_esp_sub1(g, s, 0, 0)
+            if num > 0 {
+                val zfield = s.tbl_field@(0)
+                val ztech = s.tbl_tech2@(0)
+                val zvalue = (s.tbl_value@(0) * 100) // v14
+                set s.spy = p1
+                set s.target = p2
+                set num = game_spy_esp_sub1(g, s, zvalue, 1)
+                var found = false
+                loop i in num {
+                    if s.tbl_value@(i) <= zvalue {
+                        set found = true
+                        break
+                    }
+                }
+                if found {
+                    var n = 0
+                    set v4 = 5
+                    set e1.diplo_type@(p2) = 29
+                    set e1.au_want_field@(p2) = zfield
+                    set e1.au_want_tech@(p2) = ztech
+                    loop i in num {
+                        if s.tbl_value@(i) <= zvalue {
+                            set e1.au_tech_trade_field@(p2)@(n) = s.tbl_field@(i)
+                            set e1.au_tech_trade_tech@(p2)@(n) = s.tbl_tech2@(i)
+                            set n = n + 1
+                        }
+                    }
+                    set e1.au_tech_trade_num@(p2) = n
+                    set e1.mood_tech@(p2) = 0
+                    set e2.mood_tech@(p1) = 0
+                }
+            }
+        }
+    }
+    ;; 41aa2
+    if v4 == 0 {
+        if (e1.relation1@(p2) < 0) && (e1.total_production_bc > e2.total_production_bc) && (e1.treaty@(p2) == TREATY_NONE) {
+            set v4 = 1
+            set e1.diplo_type@(p2) = 24
+        }
+    }
+    ;; 41ae2
+    ;; 41c23
+    if true
+      && (e2.total_production_bc != 0)
+      && ((v4 == 1) || (v4 == 2))
+      && (e2.trait1 > TRAIT1_RUTHLESS)
+      && (rnd_1_n(100, g) <= (u32(e1.total_production_bc * 30) // e2.total_production_bc))
+      && (rnd_0_nm1(8, g) == 0) {
+        game_ai_classic_turn_diplo_p2_offer(g, p1, p2)
+    }
+}
+
+func game_ai_classic_turn_diplo_p2_sub2 (g, p1, p2) {
+    val e1 = g.eto@(p1)
+    if (e1.treaty@(p2) == TREATY_ALLIANCE) && (rnd_0_nm1(10, g) == 0) {
+        var pa = PLAYER_NONE
+        loop p3 in g.players {
+            val e3 = g.eto@(p3)
+            if true
+              && (p3 != p1) && (p3 != p2) && (e3.treaty@(p2) == TREATY_WAR)
+              && BOOLVEC_IS1(e1.contact, p3)
+              && (e1.treaty@(p3) != TREATY_WAR) {
+                set pa = p3
+            }
+        }
+        set e1.au_ally_attacker@(p2) = pa
+        set e1.diplo_type@(p2) = if pa == PLAYER_NONE => 0 => 76
+    } else {
+        set e1.diplo_type@(p2) = 0
+    }
+}
+
+func game_ai_classic_turn_diplo_p2_sub3 (g, p1, p2) {
+    val e1 = g.eto@(p1)
+    val e2 = g.eto@(p2)
+    if BOOLVEC_IS0(e1.contact, p2) {    ;; WASBUG? MOO1 also tests for "|| (e1->diplo_val == 0)" ; note the missing [p2]
+        set e1.diplo_type@(p2) = 0
+        return nil
+    }
+    val v = e1.trust@(p2) + e1.relation1@(p2) + (if e1.race == RACE_HUMAN => 50 => 0) + game_diplo_tbl_reldiff@(e2.trait1)
+    if e1.treaty@(p2) < TREATY_WAR {
+        ifs {
+            e1.relation1@(p2) <= -95 => {
+                game_diplo_start_war(g, p2, p1)
+                set e1.diplo_type@(p2) = 13
+            }
+            ((v - rnd_1_n(100, g)) + e1.mood_treaty@(p2)) <= -100 => {
+                if e1.hatred@(p2) > 0 {
+                    set e1.hatred@(p2) = i16(e1.hatred@(p2) + 1)
+                    if (e1.hatred@(p2) > 2) || (e1.treaty@(p2) == TREATY_NONE) {
+                        if rnd_1_n(100, g) < (-((game_diplo_tbl_reldiff@(e2.trait1) // 2) + e1.diplo_val@(p2))) {
+                            game_diplo_start_war(g, p2, p1)
+                            set e1.diplo_type@(p2) = 13
+                            set e1.hatred@(p2) = 1
+                        }
+                    } else {
+                        set e1.diplo_type@(p2) = u8(e1.diplo_type@(p2) + 46)
+                        game_diplo_break_treaty(g, p2, p1)
+                    }
+                } else {
+                    set e1.hatred@(p2) = 1
+                    if (e1.treaty@(p2) == TREATY_NONAGGRESSION) || (e1.treaty@(p2) == TREATY_ALLIANCE) || (e1.trade_bc@(p2) != 0) {
+                        set e1.diplo_type@(p2) = u8(e1.diplo_type@(p2) + 38)
+                    }
+                }
+            }
+            else => nil
+        }
+    } else {
+        if (((v + rnd_1_n(100, g)) + e1.mood_peace@(p2)) >= 50) && (rnd_0_nm1(8, g) == 0) {
+            set e1.diplo_type@(p2) = 30
+            if rnd_1_n(100, g) <= (u32(e2.total_production_bc * 30) // e1.total_production_bc) {
+                game_ai_classic_turn_diplo_p2_offer(g, p1, p2)
+            }
+        }
+    }
+}
+
+func game_ai_classic_turn_diplo_p2 (g) {
+    game_diplo_limit_mood_treaty(g)
+    loop p1 in g.players {
+        val e1 = g.eto@(p1)
+        ifs {
+            IS_AI(g, p1) => nil
+            !IS_ALIVE(g, p1) => {
+                loop i in PLAYER_NUM {
+                    set e1.diplo_type@(i) = 0
+                }
+            }
+            else => {
+                loop p2 in g.players {
+                    val e2 = g.eto@(p2)
+                    ifs {
+                        IS_HUMAN(g, p2) => nil
+                        !IS_ALIVE(g, p2) => {
+                            set e1.diplo_type@(p2) = 0
+                        }
+                        else => {
+                            ifs {
+                                (e1.treaty@(p2) == TREATY_FINAL_WAR) || (e1.diplo_type@(p2) == 59) => {
+                                    if e1.diplo_type@(p2) != 59 {
+                                        set e1.diplo_type@(p2) = 0
+                                    }
+                                }
+                                e1.have_met@(p2) == 1 => {
+                                    set e1.have_met@(p2) = 2
+                                    set e1.diplo_type@(p2) = u8(e2.trait1 + 14)
+                                }
+                                e1.bounty_collect@(p2) != PLAYER_NONE => {
+                                    set e1.diplo_type@(p2) = 58
+                                }
+                                (e1.diplo_type@(p2) == 13) || (e1.diplo_type@(p2) == 32) || (e1.diplo_type@(p2) == 61) || (e1.diplo_type@(p2) == 60) => {
+                                    ;; v8 = 0; unused
+                                }
+                                else => {
+                                    ;; 16441
+                                    val v = i16(game_diplo_get_mood(g, p1, p2))
+                                    val v2 = i16(v + e1.trust@(p2) + game_diplo_tbl_reldiff@(e2.trait1))
+                                    val dv2 = i16(e1.diplo_val@(p2) * 2)
+                                    ifs {
+                                        (v2 <= -100) || (v <= -100) => {
+                                            set e1.diplo_type@(p2) = 0
+                                        }
+                                        e1.diplo_val@(p2) < 0 => {
+                                            if (e1.hatred@(p2) > 0) || (rnd_1_n(100, g) < math.abs(dv2)) {
+                                                game_ai_classic_turn_diplo_p2_sub3(g, p1, p2)
+                                            } else {
+                                                set e1.diplo_type@(p2) = 0
+                                            }
+                                        }
+                                        (e1.treaty@(p2) == TREATY_WAR) && ((rnd_1_n(100, g) + 30) < e1.mood_peace@(p2)) => {
+                                            game_ai_classic_turn_diplo_p2_sub3(g, p1, p2)
+                                        }
+                                        (rnd_1_n(100, g) < (dv2 + (if e1.hatred@(p2) == 0 => 3 => 0))) && (rnd_0_nm1(4, g) == 0) => {
+                                            if e1.hatred@(p2) > 0 {
+                                                set e1.hatred@(p2) = 0
+                                            } else {
+                                                game_ai_classic_turn_diplo_p2_sub1(g, p1, p2)
+                                            }
+                                        }
+                                        else => {
+                                            ;; 1656f
+                                            game_ai_classic_turn_diplo_p2_sub2(g, p1, p2)
+                                        }
+                                    }
+                                }
+                            }
+                            ;; 16576
+                            if e1.diplo_type@(p2) == 0 {
+                                game_ai_classic_diplo_wage_war(g, p1, p2)
+                            }
+                            if (e1.diplo_type@(p2) == 2) && (rnd_0_nm1(10, g) != 0) {
+                                set e1.diplo_type@(p2) = 0
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 ;; ---------------------------------------------------------------------------
@@ -591,6 +1200,8 @@ pin game_ai_classic = [
     bomb          = game_ai_classic_bomb,
     ground        = game_ai_classic_ground,
     vote          = game_ai_classic_vote,
+    turn_diplo_p1 = game_ai_classic_turn_diplo_p1,
+    turn_diplo_p2 = game_ai_classic_turn_diplo_p2,
     aud_start_human = game_ai_classic_aud_start_human,
     aud_treaty_nap = game_ai_classic_aud_treaty_nap,
     aud_treaty_alliance = game_ai_classic_aud_treaty_alliance,
@@ -616,6 +1227,8 @@ pin game_ai_classicplus = [
     bomb          = game_ai_classic_bomb,
     ground        = game_ai_classic_ground,
     vote          = game_ai_classic_vote,
+    turn_diplo_p1 = game_ai_classic_turn_diplo_p1,
+    turn_diplo_p2 = game_ai_classic_turn_diplo_p2,
     aud_start_human = game_ai_classic_aud_start_human,
     aud_treaty_nap = game_ai_classic_aud_treaty_nap,
     aud_treaty_alliance = game_ai_classic_aud_treaty_alliance,
