@@ -547,6 +547,8 @@ func do_op (op) {
         }
         "set_diplo_type" => { set g.eto@(arg(op, 0)).diplo_type@(arg(op, 1)) = arg(op, 2) }
         "audiences" => game_turn_audiences(g)
+        "ai_diplo_p1" => game_ai.turn_diplo_p1(g)
+        "ai_diplo_p2" => game_ai.turn_diplo_p2(g)
         "set_event_roll" => { set game_num_event_roll = arg(op, 0) }
         "set_year" => { set g.year = arg(op, 0) }
         "event_new" => game_event_new(g)

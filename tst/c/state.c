@@ -442,6 +442,8 @@ static void do_op(const char *op)
     OP(audience) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); game_audience(&g, arg(op, 0), arg(op, 1)); }
     OP(set_diplo_type) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); }
     OP(audiences) { game_turn_audiences(&g); }
+    OP(ai_diplo_p1) { game_ai->turn_diplo_p1(&g); }
+    OP(ai_diplo_p2) { game_ai->turn_diplo_p2(&g); }
     OP(set_event_roll) { game_num_event_roll = arg(op, 0); }
     OP(set_year) { g.year = arg(op, 0); }
     OP(event_new) { game_event_new(&g); }
