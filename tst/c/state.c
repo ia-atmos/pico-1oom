@@ -53,6 +53,9 @@ void ui_landing(struct game_s *g_, int pi, uint8_t planet_i) { printf("landing %
 void ui_turn_msg(struct game_s *g_, int pi, const char *str) { printf("msg %d %s\n", pi, str); }
 
 void ui_newtech(struct game_s *g_, int pi) { printf("newtech %d\n", pi); }
+void ui_turn_pre(const struct game_s *g_) { printf("turn_pre %d\n", g_->year); }
+void ui_copyprotection_check(struct game_s *g_) { printf("copyprotection_check\n"); }
+void ui_copyprotection_lose(struct game_s *g_, struct game_end_s *ge) { printf("copyprotection_lose\n"); }
 int ui_spy_steal(struct game_s *g_, int spy, int target, uint8_t flags_field)
 {
     int f = 0;
@@ -389,6 +392,7 @@ static void do_op(const char *op)
     OP(audience) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); game_audience(&g, arg(op, 0), arg(op, 1)); }
     OP(set_diplo_type) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); }
     OP(audiences) { game_turn_audiences(&g); }
+    OP(turn) { struct game_end_s ge = game_turn_process(&g); printf("turn_end %d\n", ge.type); }
     OP(ai_diplo_p1) { game_ai->turn_diplo_p1(&g); }
     OP(ai_diplo_p2) { game_ai->turn_diplo_p2(&g); }
     OP(ai_p1) { game_ai->turn_p1(&g); }
