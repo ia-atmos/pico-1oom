@@ -4,6 +4,7 @@
 
 include "../src/game/game_new.atm"
 include "../src/game/game_save.atm"
+include "../src/game/game_ai_classic.atm"
 
 val args = [...]
 os_set_path_data(args@0)
