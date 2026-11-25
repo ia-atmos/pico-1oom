@@ -81,6 +81,8 @@ for sname, tname, size, init in re.findall(r'struct (shiptech_\w+_s) (\w+)\[(\w+
                 v = value(vals[k])
             else:   # C zeroes the fields that the initializer leaves out
                 v = ('carray(%s)' % arr[1:-1]) if arr else '0'
+            if (ctype == 'bool') and (v in ('0', '1')):  # 0 is true in Atmos
+                v = 'false' if v == '0' else 'true'
             atm.append('        %s = %s,    ;; %s%s' % (fname, v, ctype, ' ' + arr if arr else ''))
         atm.append('    ],')
     atm.append(']')
