@@ -10,17 +10,24 @@ include "../ui.atm"
 include "../util.atm"
 include "../util_math.atm"
 include "game.atm"
+include "game_ai.atm"
 include "game_audience.atm"
+include "game_battle.atm"
+include "game_bomb.atm"
 include "game_design.atm"
 include "game_diplo.atm"
+include "game_election.atm"
 include "game_end.atm"
+include "game_event.atm"
 include "game_fleet.atm"
+include "game_ground.atm"
 include "game_misc.atm"
 include "game_news.atm"
 include "game_num.atm"
 include "game_planet.atm"
 include "game_planet_c.atm"
 include "game_shiptech.atm"
+include "game_spy.atm"
 include "game_stat.atm"
 include "game_str.atm"
 include "game_tech.atm"
@@ -1466,4 +1473,190 @@ func game_turn_audiences (g) {
         game_tech_finish_new(g, ph)
         ui_newtech(g, ph)
     }
+}
+
+;; ---------------------------------------------------------------------------
+
+;; Gives the `struct game_end_s` of C.
+func game_turn_process (g) {
+    val game_end = game_end_s()     ;; (returned: not pinned)
+    pin old_contact = BOOLVEC_TBL_DECLARE(PLAYER_NUM, PLAYER_NUM)
+    pin old_focus = carray(PLAYER_NUM)  ;; uint8_t[]
+    var num_alive = 0
+    var num_colony = 0
+    set game_end.type = GAME_END_NONE
+    game_turn_limit_ships(g)
+    loop i in g.players {
+        BOOLVEC_TBL_COPY1(old_contact, g.eto@(i).contact, i, PLAYER_NUM)
+        set old_focus@(i) = g.planet_focus_i@(i)
+    }
+    if (g.year > 40) && (rnd_0_nm1(30, g) == 0) && (copyprot_status == 0) {
+        set copyprot_status = 1
+    }
+    ui_turn_pre(g)
+    game_turn_countdown_ceasefire(g)
+    game_turn_update_mood_blunder(g)
+    game_update_have_reserve_fuel(g)
+    game_ai.turn_p1(g)
+    game_ai.turn_p2(g)
+    game_update_have_reserve_fuel(g)
+    game_ai.turn_p3(g)
+    game_turn_init_z_finished(g)
+    game_turn_send_transport(g)
+    game_update_production(g)
+    game_turn_build_eco(g)
+    game_update_total_research(g)
+    game_update_have_reserve_fuel(g)
+    game_turn_update_trade(g)
+    game_spy_build(g)
+    if !game_num_hidden_child_labor_fix {
+        game_update_production(g)
+    }
+    game_turn_diplo_adjust(g)
+    game_turn_build_def(g)
+    game_turn_build_ship(g)
+    game_turn_reserve(g)
+    game_turn_build_ind(g)
+    game_turn_move_ships(g)
+    game_turn_limit_ships(g)
+    game_remove_empty_fleets(g)
+    game_spy_report(g)
+    game_battle_handle_all(g)
+    ;; game_turn_unrest_hmm1(g);
+    loop i in g.players {
+        set g.evn.newtech@(i).num = 0
+    }
+    do {
+        pin st = spy_turn_s()
+        game_spy_turn(g, st)
+        game_spy_esp_human(g, st)
+        game_spy_sab_human(g)
+    }
+    ;; ui_newtech(); FIXME redundant;
+    loop i in g.players {
+        set g.evn.newtech@(i).num = 0
+    }
+    ;; 935f
+    game_tech_research(g)
+    loop i in g.players {
+        if IS_HUMAN(g, i) {
+            game_tech_finish_new(g, i)
+            ui_newtech(g, i)
+        }
+    }
+    ;; FIXME useless? game_battle should have taken care of this
+    if g.evn.have_guardian {
+        val o = g.evn.planet_orion_i
+        loop i in g.players {
+            ;; (C: memset(s, 0, sizeof(*s)) with s the ships of the orbit: only the first)
+            set g.eto@(i).orbit@(o).ships@(0) = 0
+        }
+    }
+    game_turn_explore(g)
+    game_turn_bomb(g)
+    game_turn_transport(g)
+    do {
+        val grdata = game_turn_ground_resolve_all(g)
+        game_turn_ground_show_all(g, grdata)
+    }
+    game_turn_coup(g)
+    if game_turn_check_end(g, game_end) {
+        return game_end
+    }
+    game_event_new(g)
+    if game_event_run(g, game_end) {
+        return game_end
+    }
+    if game_turn_check_end(g, game_end) {
+        return game_end
+    }
+    loop pli in g.galaxy_stars {
+        val looter = g.planet@(pli).artifact_looter
+        if looter != PLAYER_NONE {
+            game_tech_get_artifact_loot(g, pli, looter)
+        }
+    }
+    loop i in g.players {
+        if IS_HUMAN(g, i) {
+            game_tech_finish_new(g, i)
+            ui_newtech(g, i)
+        }
+        set g.evn.newtech@(i).num = 0
+    }
+    game_turn_update_have_met(g)
+    game_ai.turn_diplo_p1(g)
+    loop i in g.galaxy_stars {
+        if g.planet@(i).owner != PLAYER_NONE {
+            set num_colony = num_colony + 1
+        }
+    }
+    loop i in g.players {
+        if IS_ALIVE(g, i) {
+            set num_alive = num_alive + 1
+        }
+    }
+    if true
+      && (!g.gaux.flag_cheat_elections)
+      && (game_num_council_years != 0)
+      && (((g.year % game_num_council_years) == 0) || (!g.election_held))
+      && (num_alive > 2)
+      && (((g.galaxy_stars * 2) // 3) <= num_colony)
+      && (g.end == GAME_END_NONE) {
+        game_election(g)
+        set g.election_held = true
+    }
+    if game_turn_check_end(g, game_end) {
+        return game_end
+    }
+    if g.gaux.local_players > 1 {
+        game_turn_update_final_war(g)   ;; MOO1 does this much later
+    }
+    game_ai.turn_diplo_p2(g)
+    game_turn_audiences(g)
+    if game_turn_check_end(g, game_end) {
+        return game_end
+    }
+    loop i in g.players {
+        game_turn_contact_broken(g, i, old_contact@(i))
+    }
+    game_fleet_unrefuel(g)
+    game_update_production(g)
+    if copyprot_status == 1 {
+        ui_copyprotection_check(g)
+    }
+    loop i in g.players {
+        game_update_eco_on_waste(g, i, false)
+    }
+    game_turn_update_seen(g)
+    game_diplo_mood_relax(g)
+    loop i in g.players {
+        set g.planet_focus_i@(i) = old_focus@(i)    ;; FIXME should not be needed anymore
+    }
+    set g.year = u16(g.year + 1)
+    if copyprot_status == 1 {
+        ui_copyprotection_lose(g, game_end)
+        return game_end
+    }
+    ;; (#if 0 in C: game_turn_show_newships, handled in game_turn_start_messages)
+    ;; MOO1 autosaves here every 5 turns
+    game_update_tech_util(g)
+    loop i in g.players {
+        val e = g.eto@(i)
+        loop f in TECH_FIELD_NUM {
+            set e.tech.percent@(f) = game_tech_get_field_percent(g, i, f)
+        }
+    }
+    game_turn_finished_slider(g)
+    game_turn_claim(g)
+    game_update_within_range(g)
+    if game_num_extended_reloc_range {
+        game_update_reloc_dest(g)
+    }
+    game_update_visibility(g)
+    if g.gaux.local_players == 1 {
+        game_turn_update_final_war(g)   ;; MOO1 does this here, after update_tech_util etc
+    }
+    game_remove_empty_fleets(g)
+    game_planet_update_home(g)
+    game_end
 }

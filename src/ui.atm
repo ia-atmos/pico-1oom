@@ -20,6 +20,11 @@ var ui_get_strbuf = func () { ui_strbuf }
 var ui_explore = func (g, pi, planet_i, by_scanner, flag_colony_ship) { ui_not_set("ui_explore") }
 var ui_landing = func (g, pi, planet_i) { ui_not_set("ui_landing") }
 var ui_turn_msg = func (g, pi, str) { ui_not_set("ui_turn_msg") }
+var ui_turn_pre = func (g) { ui_not_set("ui_turn_pre") }
+
+;; The copy protection (`ge` is a `struct game_end_s`).
+var ui_copyprotection_check = func (g) { ui_not_set("ui_copyprotection_check") }
+var ui_copyprotection_lose = func (g, ge) { ui_not_set("ui_copyprotection_lose") }
 
 ;; The map while the ships move (`ctx` is what `ui_gmap_basic_init` gives).
 var ui_gmap_basic_init = func (g, show_player_switch) { ui_not_set("ui_gmap_basic_init") }
