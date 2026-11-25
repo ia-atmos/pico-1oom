@@ -7,6 +7,7 @@ include "../src/game/game_misc.atm"
 include "../src/game/game_new.atm"
 include "../src/game/game_save.atm"
 include "../src/game/game_audience.atm"
+include "../src/game/game_battle.atm"
 include "../src/game/game_bomb.atm"
 include "../src/game/game_design.atm"
 include "../src/game/game_election.atm"
@@ -251,6 +252,98 @@ func test_ai_aud_si (what, au) {
     aud_n % 4
 }
 
+;; The battle, as tst/c/state.c has it.
+set ui_gfx_get_ship = func (look) { nil }
+set ui_gfx_get_planet = func (look) { nil }
+set ui_gfx_get_rock = func (look) { nil }
+set ui_battle_init = func (bt) {
+    out("battle_init %d %d %d %d %d\n", bt.planet_i, bt.s@(0).party, bt.s@(1).party, bt.items_num, bt.num_rocks)
+    UI_BATTLE_AUTORESOLVE_AUTO
+}
+set ui_battle_shutdown = func (bt, colony_destroyed, winner) {
+    out("battle_shutdown %d %d %d %d %d %d %d\n", cint(colony_destroyed), winner, bt.num_turn, bt.pop, bt.fact, bt.bases, bt.biodamage)
+}
+set ui_battle_draw_misshield = func (bt, target_i, target_x, target_y, missile_i) { nil }
+set ui_battle_draw_damage = func (bt, target_i, target_x, target_y, damage) { nil }
+set ui_battle_draw_explos_small = func (bt, x, y) { nil }
+set ui_battle_draw_basic = func (bt) { nil }
+set ui_battle_draw_basic_copy = func (bt) { nil }
+set ui_battle_draw_missile = func (bt, missilei, x, y, tx, ty) { nil }
+set ui_battle_draw_cloaking = func (bt, from, to, sx, sy) { nil }
+set ui_battle_draw_arena = func (bt, itemi, dmode) { nil }
+set ui_battle_draw_item = func (bt, itemi, x, y) { nil }
+set ui_battle_draw_bomb_attack = func (bt, attacker_i, target_i, bombtype) { nil }
+set ui_battle_draw_beam_attack = func (bt, attacker_i, target_i, wpni) { nil }
+set ui_battle_draw_stasis = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_pulsar = func (bt, attacker_i, ptype, dmgtbl) { nil }
+set ui_battle_draw_stream1 = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_stream2 = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_blackhole = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_technull = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_repulse = func (bt, attacker_i, target_i, sx, sy) { nil }
+set ui_battle_draw_retreat = func (bt) { nil }
+set ui_battle_draw_bottom = func (bt) { nil }
+set ui_battle_draw_planetinfo = func (bt, side_r) { nil }
+set ui_battle_draw_scan = func (bt, side_r) { nil }
+set ui_battle_draw_finish = func (bt) { nil }
+set ui_battle_area_setup = func (bt) { nil }
+set ui_battle_turn_pre = func (bt) { nil }
+set ui_battle_turn_post = func (bt) { nil }
+set ui_battle_turn = func (bt) { UI_BATTLE_ACT_DONE }
+set ui_battle_ai_pre = func (bt) { nil }
+set ui_battle_ai_post = func (bt) { false }
+set ui_sound_play_sfx = func (sfxi) { nil }
+
+;; The turn of an item in a battle, as tst/c/state.c has it.
+func test_ai_battle_try_attack (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    game_battle_area_setup(bt)
+    loop i in (0, bt.items_num) {
+        val bd = bt.item@(i)
+        if (bd.side != SIDE_NONE) && (bd.side != b.side) && (bt.area@(bd.sy)@(bd.sx) >= 30) {
+            out("ai_battle_attack %d %d\n", itemi, i)
+            game_battle_attack(bt, itemi, i, false)
+            return true
+        }
+    }
+    false
+}
+func test_ai_battle_turn (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    var bestx = -1
+    var besty = -1
+    var bestd = 1000
+    if test_ai_battle_try_attack(bt) {
+        return nil
+    }
+    loop sy in BATTLE_AREA_H {
+        loop sx in BATTLE_AREA_W {
+            if bt.area@(sy)@(sx) == 1 {
+                loop i in (0, bt.items_num) {
+                    val bd = bt.item@(i)
+                    if (bd.side != SIDE_NONE) && (bd.side != b.side) {
+                        val d = util_math_dist_maxabs(sx, sy, bd.sx, bd.sy)
+                        if d < bestd {
+                            set bestd = d
+                            set bestx = sx
+                            set besty = sy
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if bestx >= 0 {
+        out("ai_battle_move %d %d %d\n", itemi, bestx, besty)
+        game_battle_item_move(bt, itemi, bestx, besty)
+        if !bt.flag_cur_item_destroyed {
+            test_ai_battle_try_attack(bt)
+        }
+    }
+}
+
 ;; The functions of the AI that are not ported yet, replaced by fixed answers
 ;; that print each call, as tst/c/state.c does.
 set game_ai = [
@@ -316,6 +409,12 @@ set game_ai = [
         set aud_n = aud_n + 1
         out("ai_aud_later %d\n", cint((aud_n % 5) == 4))
         (aud_n % 5) == 4
+    },
+    battle_ai_turn = test_ai_battle_turn,
+    battle_ai_retreat = func (bt) { false },
+    battle_ai_ai_resolve = func (bt) {
+        out("ai_battle_resolve %d %d %d\n", bt.planet_i, bt.s@(0).party, bt.s@(1).party)
+        ((bt.planet_i + bt.s@(0).party) & 1) != 0
     },
     ground        = func (g_, def, att, planet, pop_killed, owner_changed) {
         out("ai_ground %d %d %d %d %d\n", def, att, planet, pop_killed, cint(owner_changed))
@@ -515,6 +614,49 @@ func do_op (op) {
             pin ge = game_end_s()
             val r = game_event_run(g, ge)
             out("event_run %d %d %d %d\n", cint(r), ge.type, ge.race, ge.banner_dead)
+        }
+        "battles" => game_battle_handle_all(g)
+        "send_near" => {
+            ;; the ships at the k-th planet with ships of a player, to the
+            ;; nearest planet of another player
+            val pi = arg(op, 0)
+            var k = arg(op, 1)
+            val n = g.eto@(pi).shipdesigns_num
+            loop i in g.galaxy_stars {
+                val o = g.eto@(pi).orbit@(i)
+                var any = false
+                loop j in n {
+                    if o.ships@(j) > 0 {
+                        set any = true
+                    }
+                }
+                if any {
+                    if k == 0 {
+                        val p = g.planet@(i)
+                        var best = -1
+                        var bestd = 0x7fffffff
+                        pin ships = carray(NUM_SHIPDESIGNS)
+                        pin types = carray(NUM_SHIPDESIGNS)
+                        loop j in g.galaxy_stars {
+                            val q = g.planet@(j)
+                            val d = ((q.x - p.x) * (q.x - p.x)) + ((q.y - p.y) * (q.y - p.y))
+                            if (q.owner != pi) && (q.owner != PLAYER_NONE) && (d < bestd) {
+                                set best = j
+                                set bestd = d
+                            }
+                        }
+                        loop j in n {
+                            set types@(j) = j
+                            set ships@(j) = o.ships@(j)
+                        }
+                        if best >= 0 {
+                            out("send_near %d %d %d\n", i, best, cint(game_send_fleet_from_orbit(g, pi, i, best, ships, types, n)))
+                        }
+                        break
+                    }
+                    set k = k - 1
+                }
+            }
         }
         "move_ships" => game_turn_move_ships(g)
         "explore" => game_turn_explore(g)

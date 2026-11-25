@@ -21,6 +21,8 @@
 #include "os.h"
 #include "game_ai.h"
 #include "game_audience.h"
+#include "game_battle.h"
+#include "game_battle_human.h"
 #include "game_design.h"
 #include "game_election.h"
 #include "game_end.h"
@@ -143,6 +145,43 @@ int16_t ui_audience_ask4(struct audience_s *au) { return au_ask("au_ask4", au); 
 void ui_audience_newtech(struct audience_s *au, int pi) { printf("au_newtech %d\n", pi); }
 void ui_audience_end(struct audience_s *au) { au_print("au_end", au); }
 
+/* The battle: resolved automatically, nothing drawn, the end printed. */
+uint8_t *ui_gfx_get_ship(int look) { return 0; }
+uint8_t *ui_gfx_get_planet(int look) { return 0; }
+uint8_t *ui_gfx_get_rock(int look) { return 0; }
+ui_battle_autoresolve_t ui_battle_init(struct battle_s *bt) { printf("battle_init %d %d %d %d %d\n", bt->planet_i, bt->s[0].party, bt->s[1].party, bt->items_num, bt->num_rocks); return UI_BATTLE_AUTORESOLVE_AUTO; }
+void ui_battle_shutdown(struct battle_s *bt, bool colony_destroyed, int winner) { printf("battle_shutdown %d %d %d %d %d %d %d\n", colony_destroyed, winner, bt->num_turn, bt->pop, bt->fact, bt->bases, bt->biodamage); }
+void ui_battle_draw_misshield(const struct battle_s *bt, int target_i, int target_x, int target_y, int missile_i) { }
+void ui_battle_draw_damage(const struct battle_s *bt, int target_i, int target_x, int target_y, uint32_t damage) { }
+void ui_battle_draw_explos_small(const struct battle_s *bt, int x, int y) { }
+void ui_battle_draw_basic(const struct battle_s *bt) { }
+void ui_battle_draw_basic_copy(const struct battle_s *bt) { }
+void ui_battle_draw_missile(const struct battle_s *bt, int missilei, int x, int y, int tx, int ty) { }
+void ui_battle_draw_cloaking(const struct battle_s *bt, int from, int to, int sx, int sy) { }
+void ui_battle_draw_arena(const struct battle_s *bt, int itemi, int dmode) { }
+void ui_battle_draw_item(const struct battle_s *bt, int itemi, int x, int y) { }
+void ui_battle_draw_bomb_attack(const struct battle_s *bt, int attacker_i, int target_i, ui_battle_bomb_t bombtype) { }
+void ui_battle_draw_beam_attack(const struct battle_s *bt, int attacker_i, int target_i, int wpni) { }
+void ui_battle_draw_stasis(const struct battle_s *bt, int attacker_i, int target_i) { }
+void ui_battle_draw_pulsar(const struct battle_s *bt, int attacker_i, int ptype, const uint32_t *dmgtbl) { }
+void ui_battle_draw_stream1(const struct battle_s *bt, int attacker_i, int target_i) { }
+void ui_battle_draw_stream2(const struct battle_s *bt, int attacker_i, int target_i) { }
+void ui_battle_draw_blackhole(const struct battle_s *bt, int attacker_i, int target_i) { }
+void ui_battle_draw_technull(const struct battle_s *bt, int attacker_i, int target_i) { }
+void ui_battle_draw_repulse(const struct battle_s *bt, int attacker_i, int target_i, int sx, int sy) { }
+void ui_battle_draw_retreat(const struct battle_s *bt) { }
+void ui_battle_draw_bottom(const struct battle_s *bt) { }
+void ui_battle_draw_planetinfo(const struct battle_s *bt, bool side_r) { }
+void ui_battle_draw_scan(const struct battle_s *bt, bool side_r) { }
+void ui_battle_draw_finish(const struct battle_s *bt) { }
+void ui_battle_area_setup(const struct battle_s *bt) { }
+void ui_battle_turn_pre(const struct battle_s *bt) { }
+void ui_battle_turn_post(const struct battle_s *bt) { }
+ui_battle_action_t ui_battle_turn(const struct battle_s *bt) { return UI_BATTLE_ACT_DONE; }
+void ui_battle_ai_pre(const struct battle_s *bt) { }
+bool ui_battle_ai_post(const struct battle_s *bt) { return false; }
+void ui_sound_play_sfx(int sfxi) { }
+
 /* The functions of the AI that are not ported yet, replaced by fixed
    answers that print each call. */
 static bool test_ai_bomb(struct game_s *g_, player_id_t player, uint8_t planet, int pop_inbound) { printf("ai_bomb %d %d %d\n", player, planet, pop_inbound); return ((planet + player) & 1) == 0; }
@@ -168,6 +207,51 @@ static void test_ai_aud_tribute_tech(struct audience_s *au, int selected, tech_f
 static int test_ai_aud_tech_scale(struct audience_s *au) { printf("ai_aud_tech_scale\n"); return 100; }
 static uint8_t test_ai_aud_get_dtype(struct audience_s *au, uint8_t dtype, int a2) { printf("ai_aud_get_dtype %d %d\n", dtype, a2); return dtype; }
 static bool test_ai_aud_later(struct audience_s *au) { ++aud_n; printf("ai_aud_later %d\n", (aud_n % 5) == 4); return (aud_n % 5) == 4; }
+/* The turn of an item in a battle: attack the first enemy in reach, or
+   move to the free square nearest to an enemy and attack from there. */
+static bool test_ai_battle_try_attack(struct battle_s *bt)
+{
+    int itemi = bt->cur_item;
+    struct battle_item_s *b = &(bt->item[itemi]);
+    game_battle_area_setup(bt);
+    for (int i = 0; i <= bt->items_num; ++i) {
+        struct battle_item_s *bd = &(bt->item[i]);
+        if ((bd->side != SIDE_NONE) && (bd->side != b->side) && (bt->area[bd->sy][bd->sx] >= 30)) {
+            printf("ai_battle_attack %d %d\n", itemi, i);
+            game_battle_attack(bt, itemi, i, false);
+            return true;
+        }
+    }
+    return false;
+}
+static void test_ai_battle_turn(struct battle_s *bt)
+{
+    int itemi = bt->cur_item, bestx = -1, besty = -1, bestd = 1000;
+    struct battle_item_s *b = &(bt->item[itemi]);
+    if (test_ai_battle_try_attack(bt)) { return; }
+    for (int sy = 0; sy < BATTLE_AREA_H; ++sy) {
+        for (int sx = 0; sx < BATTLE_AREA_W; ++sx) {
+            if (bt->area[sy][sx] == 1) {
+                for (int i = 0; i <= bt->items_num; ++i) {
+                    struct battle_item_s *bd = &(bt->item[i]);
+                    if ((bd->side != SIDE_NONE) && (bd->side != b->side)) {
+                        int d = util_math_dist_maxabs(sx, sy, bd->sx, bd->sy);
+                        if (d < bestd) { bestd = d; bestx = sx; besty = sy; }
+                    }
+                }
+            }
+        }
+    }
+    if (bestx >= 0) {
+        printf("ai_battle_move %d %d %d\n", itemi, bestx, besty);
+        game_battle_item_move(bt, itemi, bestx, besty);
+        if (!bt->flag_cur_item_destroyed) {
+            test_ai_battle_try_attack(bt);
+        }
+    }
+}
+static bool test_ai_battle_ai_retreat(struct battle_s *bt) { return false; }
+static bool test_ai_battle_ai_ai_resolve(struct battle_s *bt) { printf("ai_battle_resolve %d %d %d\n", bt->planet_i, bt->s[0].party, bt->s[1].party); return ((bt->planet_i + bt->s[0].party) & 1) != 0; }
 static struct game_ai_s test_ai;
 
 void *ui_gmap_basic_init(struct game_s *g_, bool show_player_switch) { return 0; }
@@ -385,6 +469,31 @@ static void do_op(const char *op)
         bool r = game_event_run(&g, &ge);
         printf("event_run %d %d %d %d\n", r, ge.type, ge.race, ge.banner_dead);
     }
+    OP(battles) { game_battle_handle_all(&g); }
+    OP(send_near) {
+        /* the ships at the k-th planet with ships of a player, to the nearest
+           planet of another player */
+        int pi = arg(op, 0), k = arg(op, 1), n = g.eto[pi].shipdesigns_num;
+        for (int i = 0; i < g.galaxy_stars; ++i) {
+            const fleet_orbit_t *o = &g.eto[pi].orbit[i];
+            bool any = false;
+            for (int j = 0; j < n; ++j) { if (o->ships[j] > 0) { any = true; } }
+            if (any && (k-- == 0)) {
+                const planet_t *p = &g.planet[i];
+                int best = -1, bestd = 0x7fffffff;
+                shipcount_t ships[NUM_SHIPDESIGNS];
+                uint8_t types[NUM_SHIPDESIGNS];
+                for (int j = 0; j < g.galaxy_stars; ++j) {
+                    const planet_t *q = &g.planet[j];
+                    int d = (q->x - p->x) * (q->x - p->x) + (q->y - p->y) * (q->y - p->y);
+                    if ((q->owner != pi) && (q->owner != PLAYER_NONE) && (d < bestd)) { best = j; bestd = d; }
+                }
+                for (int j = 0; j < n; ++j) { types[j] = j; ships[j] = o->ships[j]; }
+                if (best >= 0) { printf("send_near %d %d %d\n", i, best, game_send_fleet_from_orbit(&g, pi, i, best, ships, types, n)); }
+                break;
+            }
+        }
+    }
     OP(move_ships) { game_turn_move_ships(&g); }
     OP(explore) { game_turn_explore(&g); }
     OP(transport) { game_turn_transport(&g); }
@@ -406,6 +515,9 @@ int main(int argc, char **argv)
     test_ai.nova = test_ai_nova;
     test_ai.comet = test_ai_comet;
     test_ai.pirates = test_ai_pirates;
+    test_ai.battle_ai_turn = test_ai_battle_turn;
+    test_ai.battle_ai_retreat = test_ai_battle_ai_retreat;
+    test_ai.battle_ai_ai_resolve = test_ai_battle_ai_ai_resolve;
     test_ai.aud_start_human = test_ai_aud_start_human;
     test_ai.aud_treaty_nap = test_ai_aud_treaty_nap;
     test_ai.aud_treaty_alliance = test_ai_aud_treaty_alliance;

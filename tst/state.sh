@@ -39,9 +39,10 @@ OPS13="start tech_util production set_event_roll:1 set_year:120 event_new event_
 OPS14="start tech_util production set_event_roll:1 set_year:250 event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production event_new event_run production"
 OPS15="start tech_util production check_end set_end:1 set_winner:0 check_end set_winner:1 check_end set_end:2 check_end set_end:0 check_end"
 OPS16="start tech_util production audience:0:1:0 audience:0:1:24 audience:0:1:25 audience:0:1:26 audience:0:1:27 audience:0:1:29 audience:0:1:30 audience:0:1:76 audience:0:1:12 audience:0:1:22 audience:0:1:32 audience:0:1:0 audience:0:1:0 audience:0:1:0 set_diplo_type:0:1:24 set_diplo_type:0:2:12 audiences audience:0:1:0 audience:0:1:0 audience:0:1:0 audience:0:1:0"
+OPS17="start tech_util production send_near:0:0 send_near:1:0 send_near:2:0 send_near:0:1 send_near:1:1 send_near:3:0 move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground move_ships battles transport ground"
 n=0; bad=0
 for f in "$@"; do
-    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8" "$OPS9" "$OPS10" "$OPS11" "$OPS12" "$OPS13" "$OPS14" "$OPS15" "$OPS16"; do
+    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8" "$OPS9" "$OPS10" "$OPS11" "$OPS12" "$OPS13" "$OPS14" "$OPS15" "$OPS16" "$OPS17"; do
         n=$((n+1))
         "$TMP/c" "$DATA" "$TMP/c.txt" load "$f" $ops > "$TMP/c.out"
         "$TMP/atm" "$DATA" "$TMP/a.txt" load "$f" $ops | grep -v '^Save: ' > "$TMP/a.out" || true
