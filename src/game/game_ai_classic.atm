@@ -1,6 +1,6 @@
 ;; Port of c/src/game/game_ai_classic.c, in part (step 5, #9): the functions
-;; of a new game, of techs, bombs, ground combat and votes. The rest (the
-;; turn, the battle, the diplomacy, the audiences) is still to come; the
+;; of a new game, of techs, bombs, ground combat, votes and audiences. The
+;; rest (the turn, the battle, the diplomacy) is still to come; the
 ;; table `game_ai_classic` holds the functions ported so far.
 ;;
 ;; The "Classic" AI mimics MOO1 v1.3 behaviour.
@@ -14,6 +14,8 @@ include "game.atm"
 include "game_diplo.atm"
 include "game_election.atm"
 include "game_num.atm"
+include "game_spy.atm"
+include "game_tech.atm"
 
 ;; ---------------------------------------------------------------------------
 
@@ -258,6 +260,326 @@ func game_ai_classic_vote (el, player) {
 }
 
 ;; ---------------------------------------------------------------------------
+;; The audiences (`au` is a `struct audience_s`).
+
+func game_ai_classic_aud_check_mood (au, a0, a2) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    var v = match a2 {
+        1 => eh.mood_trade@(pa)
+        2 => eh.mood_peace@(pa)
+        3 => eh.mood_tech@(pa)
+        else => eh.mood_treaty@(pa)
+    }
+    set v = v + eh.trust@(pa) + eh.relation1@(pa) + (if eh.race == RACE_HUMAN => 50 => 0) + game_diplo_tbl_reldiff@(ea.trait1)
+    set v = v + rnd_1_n(100, g)
+    set v = v - a0
+    if eh.treaty@(pa) == TREATY_ALLIANCE {
+        set v = v + 40
+    }
+    game_diplo_annoy(g, ph, pa, 1)
+    match a2 {
+        1 => { set eh.mood_trade@(pa) = i16(eh.mood_trade@(pa) - (rnd_1_n(30, g) + 20)) }
+        2 => { set eh.mood_peace@(pa) = i16(eh.mood_peace@(pa) - (rnd_1_n(50, g) + 50)) }
+        3 => { set eh.mood_tech@(pa) = i16(eh.mood_tech@(pa) - (rnd_1_n(50, g) + 20)) }
+        else => { set eh.mood_treaty@(pa) = i16(eh.mood_treaty@(pa) - (rnd_1_n(30, g) + 20)) }
+    }
+    ifs {
+        v < -75 => 0
+        v < -50 => 1
+        v < 0 => 2
+        else => 3
+    }
+}
+
+func game_ai_classic_aud_start_human (au) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    var v = eh.trust@(pa) + game_diplo_get_mood(g, ph, pa) + game_diplo_tbl_reldiff@(ea.trait1)
+    if v < -100 {
+        set au.dtype = if eh.treaty@(pa) >= TREATY_WAR => 20 => 21
+        set au.mode = 1
+    } else {
+        set v = v + eh.relation1@(pa)
+        set au.dtype = if v > -50 => 22 => 23
+        set au.mode = 0
+    }
+}
+
+func game_ai_classic_aud_treaty_nap (au) {
+    val eh = au.g.eto@(au.ph)
+    if eh.relation1@(au.pa) > 10 => game_ai_classic_aud_check_mood(au, 50, 0) => 0
+}
+
+func game_ai_classic_aud_treaty_alliance (au) {
+    val eh = au.g.eto@(au.ph)
+    if eh.relation1@(au.pa) > 50 => game_ai_classic_aud_check_mood(au, 125, 0) => 0
+}
+
+func game_ai_classic_aud_treaty_peace (au) {
+    val mi = if au.g.ai_id == GAME_AI_CLASSICPLUS => 2 => 0   ;; peace : treaty ; WASBUG? mood_peace makes sense
+    game_ai_classic_aud_check_mood(au, 60, mi)
+}
+
+func game_ai_classic_aud_treaty_declare_war (au) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    if (eh.treaty@(pa) == TREATY_ALLIANCE) && (eh.treaty@(au.pstartwar) == TREATY_WAR) {
+        if rnd_0_nm1(8, g) == 0 => 2 => 3
+    } else {
+        var v = ea.relation1@(au.pstartwar) + 150
+        if g.ai_id != GAME_AI_CLASSIC {
+            ;; WASBUG?
+            ;; MOO1 contains the treaty * 30 code but the result is unused.
+            ;; OSG states that either NAP or alliance changes that 150 to 250 but there is no such code.
+            set v = v + (ea.treaty@(au.pstartwar) * 30)
+        }
+        game_ai_classic_aud_check_mood(au, v, 0)
+    }
+}
+
+func game_ai_classic_aud_treaty_break_alliance (au) {
+    val g = au.g
+    val eh = g.eto@(au.ph)
+    val ea = g.eto@(au.pa)
+    if eh.relation1@(au.pa) > 24 => game_ai_classic_aud_check_mood(au, ea.relation1@(au.pwar) + 175, 0) => 0
+}
+
+func game_ai_classic_aud_trade (au) {
+    game_ai_classic_aud_check_mood(au, 50, 1)
+}
+
+;; Gives (ok, bc, field, tech): the `bcptr`, `fieldptr` and `techptr` of C.
+func game_ai_classic_aud_sweeten (au) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    var field = 0
+    var tech    ;; uint8_t
+    var bc = (((rnd_1_n(8, g) + rnd_1_n(8, g)) * g.year) // 25) * 25
+    if bc > eh.reserve_bc {
+        set bc = 0
+    }
+    do {
+        pin s = spy_esp_s()
+        set s.spy = pa
+        set s.target = ph
+        if game_spy_esp_sub1(g, s, g.year, 1) > 0 {
+            set field = s.tbl_field@(0)
+            set tech = s.tbl_tech2@(0)
+        } else {
+            set tech = 0
+        }
+    }
+    if (bc == 0) && (tech == 0) {
+        return (false, bc, field, tech)
+    }
+    (true, bc, field, tech)
+}
+
+func game_ai_classic_aud_threaten (au) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    var dtype   ;; uint8_t
+    var v = rnd_1_n(200, g) + (eh.mood_treaty@(pa) // 2)
+    set v = v + (game_diplo_tbl_reldiff@(ea.trait1) * 2)
+    if ea.total_production_bc > 0 {
+        set v = v + (u32(eh.total_production_bc * 100) // ea.total_production_bc)
+    } else {
+        set v = v + 100
+    }
+    set eh.relation1@(pa) = i16(SUBSATT(eh.relation1@(pa), rnd_1_n(15, g), -100))
+    set ea.relation1@(ph) = eh.relation1@(pa)
+    set eh.mood_treaty@(pa) = -120
+    if v < 170 {
+        if (rnd_1_n(15, g) - game_diplo_tbl_reldiff@(ea.trait1)) > rnd_1_n(100, g) {
+            game_diplo_start_war(g, ph, pa)
+            set dtype = 13
+        } else {
+            set dtype = 69
+        }
+    } else {
+        if g.ai_id == GAME_AI_CLASSICPLUS {
+            set ea.spymode_next@(ph) = SPYMODE_HIDE
+            set ea.spymode@(ph) = SPYMODE_HIDE
+        } else {    ;; WASBUG MOO1 hides your spies
+            set eh.spymode_next@(pa) = SPYMODE_HIDE
+            set eh.spymode@(pa) = SPYMODE_HIDE
+        }
+        set g.evn.ceasefire@(ph)@(pa) = i16(rnd_1_n(15, g) + 5)
+        set dtype = 70
+        if v >= 275 {
+            pin s = spy_esp_s()
+            set s.spy = ph
+            set s.target = pa
+            if game_spy_esp_sub1(g, s, 0, 1) > 0 {
+                set au.tribute_field = s.tbl_field@(0)
+                set au.tribute_tech = s.tbl_tech2@(0)
+                game_tech_get_new(g, ph, au.tribute_field, au.tribute_tech, TECHSOURCE_TRADE, pa, PLAYER_NONE, false)   ;; WASBUG? pa was 0
+            }
+        } else {
+            if v >= 200 {
+                val bc = (((rnd_1_n(8, g) + 2) * g.year) // 25) * 25
+                if bc != 0 {
+                    set eh.reserve_bc = u32(eh.reserve_bc + bc)
+                    set au.tribute_bc = i16(bc)
+                    set dtype = 71
+                }
+            }
+        }
+    }
+    dtype
+}
+
+func game_ai_classic_aud_tribute_bc (au, selected, bc) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    var v
+    if ea.total_production_bc != 0 {
+        ;; WASBUG MOO1 uses the value
+        ;;    (reserve * 12) / (0x786e + 0xdd4 * pa + 0x326b0000)
+        ;; == (reserve * 12) / ea->relation1
+        ;; == 0
+        ;; This makes money tributes quite useless.
+        ;; The formula below is according to OSG.
+        if g.ai_id == GAME_AI_CLASSICPLUS {
+            set v = u32(bc * 12) // ea.total_production_bc
+        } else {
+            set v = 0
+        }
+    } else {
+        set v = selected + 1
+    }
+    if eh.race == RACE_HUMAN {
+        set v = v * 2
+    }
+    set eh.relation1@(pa) = i16(ADDSATT(eh.relation1@(pa), v, 100))
+    set ea.relation1@(ph) = eh.relation1@(pa)
+    if eh.treaty@(pa) >= TREATY_WAR {
+        set ea.relation1@(ph) = SETMIN(ea.relation1@(ph), -25)
+    }
+    if eh.treaty@(pa) != TREATY_ALLIANCE {
+        set ea.relation1@(ph) = SETMIN(ea.relation1@(ph), 65)
+    }
+    ;; BUG? eh->relation1[pa] = ea->relation1[ph]; is missing
+    if g.ai_id == GAME_AI_CLASSICPLUS {
+        set eh.relation1@(pa) = ea.relation1@(ph)
+    }
+}
+
+func game_ai_classic_aud_tribute_tech (au, selected, field, tech) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    var v
+    if eh.relation1@(pa) < 0 {
+        set v = 20
+    } else {
+        set v = (100 - eh.relation1@(pa)) // 10
+    }
+    set v = ((rnd_1_n(8, g) + rnd_1_n(8, g) + (tech // 4)) * v) // 10
+    if eh.race == RACE_HUMAN {
+        set v = v * 2
+    }
+    set eh.relation1@(pa) = i16(ADDSATT(eh.relation1@(pa), v, 100))
+    set ea.relation1@(ph) = eh.relation1@(pa)
+    set eh.mood_peace@(pa) = i16(ADDSATT(eh.mood_peace@(pa), v, 200))
+    set eh.trust@(pa) = i16(ADDSATT(eh.trust@(pa), rnd_1_n(8, g) + 2, 30))
+    if eh.treaty@(pa) >= TREATY_WAR {
+        set ea.relation1@(ph) = SETMIN(ea.relation1@(ph), -25)
+    }
+    if eh.treaty@(pa) != TREATY_ALLIANCE {
+        set ea.relation1@(ph) = SETMIN(ea.relation1@(ph), 70)
+    }
+    ;; BUG? eh->relation1[pa] = ea->relation1[ph]; is missing
+    if g.ai_id == GAME_AI_CLASSICPLUS {
+        set eh.relation1@(pa) = ea.relation1@(ph)
+    }
+}
+
+func game_ai_classic_aud_tech_scale (au) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    val ea = g.eto@(pa)
+    var di = eh.mood_tech@(pa)
+    if di > 0 {
+        set di = di // 5
+    }
+    set di = SETMIN(di, 30)
+    if eh.treaty@(pa) == TREATY_ALLIANCE {
+        set di = di + 25
+    }
+    var v = eh.trust@(pa) + (eh.relation1@(pa) // 2) + (if eh.race == RACE_HUMAN => 50 => 0)
+    set v = v + (game_diplo_tbl_reldiff@(ea.trait1) * 2) + di + rnd_1_n(100, g) - 125
+    if v < 0 {
+        set v = math.abs(v) + 100
+    } else {
+        set v = 20000 // (v + 200)
+    }
+    set v = v // 4
+    SETMAX(v, 75)
+}
+
+func game_ai_classic_aud_get_dtype (au, dtype0, a2) {
+    val g = au.g
+    val ph = au.ph
+    val pa = au.pa
+    val eh = g.eto@(ph)
+    var dtype = dtype0  ;; uint8_t
+    if (dtype == 31) || ((dtype >= 33) && (dtype <= 41)) || ((dtype >= 62) && (dtype <= 68)) {
+        ifs {
+            (a2 >= 0) && (a2 <= 2) => {
+                if (eh.blunder@(pa) != 0) && (rnd_0_nm1(2, g) == 0) {
+                    set dtype = u8(eh.blunder@(pa) + 30)
+                    set eh.blunder@(pa) = 0
+                } else {
+                    if (eh.broken_treaty@(pa) != TREATY_NONE) && (rnd_0_nm1(4, g) == 0) {
+                        set dtype = 33
+                        set eh.broken_treaty@(pa) = TREATY_NONE
+                    } else {
+                        set dtype = 31
+                    }
+                }
+            }
+            a2 == 3 => {
+                if (rnd_0_nm1(4, g) == 0) && (eh.tribute_tech@(pa) != 0) {
+                    set au.tribute_field = eh.tribute_field@(pa)
+                    set au.tribute_tech = eh.tribute_tech@(pa)
+                    set eh.tribute_tech@(pa) = 0
+                    set dtype = 66
+                }
+            }
+            else => nil
+        }
+    }
+    dtype
+}
+
+func game_ai_classic_aud_later (au) {
+    game_diplo_get_mood(au.g, au.ph, au.pa) < -100
+}
+
+;; ---------------------------------------------------------------------------
 
 ;; The fields of `struct game_ai_s` that are ported so far.
 pin game_ai_classic = [
@@ -269,6 +591,20 @@ pin game_ai_classic = [
     bomb          = game_ai_classic_bomb,
     ground        = game_ai_classic_ground,
     vote          = game_ai_classic_vote,
+    aud_start_human = game_ai_classic_aud_start_human,
+    aud_treaty_nap = game_ai_classic_aud_treaty_nap,
+    aud_treaty_alliance = game_ai_classic_aud_treaty_alliance,
+    aud_treaty_peace = game_ai_classic_aud_treaty_peace,
+    aud_treaty_declare_war = game_ai_classic_aud_treaty_declare_war,
+    aud_treaty_break_alliance = game_ai_classic_aud_treaty_break_alliance,
+    aud_trade     = game_ai_classic_aud_trade,
+    aud_sweeten   = game_ai_classic_aud_sweeten,
+    aud_threaten  = game_ai_classic_aud_threaten,
+    aud_tribute_bc = game_ai_classic_aud_tribute_bc,
+    aud_tribute_tech = game_ai_classic_aud_tribute_tech,
+    aud_tech_scale = game_ai_classic_aud_tech_scale,
+    aud_get_dtype = game_ai_classic_aud_get_dtype,
+    aud_later     = game_ai_classic_aud_later,
 ]
 
 pin game_ai_classicplus = [
@@ -280,4 +616,18 @@ pin game_ai_classicplus = [
     bomb          = game_ai_classic_bomb,
     ground        = game_ai_classic_ground,
     vote          = game_ai_classic_vote,
+    aud_start_human = game_ai_classic_aud_start_human,
+    aud_treaty_nap = game_ai_classic_aud_treaty_nap,
+    aud_treaty_alliance = game_ai_classic_aud_treaty_alliance,
+    aud_treaty_peace = game_ai_classic_aud_treaty_peace,
+    aud_treaty_declare_war = game_ai_classic_aud_treaty_declare_war,
+    aud_treaty_break_alliance = game_ai_classic_aud_treaty_break_alliance,
+    aud_trade     = game_ai_classic_aud_trade,
+    aud_sweeten   = game_ai_classic_aud_sweeten,
+    aud_threaten  = game_ai_classic_aud_threaten,
+    aud_tribute_bc = game_ai_classic_aud_tribute_bc,
+    aud_tribute_tech = game_ai_classic_aud_tribute_tech,
+    aud_tech_scale = game_ai_classic_aud_tech_scale,
+    aud_get_dtype = game_ai_classic_aud_get_dtype,
+    aud_later     = game_ai_classic_aud_later,
 ]
