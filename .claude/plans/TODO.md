@@ -13,7 +13,7 @@ settled before the rule keep their old numbers (1 to 7, see "Settled").
 The initial instructions are in `ia-atmos/lang`,
 `.claude/plans/261114-pico-1oom.md` (commit `354cf19`).
 
-Last update: 2026-11-24
+Last update: 2026-11-25
 
 ## Index
 
@@ -196,8 +196,9 @@ Other sessions:
   `ia-atmos/lang` `.claude/plans/261124-atmos.md`): coordination, status
   and questions for the author go to `atmos`
   (session_011eECohhJbc4GMpAj3yyeEo); measurements of the ports and the
-  merges into `main` stay with `atmos-lang`. New items put to the author
-  continue the sequence of `ISSUES.md` of `ia-atmos/lang` (`#120` on). The
+  merges into `main` stay with `atmos-lang`. Item numbers stay local to
+  this session (`#N` here, `pico-1oom#N` outside), as confirmed by the
+  author on 2026-11-25 (only `atmos` and `atmos-lang` share `ISSUES.md`). The
   pause until next week's credits holds: no new work, only what arrives.
 - Findings about `pin` go to `atmos-pin`
   (session_011eECogSDhkVfyt7qme5DLh), with a small program; everything
