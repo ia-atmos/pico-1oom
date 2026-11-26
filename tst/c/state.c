@@ -396,6 +396,17 @@ static void do_op(const char *op)
     OP(audience) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); game_audience(&g, arg(op, 0), arg(op, 1)); }
     OP(set_diplo_type) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); }
     OP(audiences) { game_turn_audiences(&g); }
+    OP(planet_texts) {
+        char buf[256];
+        for (int i = 0; i < g.galaxy_stars; ++i) {
+            const planet_t *p = &g.planet[i];
+            if (p->owner == PLAYER_NONE) { continue; }
+            printf("planet %d", i);
+            for (int si = 0; si < PLANET_SLIDER_NUM; ++si) { int r = game_planet_get_slider_text(&g, p, si, buf, sizeof(buf)); printf(" [%s]%d", buf, r); }
+            { int r = game_planet_get_slider_text_eco(&g, p, true, buf, sizeof(buf)); printf(" [%s]%d\n", buf, r); }
+            for (int t = 0; t < FINISHED_NUM; ++t) { if ((t == FINISHED_SHIP) || ((t == FINISHED_SOILATMOS) && (p->growth == 0))) { continue; } printf("  %s\n", game_planet_get_finished_text(&g, p, t, buf, sizeof(buf))); }
+        }
+    }
     OP(start_messages) { game_turn_start_messages(&g, arg(op, 0)); }
     OP(cheat_galaxy) { game_cheat_galaxy(&g, arg(op, 0)); }
     OP(cheat_elections) { game_cheat_elections(&g, arg(op, 0)); }

@@ -46,9 +46,10 @@ OPS20="start tech_util production set_year:24 ai_p2 ai_p3 production set_year:25
 OPS21="start tech_util production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production within_range have_reserve_fuel ai_p1 move_ships battles transport ground ai_p2 ai_p3 production"
 OPS22="start tech_util production within_range visibility turn turn turn turn turn turn turn turn turn turn"
 OPS23="start tech_util production within_range visibility cheat_events:0 cheat_elections:0 turn start_messages:0 start_messages:1 turn start_messages:0 start_messages:1 turn start_messages:0 start_messages:1 turn start_messages:0 start_messages:1 cheat_moola:0 cheat_galaxy:0 cheat_traits:0 turn start_messages:0 turn start_messages:0 turn start_messages:0 turn start_messages:0"
+OPS24="start tech_util production within_range visibility planet_texts turn planet_texts turn planet_texts turn planet_texts"
 n=0; bad=0
 for f in "$@"; do
-    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8" "$OPS9" "$OPS10" "$OPS11" "$OPS12" "$OPS13" "$OPS14" "$OPS15" "$OPS16" "$OPS17" "$OPS18" "$OPS19" "$OPS20" "$OPS21" "$OPS22" "$OPS23"; do
+    for ops in "$OPS1" "$OPS2" "$OPS3" "$OPS4" "$OPS5" "$OPS6" "$OPS7" "$OPS8" "$OPS9" "$OPS10" "$OPS11" "$OPS12" "$OPS13" "$OPS14" "$OPS15" "$OPS16" "$OPS17" "$OPS18" "$OPS19" "$OPS20" "$OPS21" "$OPS22" "$OPS23" "$OPS24"; do
         n=$((n+1))
         "$TMP/c" "$DATA" "$TMP/c.txt" load "$f" $ops > "$TMP/c.out"
         "$TMP/atm" "$DATA" "$TMP/a.txt" load "$f" $ops | grep -v '^Save: ' > "$TMP/a.out" || true

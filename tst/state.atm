@@ -488,6 +488,26 @@ func do_op (op) {
         }
         "set_diplo_type" => { set g.eto@(arg(op, 0)).diplo_type@(arg(op, 1)) = arg(op, 2) }
         "audiences" => game_turn_audiences(g)
+        "planet_texts" => {
+            pin buf = carray(256)
+            loop i in g.galaxy_stars {
+                val p = g.planet@(i)
+                if p.owner != PLAYER_NONE {
+                    out("planet %d", i)
+                    loop si in PLANET_SLIDER_NUM {
+                        val r = game_planet_get_slider_text(g, p, si, buf, #buf)
+                        out(" [%s]%d", cstr(buf), r)
+                    }
+                    val r = game_planet_get_slider_text_eco(g, p, true, buf, #buf)
+                    out(" [%s]%d\n", cstr(buf), r)
+                    loop t in FINISHED_NUM {
+                        if (t != FINISHED_SHIP) && ((t != FINISHED_SOILATMOS) || (p.growth != 0)) {
+                            out("  %s\n", cstr(game_planet_get_finished_text(g, p, t, buf, #buf)))
+                        }
+                    }
+                }
+            }
+        }
         "start_messages" => game_turn_start_messages(g, arg(op, 0))
         "cheat_galaxy" => game_cheat_galaxy(g, arg(op, 0))
         "cheat_elections" => game_cheat_elections(g, arg(op, 0))
