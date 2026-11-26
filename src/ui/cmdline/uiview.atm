@@ -167,8 +167,8 @@ func ui_cmd_view_do (g, api, filter, rangemax, distmax) {
             }
         }
     }
-    ;; (C: qsort with `return v0 < v1`, never negative; the merge sort of
-    ;; glibc 2.39 gives a stable descending order, and the items differ)
+    ;; descending (the comparator of C, `v0 < v1`, was invalid for qsort; the
+    ;; order that glibc gave is kept: #26, fixed in C too)
     pin items = []
     loop k in num {
         set items@(k) = ui_data.view.item@(k)

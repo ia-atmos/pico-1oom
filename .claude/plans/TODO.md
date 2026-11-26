@@ -29,10 +29,10 @@ Last update: 2026-11-26
 | #8 | Step 3 of the port: a new game from a seed | work | done 2026-11-22 |
 | #9 | Step 4 of the port: the turn, one phase at a time | work | done 2026-11-25, with step (e), the AI |
 | #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
-| #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C; the port throws there | remark | open |
-| #12 | The enums of C are unsigned (gcc): a negative `int` with an enum is unsigned arithmetic | remark | open: a check to keep doing |
+| #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C | remark | fixed 2026-11-26 (#26): no owner, no interdictor |
+| #12 | The enums of C are unsigned (gcc): a negative `int` with an enum is unsigned arithmetic | remark | the division of `game_diplo_act` fixed 2026-11-26 (#26); `sabotage_spy` (-1 read back as -1) is no bug, its u32 goes with #27 |
 | #14 | Step 5 of the port, (f): the textual interface (`ui/cmdline`), with `main.c`, `game.c`, the options | work | in course |
-| #13 | The battle AI reads `bt->item[-1]` in C; the port gives the same bytes | remark | open, by the session, to be confirmed |
+| #13 | The battle AI reads `bt->item[-1]` in C | remark | fixed 2026-11-26 (#26): no target, best range 1 |
 | #15 | Excerpt, good: `src/cfg.atm:104`, the value after " =" in one `if` expression | excerpt | reported 2026-11-26 |
 | #16 | Excerpt, bad: `src/game/game_main.atm:552`, two lambdas per config item (`&var` of C) | excerpt | reported 2026-11-26 |
 | #17 | Excerpt, good: `src/pbx.atm:42`, `str_from_buf` with `while` in the loop | excerpt | reported 2026-11-26 |
@@ -44,7 +44,7 @@ Last update: 2026-11-26
 | #23 | Style: idiomatic Atmos, free to join, split or reorganize modules and functions; the behaviour identical to C in the checks is the criterion (his decision, 2026-11-26, on #16) | decision | settled 2026-11-26 |
 | #24 | The options of the config as tables (`game_opt`, ...), the config read and written from them, in place of a getter and a setter per global (#16, under #23) | work | known, not done |
 | #25 | Rules: only the corrected game. The wrong rules of MOO1 that 1oom keeps by default, and their options (`rules_*_fix`, `fix_bugs`, the fixes of `game_num_fix_bugs_1_3a`), go: the port has the correct rules only (his decision, 2026-11-26) | decision | REVERTED 2026-11-26 by #29: the rules of the game and their options stay as in 1oom |
-| #26 | The bugs of the C of 1oom (#11, #12, #13, `st_shld_absorb`, the size of `realloc` in `game_str_patch`, the uninitialized `target_i` of the AI) are not reproduced: the port does the correct thing; the C of the checks gets the same fix in a local copy, for the checks only (never committed to 1oom, nothing upstream) | decision | settled 2026-11-26 |
+| #26 | The bugs of the C of 1oom (#11, #12, #13, `st_shld_absorb`, the size of `realloc` in `game_str_patch`, `shortcuts[i]` past the array in `ui_input_list_dynamic`, the comparator of `qsort` in `uiview.c`; the `target_i` of the AI is initialized by 1oom already) are not reproduced: the port does the correct thing; the C of the checks gets the same fix in a local copy, for the checks only (never committed to 1oom, nothing upstream) | decision | settled 2026-11-26; done 2026-11-26 in `c/` (each marked `PICO-1OOM FIX #26`) |
 | #27 | The integers: the conversions to the widths of C (~1026) go, except at the borders (the save formats) and where the correct game needs a width; module by module with #23 | work | known, not done |
 | #28 | "The corrected game" of #25 is what 1oom's own `doc/pbxin_fixbugs.txt` sets; the flags it does not name keep their default (variants, not fixes) (his decision, 2026-11-26) | decision | void 2026-11-26, with #25 |
 | #29 | General instruction for the ports (his, confirmed 2026-11-26, relayed by `atmos`): fidelity is the behaviour observable while running, not the shape of the code nor file formats; idiomatic Atmos; external files (config, logs, saves) free, but the data the inside needs (LBX); only the bugs of safety or of the language fixed (#26) | decision | settled 2026-11-26 |

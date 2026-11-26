@@ -238,7 +238,8 @@ int ui_input_list_dynamic(const char *title, const char *prompt, const struct in
         l = list;
         i = 0;
         while ((l->str) || (l->key)) {
-            if (ui_input_match_input(in, l->key, l->str ? l->str : shortcuts[i])) {
+            /* PICO-1OOM FIX #26: an item with no display has no shortcut; the C read shortcuts[i] past the array */
+            if (ui_input_match_input(in, l->key, l->str ? l->str : ((i < num_shortcuts) ? shortcuts[i] : NULL))) {
                 if (ld->is_ok && (!ld->is_ok(ld->ctx, l))) {
                     break;
                 }

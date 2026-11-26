@@ -18,14 +18,6 @@ def ntype(t):
         return 'NUMTYPE_U32'    # the enums of ship parts: 4 bytes (gcc)
     return t
 
-# The items whose type is wider than their field (found by comparing the
-# sizes in C): C reads and writes the bytes after the field too.
-# st_shld_absorb is U16 on `uint8_t absorb`, which `uint8_t tech_i` follows.
-WIDE = {
-    'st_shld_absorb': ('\\{ tbl_shiptech_shield@(it).absorb | (tbl_shiptech_shield@(it).tech_i << 8) }',
-                       '\\(i, v) {\n            set tbl_shiptech_shield@(i).absorb = v & 0xff\n            set tbl_shiptech_shield@(i).tech_i = (v >> 8) & 0xff\n        }'),
-}
-
 out = []
 for m in re.finditer(r'(DEFNUMITEMLSTBL|DEFNUMITEMLTBLL|DEFNUMITEMLTBL|DEFNUMITEML|DEFNUMITEM)\((.*?)\),\s*\n', body):
     kind, args = m.group(1), m.group(2)
@@ -70,8 +62,6 @@ for m in re.finditer(r'(DEFNUMITEMLSTBL|DEFNUMITEMLTBLL|DEFNUMITEMLTBL|DEFNUMITE
         get = '\\{ %s }' % var
         put = '\\(i, v) { set %s = v }' % var
         size = '1'
-    if nid in WIDE:
-        get, put = WIDE[nid]
     out.append('    numtbl_s("%s", %s, %s, %s, %s,\n        %s,\n        %s),' % (nid, ntype(t), size, vmin, vmax, get, put))
 
 atm = open(sys.argv[2]).read()

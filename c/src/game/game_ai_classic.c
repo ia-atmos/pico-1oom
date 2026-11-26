@@ -2667,7 +2667,7 @@ static int game_battle_ai_best_range(struct battle_s *bt, int target_i)
     const struct battle_item_s *b = &(bt->item[itemi]);
     const struct battle_item_s *bd = &(bt->item[target_i]);
     int bestrange = 1, damagediv = 1, weight1 = 0;
-    if (target_i == 0/*planet*/) {
+    if (target_i <= 0/*planet, or none*/) {  /* PICO-1OOM FIX #26 (#13): with no target (-1) the C read bt->item[-1] */
         return 1;
     }
     for (int i = 1; i < 10; ++i) {

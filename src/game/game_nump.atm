@@ -277,12 +277,9 @@ pin game_num_id_tbl = [
     numtbl_s("st_shld_power3", NUMTYPE_U16, #tbl_shiptech_shield, 0, 0xffff,
         \{ tbl_shiptech_shield@(it).power@(3) },
         \(i, v) { set tbl_shiptech_shield@(i).power@(3) = v }),
-    numtbl_s("st_shld_absorb", NUMTYPE_U16, #tbl_shiptech_shield, 0, 0xffff,
-        \{ tbl_shiptech_shield@(it).absorb | (tbl_shiptech_shield@(it).tech_i << 8) },
-        \(i, v) {
-            set tbl_shiptech_shield@(i).absorb = v & 0xff
-            set tbl_shiptech_shield@(i).tech_i = (v >> 8) & 0xff
-        }),
+    numtbl_s("st_shld_absorb", NUMTYPE_U8, #tbl_shiptech_shield, 0, 0xff,
+        \{ tbl_shiptech_shield@(it).absorb },
+        \(i, v) { set tbl_shiptech_shield@(i).absorb = v }),
     numtbl_s("st_shld_tech", NUMTYPE_U8, #tbl_shiptech_shield, 0, 0xff,
         \{ tbl_shiptech_shield@(it).tech_i },
         \(i, v) { set tbl_shiptech_shield@(i).tech_i = v }),

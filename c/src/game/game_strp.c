@@ -547,7 +547,7 @@ bool game_str_patch(const char *strid, const char *patchstr, int i)
     const char **p = find_match(strid, i);
     if (p) {
         char *n = lib_stralloc(patchstr);
-        patch_tbl = lib_realloc(patch_tbl, patch_num + 1);
+        patch_tbl = lib_realloc(patch_tbl, (patch_num + 1) * sizeof(char *));   /* PICO-1OOM FIX #26: the size was in bytes, not pointers */
         patch_tbl[patch_num++] = n;
         *p = n;
         return true;

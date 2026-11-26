@@ -124,7 +124,7 @@ static const struct numtbl_s {
     DEFNUMITEMLSTBL(st_shld_power1, tbl_shiptech_shield, power[1], NUMTYPE_U16, 0, 0xffff),
     DEFNUMITEMLSTBL(st_shld_power2, tbl_shiptech_shield, power[2], NUMTYPE_U16, 0, 0xffff),
     DEFNUMITEMLSTBL(st_shld_power3, tbl_shiptech_shield, power[3], NUMTYPE_U16, 0, 0xffff),
-    DEFNUMITEMLSTBL(st_shld_absorb, tbl_shiptech_shield, absorb, NUMTYPE_U16, 0, 0xffff),
+    DEFNUMITEMLSTBL(st_shld_absorb, tbl_shiptech_shield, absorb, NUMTYPE_U8, 0, 0xff),   /* PICO-1OOM FIX #26: was U16 on a uint8_t field, which reached the next field (tech_i) */
     DEFNUMITEMLSTBL(st_shld_tech, tbl_shiptech_shield, tech_i, NUMTYPE_U8, 0, 0xff),
     DEFNUMITEMLSTBL(st_spec_cost0, tbl_shiptech_special, cost[0], NUMTYPE_U16, 0, 0xffff),
     DEFNUMITEMLSTBL(st_spec_cost1, tbl_shiptech_special, cost[1], NUMTYPE_U16, 0, 0xffff),

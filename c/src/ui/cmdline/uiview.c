@@ -62,7 +62,7 @@ static int ui_cmd_view_item_compare(const void *p0, const void *p1)
 {
     uint32_t v0 = *((uint32_t const *)p0);
     uint32_t v1 = *((uint32_t const *)p1);
-    return v0 < v1;
+    return (v0 < v1) ? 1 : ((v0 > v1) ? -1 : 0);  /* PICO-1OOM FIX #26: was `v0 < v1` (never negative, invalid for qsort); the order glibc gave, descending, kept */
 }
 
 static void ui_cmd_view_display(const struct game_s *g, player_id_t api, uint32_t item, uint32_t filter)

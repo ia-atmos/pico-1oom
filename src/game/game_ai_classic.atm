@@ -1928,31 +1928,6 @@ func game_ai_classic_turn_p3 (g) {
 ;; ---------------------------------------------------------------------------
 ;; The battle (`bt` is a `struct battle_s`).
 
-;; `&bt->item[target_i]` of C, also for target_i == -1, which C reads before
-;; the table (undefined behaviour): the bytes of bt->s[0] and bt->s[1] that
-;; precede it (x86-64 layout, little endian). Only the fields that the AI
-;; reads there are given.
-func bt_item (bt, i) {
-    if i >= 0 {
-        return bt.item@(i)
-    }
-    val s0 = bt.s@(0)
-    val s1 = bt.s@(1)
-    val sx = (s1.tbl_ships@(1) >> 8) & 0xff
-    [
-        hp1    = s0.tbl_shiptype@(0) | (s0.tbl_shiptype@(1) << 8),
-        hp2    = s0.tbl_shiptype@(2) | (s0.tbl_shiptype@(3) << 8),
-        man    = s0.apparent_force & 0xff,
-        absorb = (s0.apparent_force >> 24) & 0xff,
-        repair = cint(s0.flag_have_scan),
-        num    = s0.flag_auto & 0xffff,
-        sbmask = s1.tbl_ships@(0),
-        sx     = i8(sx),
-        sy     = s1.tbl_ships@(2) & 0xff,
-        unman  = (s1.tbl_ships@(3) >> 8) & 0xff,
-    ]
-}
-
 func game_ai_classic_battle_ai_ai_get_weights (g, pi, tbl) {
     val e = g.eto@(pi)
     loop i in e.shipdesigns_num {
@@ -2477,7 +2452,7 @@ func game_battle_ai_missile_evade (bt) {
 ;; Tries to approximate by how much enemy ship can increase distance in 2 turns.
 func get_possible_distance_increase (bt, target_i) {
     val b = bt.item@(bt.cur_item)
-    val bd = bt_item(bt, target_i)
+    val bd = bt.item@(target_i)
     val si = if b.sx < bd.sx => (BATTLE_AREA_W - bd.sx - 1) => bd.sx
     val t = (bd.man - bd.unman) * 2
     set b.maxrange = i8(-MIN(si, t))
@@ -2486,13 +2461,13 @@ func get_possible_distance_increase (bt, target_i) {
 func game_battle_ai_best_range (bt, target_i) {
     val itemi = bt.cur_item
     val b = bt.item@(itemi)
-    val bd = bt_item(bt, target_i)
     var bestrange = 1
     var damagediv = 1
     var weight1 = 0
-    if target_i == 0 {  ;; planet
+    if target_i <= 0 {  ;; planet, or no target (C read bt->item[-1]: #13, fixed)
         return 1
     }
+    val bd = bt.item@(target_i)
     loop i in (1, 9) {
         var weight = 0
         if (b.blackhole > 0) && (i <= 1) {

@@ -1074,19 +1074,17 @@ func game_turn_transport (g) {
             set pop3 = SETMAX(pop3, 0)
             if g.eto@(owner).have_combat_transporter {
                 val n = pop2 - pop3
-                ;; g->eto[p->owner] with no owner reads past the table in C
-                if p.owner == PLAYER_NONE {
-                    throw "game_turn_transport: transporters onto a planet with no owner (eto[PLAYER_NONE] in C)"
-                }
+                ;; with no owner, no interdictor (C read g->eto[PLAYER_NONE]: #11, fixed)
+                val have_int = (p.owner != PLAYER_NONE) && g.eto@(p.owner).have_sub_space_int
                 if game_num_combat_trans_fix {    ;; do as OSG says: 50% chance, 25% if interdictor
-                    val c = if g.eto@(p.owner).have_sub_space_int => 4 => 2
+                    val c = if have_int => 4 => 2
                     loop in n {
                         if rnd_0_nm1(c, g) == 0 {
                             set pop3 = pop3 + 1
                         }
                     }
                 } else {
-                    if g.eto@(p.owner).have_sub_space_int {   ;; WASBUG transporters only work when planet owner has interdictor
+                    if have_int {   ;; WASBUG transporters only work when planet owner has interdictor
                         loop in n {
                             if rnd_0_nm1(4, g) == 0 {
                                 set pop3 = pop3 + 1

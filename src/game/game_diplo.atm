@@ -89,8 +89,8 @@ func game_diplo_act (g, dv0, pi, pi2, dtype, pli1, dp2) {
             set dv = dv * 2
         }
         if dv < 0 {
-            ;; difficulty_t is an unsigned enum in C: dv is divided as unsigned
-            set dv = i32(u32(dv) // ((g.difficulty // 2) + 1))
+            ;; dv < 0, truncated towards 0 as in C (C divided it as unsigned: #12, fixed)
+            set dv = -((-dv) // ((g.difficulty // 2) + 1))
         }
     }
     if dv != 0 {
