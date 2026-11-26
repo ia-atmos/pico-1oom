@@ -11,9 +11,9 @@ out = []
 for kind, name in re.findall(r'(DEFSTRITEMTBL|DEFSTRITEM)\((\w+)\)', body):
     v = 'game_str_' + name
     if kind == 'DEFSTRITEMTBL':
-        out.append('    strtbl_s("%s", #%s, func (i) { %s@(i) }, func (i, s) { set %s@(i) = s }),' % (name, v, v, v))
+        out.append('    strtbl_s("%s", #%s, \\{ %s@(it) }, \\(i, s) { set %s@(i) = s }),' % (name, v, v, v))
     else:
-        out.append('    strtbl_s("%s", 1, func (i) { %s }, func (i, s) { set %s = s }),' % (name, v, v))
+        out.append('    strtbl_s("%s", 1, \\{ %s }, \\(i, s) { set %s = s }),' % (name, v, v))
 atm = open(sys.argv[2]).read()
 b = atm.index(';; BEGIN game_str_id_tbl')
 e = atm.index(';; END game_str_id_tbl')

@@ -22,8 +22,8 @@ def ntype(t):
 # sizes in C): C reads and writes the bytes after the field too.
 # st_shld_absorb is U16 on `uint8_t absorb`, which `uint8_t tech_i` follows.
 WIDE = {
-    'st_shld_absorb': ('func (i) { tbl_shiptech_shield@(i).absorb | (tbl_shiptech_shield@(i).tech_i << 8) }',
-                       'func (i, v) {\n            set tbl_shiptech_shield@(i).absorb = v & 0xff\n            set tbl_shiptech_shield@(i).tech_i = (v >> 8) & 0xff\n        }'),
+    'st_shld_absorb': ('\\{ tbl_shiptech_shield@(it).absorb | (tbl_shiptech_shield@(it).tech_i << 8) }',
+                       '\\(i, v) {\n            set tbl_shiptech_shield@(i).absorb = v & 0xff\n            set tbl_shiptech_shield@(i).tech_i = (v >> 8) & 0xff\n        }'),
 }
 
 out = []
@@ -45,20 +45,20 @@ for m in re.finditer(r'(DEFNUMITEMLSTBL|DEFNUMITEMLTBLL|DEFNUMITEMLTBL|DEFNUMITE
         nid, name, field, t, vmin, vmax = a
         tbl = aexpr(name)
         f = aexpr(field)
-        get = 'func (i) { %s@(i).%s }' % (tbl, f)
-        put = 'func (i, v) { set %s@(i).%s = v }' % (tbl, f)
+        get = '\\{ %s@(it).%s }' % (tbl, f)
+        put = '\\(i, v) { set %s@(i).%s = v }' % (tbl, f)
         size = '#%s' % tbl
     elif kind == 'DEFNUMITEMLTBL':
         nid, name, t, vmin, vmax = a
         tbl = aexpr(name)
-        get = 'func (i) { %s@(i) }' % tbl
-        put = 'func (i, v) { set %s@(i) = v }' % tbl
+        get = '\\{ %s@(it) }' % tbl
+        put = '\\(i, v) { set %s@(i) = v }' % tbl
         size = '#%s' % tbl
     elif kind == 'DEFNUMITEMLTBLL':
         nid, t, vmin, vmax = a
         tbl = 'game_num_' + nid
-        get = 'func (i) { %s@(i) }' % tbl
-        put = 'func (i, v) { set %s@(i) = v }' % tbl
+        get = '\\{ %s@(it) }' % tbl
+        put = '\\(i, v) { set %s@(i) = v }' % tbl
         size = '#%s' % tbl
     else:
         if kind == 'DEFNUMITEML':
@@ -67,8 +67,8 @@ for m in re.finditer(r'(DEFNUMITEMLSTBL|DEFNUMITEMLTBLL|DEFNUMITEMLTBL|DEFNUMITE
         else:
             nid, name, t, vmin, vmax = a
             var = aexpr(name)
-        get = 'func (i) { %s }' % var
-        put = 'func (i, v) { set %s = v }' % var
+        get = '\\{ %s }' % var
+        put = '\\(i, v) { set %s = v }' % var
         size = '1'
     if nid in WIDE:
         get, put = WIDE[nid]

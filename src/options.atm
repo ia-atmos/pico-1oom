@@ -35,18 +35,18 @@ func opt_cfg_set_datapath (var_) {
 }
 
 pin opt_cfg_items = [
-    CFG_ITEM_STR("data_path", func () { opt_datapath }, func (v) { set opt_datapath = v }, opt_cfg_set_datapath),
+    CFG_ITEM_STR("data_path", \{ opt_datapath }, \{ set opt_datapath = it }, opt_cfg_set_datapath),
 ]
 
 pin opt_cfg_items_audio = [
-    CFG_ITEM_BOOL("audio", func () { opt_audio_enabled }, func (v) { set opt_audio_enabled = v }),
-    CFG_ITEM_BOOL("music", func () { opt_music_enabled }, func (v) { set opt_music_enabled = v }),
-    CFG_ITEM_BOOL("sfx", func () { opt_sfx_enabled }, func (v) { set opt_sfx_enabled = v }),
-    CFG_ITEM_BOOL("sfxinitpar", func () { opt_sfx_init_parallel }, func (v) { set opt_sfx_init_parallel = v }),
-    CFG_ITEM_INT("music_volume", func () { opt_music_volume }, func (v) { set opt_music_volume = v }, nil),
-    CFG_ITEM_INT("sfx_volume", func () { opt_sfx_volume }, func (v) { set opt_sfx_volume = v }, nil),
-    CFG_ITEM_INT("audiorate", func () { opt_audiorate }, func (v) { set opt_audiorate = v }, nil),
-    CFG_ITEM_INT("audioslice_ms", func () { opt_audioslice_ms }, func (v) { set opt_audioslice_ms = v }, nil),
+    CFG_ITEM_BOOL("audio", \{ opt_audio_enabled }, \{ set opt_audio_enabled = it }),
+    CFG_ITEM_BOOL("music", \{ opt_music_enabled }, \{ set opt_music_enabled = it }),
+    CFG_ITEM_BOOL("sfx", \{ opt_sfx_enabled }, \{ set opt_sfx_enabled = it }),
+    CFG_ITEM_BOOL("sfxinitpar", \{ opt_sfx_init_parallel }, \{ set opt_sfx_init_parallel = it }),
+    CFG_ITEM_INT("music_volume", \{ opt_music_volume }, \{ set opt_music_volume = it }, nil),
+    CFG_ITEM_INT("sfx_volume", \{ opt_sfx_volume }, \{ set opt_sfx_volume = it }, nil),
+    CFG_ITEM_INT("audiorate", \{ opt_audiorate }, \{ set opt_audiorate = it }, nil),
+    CFG_ITEM_INT("audioslice_ms", \{ opt_audioslice_ms }, \{ set opt_audioslice_ms = it }, nil),
 ]
 
 ;; ---------------------------------------------------------------------------
@@ -92,17 +92,17 @@ pin cmdline_options_early = [
 
 pin cmdline_options_cfg_early = [
     OPT("-c", 1, options_set_str_var,
-        opt_var(func () { opt_configfilename_in }, func (v) { set opt_configfilename_in = v }),
+        opt_var(\{ opt_configfilename_in }, \{ set opt_configfilename_in = it }),
         "FILE.TXT", "Set config filename"),
     OPT("-cro", 0, options_enable_bool_var,
-        opt_var(func () { opt_config_ro }, func (v) { set opt_config_ro = v }),
+        opt_var(\{ opt_config_ro }, \{ set opt_config_ro = it }),
         nil, "Do not write a config file"),
     OPT("-user", 1, options_set_userdir, nil, "PATH", "Set user directory"),
     OPT("-log", 1, options_set_str_var,
-        opt_var(func () { opt_logfilename_in }, func (v) { set opt_logfilename_in = v }),
+        opt_var(\{ opt_logfilename_in }, \{ set opt_logfilename_in = it }),
         "FILE.TXT", "Set log filename"),
     OPT("-nolog", 0, options_empty_str_var,
-        opt_var(func () { opt_logfilename_in }, func (v) { set opt_logfilename_in = v }),
+        opt_var(\{ opt_logfilename_in }, \{ set opt_logfilename_in = it }),
         nil, "Do not create a log file"),
 ]
 
@@ -116,43 +116,43 @@ pin cmdline_options_pbxfile = [
 
 pin cmdline_options_audio_early = [
     OPT("-audio", 0, options_enable_bool_var,
-        opt_var(func () { opt_audio_enabled }, func (v) { set opt_audio_enabled = v }),
+        opt_var(\{ opt_audio_enabled }, \{ set opt_audio_enabled = it }),
         nil, "Enable audio"),
     OPT("-noaudio", 0, options_disable_bool_var,
-        opt_var(func () { opt_audio_enabled }, func (v) { set opt_audio_enabled = v }),
+        opt_var(\{ opt_audio_enabled }, \{ set opt_audio_enabled = it }),
         nil, "Disable audio"),
 ]
 
 pin cmdline_options_audio = [
     OPT("-music", 0, options_enable_bool_var,
-        opt_var(func () { opt_music_enabled }, func (v) { set opt_music_enabled = v }),
+        opt_var(\{ opt_music_enabled }, \{ set opt_music_enabled = it }),
         nil, "Enable music"),
     OPT("-nomusic", 0, options_disable_bool_var,
-        opt_var(func () { opt_music_enabled }, func (v) { set opt_music_enabled = v }),
+        opt_var(\{ opt_music_enabled }, \{ set opt_music_enabled = it }),
         nil, "Disable music"),
     OPT("-sfx", 0, options_enable_bool_var,
-        opt_var(func () { opt_sfx_enabled }, func (v) { set opt_sfx_enabled = v }),
+        opt_var(\{ opt_sfx_enabled }, \{ set opt_sfx_enabled = it }),
         nil, "Enable SFX"),
     OPT("-nosfx", 0, options_disable_bool_var,
-        opt_var(func () { opt_sfx_enabled }, func (v) { set opt_sfx_enabled = v }),
+        opt_var(\{ opt_sfx_enabled }, \{ set opt_sfx_enabled = it }),
         nil, "Disable SFX"),
     OPT("-sfxinitpar", 0, options_enable_bool_var,
-        opt_var(func () { opt_sfx_init_parallel }, func (v) { set opt_sfx_init_parallel = v }),
+        opt_var(\{ opt_sfx_init_parallel }, \{ set opt_sfx_init_parallel = it }),
         nil, "Init SFX in parallel (if possible)"),
     OPT("-nosfxinitpar", 0, options_disable_bool_var,
-        opt_var(func () { opt_sfx_init_parallel }, func (v) { set opt_sfx_init_parallel = v }),
+        opt_var(\{ opt_sfx_init_parallel }, \{ set opt_sfx_init_parallel = it }),
         nil, "Do not init SFX in parallel"),
     OPT("-musicvol", 1, options_set_int_var,
-        opt_var(func () { opt_music_volume }, func (v) { set opt_music_volume = v }),
+        opt_var(\{ opt_music_volume }, \{ set opt_music_volume = it }),
         "VOLUME", "Set music volume (0..128)"),
     OPT("-sfxvol", 1, options_set_int_var,
-        opt_var(func () { opt_sfx_volume }, func (v) { set opt_sfx_volume = v }),
+        opt_var(\{ opt_sfx_volume }, \{ set opt_sfx_volume = it }),
         "VOLUME", "Set SFX volume (0..128)"),
     OPT("-audiohz", 1, options_set_int_var,
-        opt_var(func () { opt_audiorate }, func (v) { set opt_audiorate = v }),
+        opt_var(\{ opt_audiorate }, \{ set opt_audiorate = it }),
         "HZ", "Set audio sample rate (Hz)"),
     OPT("-audioms", 1, options_set_int_var,
-        opt_var(func () { opt_audioslice_ms }, func (v) { set opt_audioslice_ms = v }),
+        opt_var(\{ opt_audioslice_ms }, \{ set opt_audioslice_ms = it }),
         "MS", "Set max audio slice size (ms)"),
 ]
 

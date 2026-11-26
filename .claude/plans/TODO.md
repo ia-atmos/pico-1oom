@@ -41,6 +41,8 @@ Last update: 2026-11-26
 | #20 | Excerpt, bad: `src/game/game_save_moo13.atm:94`, a `do` block per range check (generated) | excerpt | reported 2026-11-26 |
 | #21 | `%u` back in the port (its ~6 `%d`): needs a compiler of `ia-atmos/lang` main; read access to it was denied here | decision | done 2026-11-26: %u back, with a compiler of main built from the local clone |
 | #22 | The config file is a table of Atmos (`X.load`), not the lines of C: his decision, on #15 (external, the logic unchanged) | work | done 2026-11-26 |
+| #23 | Style: idiomatic Atmos, free to join, split or reorganize modules and functions; the behaviour identical to C in the checks is the criterion (his decision, 2026-11-26, on #16) | decision | settled 2026-11-26 |
+| #24 | The options of the config as tables (`game_opt`, ...), the config read and written from them, in place of a getter and a setter per global (#16, under #23) | work | known, not done |
 
 ## A. Decisions waiting for an answer
 
@@ -52,6 +54,13 @@ Each has the option recommended by this session. Asked one at a time.
   work with no input forbids rewriting history).
 
 ## B. Work known and not done
+
+- #23 (settled 2026-11-26): the port may now leave the shape of the C
+  (globals, tables of pointers, the split in functions) for idiomatic
+  Atmos. The checks against the C stay the criterion: the sessions of
+  `tst/cmdline.sh` and the saves compare the whole program; `tst/state.sh`
+  calls functions of the port by name, so a function that is merged or
+  split takes its op of `state.atm` along.
 
 The port goes in the order of decision 5 (see "Settled"). The checks are
 in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).

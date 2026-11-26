@@ -19,7 +19,7 @@ include "cfgdefs.atm"
 ;; in C), as a function; `nil` if always.
 pin cfg_items_tbl = [
     [ str = "opt", items = opt_cfg_items, cond = nil ],
-    [ str = "opta", items = opt_cfg_items_audio, cond = func () { ui_use_audio } ],
+    [ str = "opta", items = opt_cfg_items_audio, cond = \{ ui_use_audio } ],
     [ str = "game", items = game_cfg_items, cond = nil ],
     [ str = "hw", items = hw_cfg_items, cond = nil ],
     [ str = "hwx", items = hw_cfg_items_extra, cond = nil ],
