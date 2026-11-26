@@ -53,6 +53,7 @@ Last update: 2026-11-26
 | #32 | Excerpt, good: `src/game/game_main.atm:523`, a config item names the field of a table | excerpt | reported 2026-11-26 |
 | #33 | Excerpt, bad: `src/optionsdefs.atm`, `set var_.tbl@(var_.key) = true` in each handler of options | excerpt | reported 2026-11-26 |
 | #34 | Index with a plain name, number or tag without parentheses (`t@k`, `t@0`, `t@:x`; `t@(e)` only for an expression): his request to every project, relayed by `atmos` 2026-11-26; 4971 here; keep `@(true)`, `@(false)`, `@(nil)` (`emit @(task) :e` becomes `emit :e`, his decision; the port has no `emit`); keywords keep them (`task`, `nil`, `true`, `false`, `pub`); check: `atmos -c` of each file gives the same C, then the suite (atmos-lang#131) | work | waiting for the end of the pause (Saturday) |
+| #35 | Standing rule (atmos#29, 2026-11-26): read `ia-atmos/lang` `.claude/plans/IDIOMS.md` before writing Atmos; a rule from his corrections goes to `atmos` with a before and an after (sent: #16, the lambda) | rule | standing |
 
 ## Pause
 
