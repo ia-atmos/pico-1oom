@@ -31,6 +31,7 @@ Last update: 2026-11-25
 | #10 | The C compiler takes ~50 s to build a test program of the port (the generated C of the tables) | remark | open, not a blocker |
 | #11 | `game_turn_transport` reads `eto[PLAYER_NONE]` (past the table) in C; the port throws there | remark | open |
 | #12 | The enums of C are unsigned (gcc): a negative `int` with an enum is unsigned arithmetic | remark | open: a check to keep doing |
+| #14 | Step 5 of the port, (f): the textual interface (`ui/cmdline`), with `main.c`, `game.c`, the options | work | in course |
 | #13 | The battle AI reads `bt->item[-1]` in C; the port gives the same bytes | remark | open, by the session, to be confirmed |
 
 ## A. Decisions waiting for an answer
@@ -104,6 +105,16 @@ in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
   `is_bio = 0`, which is true in Atmos; `tools/game_shiptech.py` now
   writes a C bool as `false`/`true`. Next: step (f), the textual
   interface (`c/src/ui/cmdline`).
+- #14 Step (f), the textual interface, in course (approved: decision 7).
+  The oracle: `1oom_cmdline` (hardware `nop`) fed from the standard input
+  is deterministic; its output and saves are compared. Order: (1) the logic
+  it needs (`game_turn_start.c`, `game_cheat.c`: **done** 2026-11-26, group
+  23 of `tst/state.sh`); (2) the input, the turn loop and `main_do`, with a
+  first session end to end; (3) each screen of `ui/cmdline`; (4) the
+  options, the config file, the PBX patches (`game_nump.c`,
+  `game_strp.c`) and the saves of MOO 1.3. At each big step, screenshots
+  for the author (his request, 2026-11-26): `tst/shots/shot.sh` opens a save
+  of the port in the interface of 1993 (the C) on a virtual display.
 - #13 With no target (`target_i == -1`), `game_battle_ai_best_range` and
   `get_possible_distance_increase` read `bt->item[-1]` (undefined
   behaviour, before the table). On x86-64 these are the bytes of `bt->s[0]`
