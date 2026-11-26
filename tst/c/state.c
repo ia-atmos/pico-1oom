@@ -207,6 +207,7 @@ static int arg(const char *op, int k)
     return atoi(p);
 }
 
+static const char *dump_path = 0;
 static void do_op(const char *op)
 {
     char name[64];
@@ -392,6 +393,7 @@ static void do_op(const char *op)
     OP(audience) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); game_audience(&g, arg(op, 0), arg(op, 1)); }
     OP(set_diplo_type) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); }
     OP(audiences) { game_turn_audiences(&g); }
+    OP(save) { char fn[1024]; snprintf(fn, sizeof(fn), "%s.bin", dump_path); game_save_do_save_fname(fn, "state", &g, 0); }
     OP(turn) { struct game_end_s ge = game_turn_process(&g); printf("turn_end %d\n", ge.type); }
     OP(ai_diplo_p1) { game_ai->turn_diplo_p1(&g); }
     OP(ai_diplo_p2) { game_ai->turn_diplo_p2(&g); }
@@ -442,6 +444,7 @@ static void do_op(const char *op)
 
 int main(int argc, char **argv)
 {
+    dump_path = argv[2];
     int k;
     os_set_path_data(argv[1]);
     lbxfile_init();
