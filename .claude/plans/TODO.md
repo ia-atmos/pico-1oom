@@ -40,6 +40,7 @@ Last update: 2026-11-26
 | #19 | Excerpt, good: `src/game/game_save_moo13.atm:19`, a macro of C as a one-line `if` | excerpt | reported 2026-11-26 |
 | #20 | Excerpt, bad: `src/game/game_save_moo13.atm:94`, a `do` block per range check (generated) | excerpt | reported 2026-11-26 |
 | #21 | `%u` back in the port (its ~6 `%d`): needs a compiler of `ia-atmos/lang` main; read access to it was denied here | decision | waiting: allow the access, or leave `%d` (recommended) |
+| #22 | The config file is a table of Atmos (`X.load`), not the lines of C: his decision, on #15 (external, the logic unchanged) | work | done 2026-11-26 |
 
 ## A. Decisions waiting for an answer
 
