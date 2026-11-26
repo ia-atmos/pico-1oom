@@ -1,0 +1,49 @@
+;; Port of c/src/ui/cmdline/uispecs.c.
+
+include "../../game/game.atm"
+include "../../game/game_parsed.atm"
+include "../../game/game_shipdesign.atm"
+include "../../game/game_shiptech.atm"
+include "../../game/game_str.atm"
+
+func ui_specs_print (sp, shipcount, cost) {
+    io.write(string.format("- %s, %i, %s", cstr(sp.name), shipcount, game_str_tbl_st_hull@(sp.hull)))
+    if cost >= 0 {
+        io.write(string.format(", %s %i %s", game_str_sp_cost, cost, game_str_bc))
+    }
+    io.write("\n")
+    io.write(string.format("  bdef %i, mdef %i, att %i, hits %i, shield %i, warp %i, speed %i\n", sp.defense, sp.misdefense, sp.complevel, sp.hp, sp.absorb, sp.engine + 1, sp.man))
+    loop wi in WEAPON_SLOT_NUM {
+        val wn = sp.wpnn@(wi)
+        if wn != 0 {
+            val wt = sp.wpnt@(wi)
+            io.write(string.format("  %2i %s", wn, tbl_shiptech_weap@(wt).nameptr()))
+            ;; FIXME make plural form somehow modifiable
+            if (wn != 1) && (wt != WEAPON_DEATH_SPORES) {
+                io.write("S")
+            }
+            val ns = tbl_shiptech_weap@(wt).numshots
+            if ns > 0 {
+                io.write(string.format(" x%i", ns))
+            }
+            io.write("\n")
+        }
+    }
+    loop i in SPECIAL_SLOT_NUM {
+        if sp.special@(i) != 0 {
+            io.write(string.format(" %s\n", game_str_tbl_st_specsh@(sp.special@(i))))
+        }
+    }
+}
+
+func ui_cmd_fleet_specs (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val srd = g.srd@(api)
+    loop si in e.shipdesigns_num {
+        pin sp = shipparsed_t()
+        val sd = srd.design@(si)
+        game_parsed_from_design(sp, sd, 1)
+        ui_specs_print(sp, srd.shipcount@(si), sd.cost)
+    }
+    0
+}

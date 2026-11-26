@@ -1,0 +1,104 @@
+;; Port of c/src/ui/cmdline/uiempirereport.c.
+
+include "../../boolvec.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "../../game/game_tech.atm"
+include "uidefs.atm"
+include "uiinput.atm"
+
+func show_empire_report (g, api, pi) {
+    val eapi = g.eto@(api)
+    val e = g.eto@(pi)
+    val srd = g.srd@(pi)
+    val buf = ui_data.strbuf
+    io.write(string.format("Report: %s, %s, %s %s. %s ", game_str_tbl_races@(e.race), cstr(g.emperor_names@(pi)), game_str_tbl_trait1@(e.trait1), game_str_tbl_trait2@(e.trait2), game_str_re_reportis))
+    val reportage = g.year - eapi.spyreportyear@(pi) - 1
+    if reportage < 2 {
+        io.write(game_str_re_current)
+    } else {
+        io.write(string.format("%i %s", reportage, game_str_re_yearsold))
+    }
+    io.write("\n")
+    loop k in 2 {
+        var first = true
+        io.write(string.format("%s:", if k == 0 => game_str_re_alliance => game_str_re_wars))
+        loop i in g.players {
+            val in_ = if k == 0 => (e.treaty@(i) == TREATY_ALLIANCE) => (e.treaty@(i) >= TREATY_WAR)
+            if (i != pi) && in_ && IS_ALIVE(g, i) {
+                if !first {
+                    io.write(",")
+                }
+                io.write(" ")
+                set first = false
+                io.write(game_str_tbl_races@(g.eto@(i).race))
+            }
+        }
+        io.write("\n")
+    }
+    loop f in TECH_FIELD_NUM {
+        val rct = srd.researchcompleted@(f)
+        val tc = e.tech.completed@(f)
+        val rf = eapi.spyreportfield@(pi)@(f)
+        var num = 0
+        loop i in tc {
+            if rct@(i) <= rf {
+                set num = u8(i + 1)
+            }
+        }
+        var first
+        if num > 8 {
+            set first = num - 8
+            set num = 8
+        } else {
+            set first = 0
+        }
+        io.write(game_str_tbl_te_field@(f) ++ "\n")
+        loop i in num {
+            val rc = rct@(first + i)
+            game_tech_get_name(g.gaux, f, rc, buf, UI_STRBUF_SIZE)
+            io.write(if game_tech_player_has_tech(g, f, rc, api) != 0 => "-" => "!")
+            io.write(" ")
+            io.write(cstr(buf) ++ "\n")
+        }
+    }
+}
+
+func ui_cmd_empirereport (g, api, param, num_param, var_) {
+    pin rl_in = [
+        [ value = -1, key = "1", str = nil, display = nil ],
+        [ value = -1, key = "2", str = nil, display = nil ],
+        [ value = -1, key = "3", str = nil, display = nil ],
+        [ value = -1, key = "4", str = nil, display = nil ],
+        [ value = -1, key = "5", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    val e = g.eto@(api)
+    var num = 0
+    loop pi in g.players {
+        if (pi != api) && BOOLVEC_IS1(e.contact, pi) && IS_ALIVE(g, pi) {
+            set rl_in@(num).value = pi
+            set rl_in@(num).display = game_str_tbl_race@(g.eto@(pi).race)
+            set num = num + 1
+        }
+    }
+    if num > 0 {
+        set rl_in@(num).value = -1
+        set rl_in@(num).key = "Q"
+        set rl_in@(num).str = "q"
+        set rl_in@(num).display = "(quit)"
+        set num = num + 1
+        set rl_in@(num).value = 0
+        set rl_in@(num).key = nil
+        set rl_in@(num).str = nil
+        set rl_in@(num).display = nil
+        val v = ui_input_list("Choose race", "> ", rl_in)
+        if v >= 0 {
+            show_empire_report(g, api, v)
+        }
+    } else {
+        io.write("No races to report on\n")
+    }
+    0
+}

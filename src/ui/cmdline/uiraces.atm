@@ -1,0 +1,192 @@
+;; Port of c/src/ui/cmdline/uiraces.c.
+
+include "../../boolvec.atm"
+include "../../comp.atm"
+include "../../game/game.atm"
+include "../../game/game_audience.atm"
+include "../../game/game_diplo.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+include "uiinput.atm"
+
+func ui_player_from_param (g, param) {
+    pin shortcuts = []
+    var player = PLAYER_NONE
+    loop i in g.players {
+        set shortcuts@((i * 2) + 0) = str_tolower(game_str_tbl_race@(g.eto@(i).race))
+        set shortcuts@((i * 2) + 1) = str_tolower(cstr(g.emperor_names@(i)))
+    }
+    val n = g.players * 2
+    loop i in n {
+        var is_unique = false
+        var len = 0
+        loop {
+            while !is_unique
+            set len = len + 1
+            while len < #shortcuts@(i)
+            set is_unique = true
+            loop j in n {
+                if (i != j) && (string.sub(shortcuts@(i), 0, len - 1) == string.sub(shortcuts@(j), 0, len - 1)) {
+                    set is_unique = false
+                    break
+                }
+            }
+        }
+        set shortcuts@(i) = string.sub(shortcuts@(i), 0, len - 1)
+    }
+    ;; TODO check if over 1 len shortcuts point to same player, for example Klackon Klaquan
+    loop i in n {
+        if ui_input_match_input(param.str, nil, shortcuts@(i)) {
+            set player = i // 2
+            break
+        }
+    }
+    player
+}
+
+func ui_cmd_audience (g, api, param, num_param, var_) {
+    pin rl_in = [
+        [ value = -1, key = "1", str = nil, display = nil ],
+        [ value = -1, key = "2", str = nil, display = nil ],
+        [ value = -1, key = "3", str = nil, display = nil ],
+        [ value = -1, key = "4", str = nil, display = nil ],
+        [ value = -1, key = "5", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    val e = g.eto@(api)
+    var num = 0
+    if g.end != GAME_END_NONE {
+        return 0
+    }
+    loop pi in g.players {
+        if (pi != api) && BOOLVEC_IS1(e.contact, pi) && IS_ALIVE(g, pi) {
+            if !game_diplo_is_gone(g, api, pi) {
+                set rl_in@(num).value = pi
+                set rl_in@(num).display = game_str_tbl_race@(g.eto@(pi).race)
+                set num = num + 1
+            }
+        }
+    }
+    if num > 0 {
+        set rl_in@(num).value = -1
+        set rl_in@(num).key = "Q"
+        set rl_in@(num).str = "q"
+        set rl_in@(num).display = "(quit)"
+        set num = num + 1
+        set rl_in@(num).value = 0
+        set rl_in@(num).key = nil
+        set rl_in@(num).str = nil
+        set rl_in@(num).display = nil
+        val v = ui_input_list("Choose race to have an audience with", "> ", rl_in)
+        if v >= 0 {
+            game_audience(g, api, v)
+        }
+    } else {
+        io.write("No one to have an audience with\n")
+    }
+    0
+}
+
+func ui_cmd_races (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    loop pi in g.players {
+        if (pi != api) && BOOLVEC_IS1(e.contact, pi) && IS_ALIVE(g, pi) {
+            val eo = g.eto@(pi)
+            io.write(string.format("- %s, %s", game_str_tbl_race@(eo.race), cstr(g.emperor_names@(pi))))
+            do {
+                var rel = e.relation1@(pi)
+                var reltxti = (rel // 12) + 8
+                set reltxti = SETRANGE(reltxti, 0, 16)
+                set rel = SETRANGE(rel, -100, 100)
+                io.write(string.format(", %+3i %s, %s, ", rel, game_str_tbl_ra_relat@(reltxti), game_str_tbl_ra_treaty@(e.treaty@(pi))))
+            }
+            if e.trade_bc@(pi) != 0 {
+                io.write(string.format("%s: %i %s/%s", game_str_ra_trade, e.trade_bc@(pi), game_str_bc, game_str_year))
+            } else {
+                io.write(game_str_ra_notrade)
+            }
+            if game_diplo_is_gone(g, api, pi) {
+                io.write(string.format(", %s %s", game_str_ra_diplo, game_str_ra_gone))
+            }
+            do {
+                var spies = e.spies@(pi)
+                if spies == 0 {
+                    io.write(string.format(", %s", game_str_ra_nospies))
+                } else {
+                    io.write(string.format(", %i %s", spies, if spies == 1 => game_str_ra_spy => game_str_ra_spies))
+                }
+                val spying = e.spying@(pi)
+                io.write(string.format(", %i.%i%%, ", spying // 10, spying % 10))
+                val spyprod = i32((e.total_production_bc * spying) // 1000)
+                var spyspend = spyprod + e.spyfund@(pi)
+                var spycost = (e.tech.percent@(TECH_FIELD_COMPUTER) * 2) + 25
+                if e.race == RACE_DARLOK {
+                    set spycost = spycost // 2
+                }
+                if spycost <= spyspend {
+                    set spies = 0
+                    loop {
+                        while spycost <= spyspend
+                        set spies = spies + 1
+                        set spyspend = spyspend - spycost
+                        set spycost = spycost * 2
+                    }
+                    io.write(string.format("%i%c%s", spies, if spies == 1 => 32 => 47, game_str_y))
+                } else {
+                    if spyprod == 0 {
+                        io.write(game_str_st_none)
+                    } else {
+                        val left = spycost - spyspend
+                        var years = left // spyprod
+                        if (left % spyprod) != 0 {
+                            set years = years + 1
+                        }
+                        io.write(string.format("%i %s", years, game_str_y))
+                    }
+                }
+            }
+            match e.spymode@(pi) {
+                SPYMODE_HIDE => io.write(", hide.\n")
+                SPYMODE_ESPIONAGE => io.write(", espionage.\n")
+                SPYMODE_SABOTAGE => io.write(", sabotage.\n")
+                else => nil
+            }
+        }
+    }
+    0
+}
+
+func ui_cmd_spy (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val pi = ui_player_from_param(g, param@(0))
+    if pi == PLAYER_NONE {
+        io.write("Unknown player\n")
+        return -1
+    }
+    if pi == api {
+        io.write("Will not spy self\n")
+        return -1
+    }
+    ifs {
+        param@(1).type == INPUT_TOKEN_NUMBER => {
+            set e.spying@(pi) = SETRANGE(param@(1).data, 0, 100)
+        }
+        param@(1).type == INPUT_TOKEN_RELNUMBER => {
+            set e.spying@(pi) = SETRANGE(param@(1).data + e.spying@(pi), 0, 100)
+        }
+        else => {
+            val c = c_tolower(string.byte(param@(1).str, 0) || 0)
+            ifs {
+                c == 104 => { set e.spymode@(pi) = SPYMODE_HIDE }       ;; 'h'
+                c == 101 => { set e.spymode@(pi) = SPYMODE_ESPIONAGE }  ;; 'e'
+                c == 115 => { set e.spymode@(pi) = SPYMODE_SABOTAGE }   ;; 's'
+                else => {
+                    io.write("Invalid spy mode\n")
+                    return -1
+                }
+            }
+        }
+    }
+    0
+}
