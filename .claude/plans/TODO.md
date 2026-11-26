@@ -43,10 +43,13 @@ Last update: 2026-11-26
 | #22 | The config file is a table of Atmos (`X.load`), not the lines of C: his decision, on #15 (external, the logic unchanged) | work | done 2026-11-26 |
 | #23 | Style: idiomatic Atmos, free to join, split or reorganize modules and functions; the behaviour identical to C in the checks is the criterion (his decision, 2026-11-26, on #16) | decision | settled 2026-11-26 |
 | #24 | The options of the config as tables (`game_opt`, ...), the config read and written from them, in place of a getter and a setter per global (#16, under #23) | work | known, not done |
-| #25 | Rules: only the corrected game. The wrong rules of MOO1 that 1oom keeps by default, and their options (`rules_*_fix`, `fix_bugs`, the fixes of `game_num_fix_bugs_1_3a`), go: the port has the correct rules only (his decision, 2026-11-26) | decision | settled 2026-11-26 |
+| #25 | Rules: only the corrected game. The wrong rules of MOO1 that 1oom keeps by default, and their options (`rules_*_fix`, `fix_bugs`, the fixes of `game_num_fix_bugs_1_3a`), go: the port has the correct rules only (his decision, 2026-11-26) | decision | REVERTED 2026-11-26 by #29: the rules of the game and their options stay as in 1oom |
 | #26 | The bugs of the C of 1oom (#11, #12, #13, `st_shld_absorb`, the size of `realloc` in `game_str_patch`, the uninitialized `target_i` of the AI) are not reproduced: the port does the correct thing; the C of the checks gets the same fix in a local copy, for the checks only (never committed to 1oom, nothing upstream) | decision | settled 2026-11-26 |
 | #27 | The integers: the conversions to the widths of C (~1026) go, except at the borders (the save formats) and where the correct game needs a width; module by module with #23 | work | known, not done |
-| #28 | "The corrected game" of #25 is what 1oom's own `doc/pbxin_fixbugs.txt` sets; the flags it does not name keep their default (variants, not fixes) (his decision, 2026-11-26) | decision | settled 2026-11-26 |
+| #28 | "The corrected game" of #25 is what 1oom's own `doc/pbxin_fixbugs.txt` sets; the flags it does not name keep their default (variants, not fixes) (his decision, 2026-11-26) | decision | void 2026-11-26, with #25 |
+| #29 | General instruction for the ports (his, confirmed 2026-11-26, relayed by `atmos`): fidelity is the behaviour observable while running, not the shape of the code nor file formats; idiomatic Atmos; external files (config, logs, saves) free, but the data the inside needs (LBX); only the bugs of safety or of the language fixed (#26) | decision | settled 2026-11-26 |
+| #30 | The saves in a native format of Atmos (`X.dump`/`X.load`), and the checks compare the state of the game, not the bytes of the save (#29; his "Sim, mudar testes") | work | known, not done |
+| #31 | Answer to #29 item 5: how much the port follows it, what is redone, a grade | report | owed |
 
 ## A. Decisions waiting for an answer
 
@@ -65,14 +68,12 @@ Each has the option recommended by this session. Asked one at a time.
   `tst/cmdline.sh` and the saves compare the whole program; `tst/state.sh`
   calls functions of the port by name, so a function that is merged or
   split takes its op of `state.atm` along.
-- #25, #26 (settled 2026-11-26): fidelity to the C in the correct cases
-  only, the corrected game being `doc/pbxin_fixbugs.txt` (#28). Order:
-  (1) the C of every check runs the corrected game (the values of
-  `pbxin_fixbugs.txt` applied, and the local fixes of #26), and the
-  checks pass with the port applying the same values; (2) the port takes
-  those values as its own and loses the flags and the branches of the old
-  rules (with their config items, `-file` numbers and `fix_bugs`); (3) the
-  style and integers module by module (#23, #24, #27).
+- #29 (settled 2026-11-26) rules the rework. #25 and #28 are reverted:
+  the rules of the game, wrong ones of MOO1 included, and their options
+  stay as in 1oom. #26 stands (the bugs of safety and of the language).
+  Order: (1) the local fixes of #26 in the C of the checks, and the port
+  correct there; (2) config and options (#24); (3) the saves (#30) and
+  their checks; (4) style and integers module by module (#23, #27).
 
 The port goes in the order of decision 5 (see "Settled"). The checks are
 in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
