@@ -20,4 +20,5 @@ shift
 "$DIR/game_aux.sh" "$DATA" "$@"
 "$DIR/save.sh" "$@"
 "$DIR/state.sh" "$DATA" "$@"
+"$DIR/moo13.sh" "$DATA" "$@"
 "$DIR/cmdline.sh" "$DATA"
