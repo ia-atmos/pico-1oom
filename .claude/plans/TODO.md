@@ -52,12 +52,15 @@ Last update: 2026-11-26
 | #31 | Answer to #29 item 5: how much the port follows it, what is redone, a grade | report | owed |
 | #32 | Excerpt, good: `src/game/game_main.atm:523`, a config item names the field of a table | excerpt | reported 2026-11-26 |
 | #33 | Excerpt, bad: `src/optionsdefs.atm`, `set var_.tbl@(var_.key) = true` in each handler of options | excerpt | reported 2026-11-26 |
+| #34 | Index with a plain name, number or tag without parentheses (`t@k`, `t@0`, `t@:x`; `t@(e)` only for an expression): his request to every project, relayed by `atmos` 2026-11-26; 4971 here | work | waiting for the end of the pause (Saturday) |
 
 ## Pause
 
 Implementation paused from 2026-11-26 to Saturday 2026-11-28 (his
 request); a scheduled wake on 2026-11-28 09:00 (America/Sao_Paulo).
-Next: #30. Excerpts not yet seen: #17, #18, #19, #20, #32, #33.
+Next: #34 (`@(name)` to `@name`, his request to every project, arrived
+during the pause), then #30. Excerpts not yet seen: #17, #18, #19, #20,
+#32, #33.
 
 ## A. Decisions waiting for an answer
 
