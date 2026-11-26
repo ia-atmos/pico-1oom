@@ -10,7 +10,8 @@ body = body[:body.index('DEFNUMEND')]
 
 def aexpr(c):
     # C lvalue expression -> Atmos: a[b][c] -> a@(b)@(c)
-    return re.sub(r'\[([^\]]*)\]', r'@(\1)', c.strip())
+    c = re.sub(r'\bgame_num_(\w+)', r'game_num.\1', c.strip())    # the table game_num
+    return re.sub(r'\[([^\]]*)\]', r'@(\1)', c)
 
 def ntype(t):
     t = t.strip()
@@ -48,14 +49,14 @@ for m in re.finditer(r'(DEFNUMITEMLSTBL|DEFNUMITEMLTBLL|DEFNUMITEMLTBL|DEFNUMITE
         size = '#%s' % tbl
     elif kind == 'DEFNUMITEMLTBLL':
         nid, t, vmin, vmax = a
-        tbl = 'game_num_' + nid
+        tbl = 'game_num.' + nid
         get = '\\{ %s@(it) }' % tbl
         put = '\\(i, v) { set %s@(i) = v }' % tbl
         size = '#%s' % tbl
     else:
         if kind == 'DEFNUMITEML':
             nid, t, vmin, vmax = a
-            var = 'game_num_' + nid
+            var = 'game_num.' + nid
         else:
             nid, name, t, vmin, vmax = a
             var = aexpr(name)

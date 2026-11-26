@@ -3,7 +3,7 @@
 ;;
 ;; struct cmdline_options_s: `str`, `num_param`, `handle`, `var`,
 ;; `str_param`, `str_help`. In C `var` points to the variable; here it is
-;; `[get=..., put=...]` (see `opt_var`), or `nil`. An array of options ends
+;; `[tbl=..., key=...]`, the field of a table, or `nil`. An array of options ends
 ;; with `{ NULL }` in C; here it is a vector. The tables of the other
 ;; modules (`os_`, `hw_`, `ui_`, `main_cmdline_options`) are defined by the
 ;; files that the program includes before this one.
@@ -18,16 +18,6 @@ include "cfgdefs.atm"
 include "optionsdefs.atm"
 
 ;; ---------------------------------------------------------------------------
-;; local options
-
-var opt_logfilename_in = nil
-var opt_configfilename_in = nil     ;; used only for the -c option
-var opt_configfilename = nil
-var opt_config_ro = false
-var opt_datapath = nil
-var opt_default = false
-
-;; ---------------------------------------------------------------------------
 
 func opt_cfg_set_datapath (var_) {
     os_set_path_data(var_)
@@ -35,18 +25,18 @@ func opt_cfg_set_datapath (var_) {
 }
 
 pin opt_cfg_items = [
-    CFG_ITEM_STR("data_path", \{ opt_datapath }, \{ set opt_datapath = it }, opt_cfg_set_datapath),
+    CFG_ITEM_STR("data_path", opt, "datapath", opt_cfg_set_datapath),
 ]
 
 pin opt_cfg_items_audio = [
-    CFG_ITEM_BOOL("audio", \{ opt_audio_enabled }, \{ set opt_audio_enabled = it }),
-    CFG_ITEM_BOOL("music", \{ opt_music_enabled }, \{ set opt_music_enabled = it }),
-    CFG_ITEM_BOOL("sfx", \{ opt_sfx_enabled }, \{ set opt_sfx_enabled = it }),
-    CFG_ITEM_BOOL("sfxinitpar", \{ opt_sfx_init_parallel }, \{ set opt_sfx_init_parallel = it }),
-    CFG_ITEM_INT("music_volume", \{ opt_music_volume }, \{ set opt_music_volume = it }, nil),
-    CFG_ITEM_INT("sfx_volume", \{ opt_sfx_volume }, \{ set opt_sfx_volume = it }, nil),
-    CFG_ITEM_INT("audiorate", \{ opt_audiorate }, \{ set opt_audiorate = it }, nil),
-    CFG_ITEM_INT("audioslice_ms", \{ opt_audioslice_ms }, \{ set opt_audioslice_ms = it }, nil),
+    CFG_ITEM_BOOL("audio", opt, "audio_enabled"),
+    CFG_ITEM_BOOL("music", opt, "music_enabled"),
+    CFG_ITEM_BOOL("sfx", opt, "sfx_enabled"),
+    CFG_ITEM_BOOL("sfxinitpar", opt, "sfx_init_parallel"),
+    CFG_ITEM_INT("music_volume", opt, "music_volume", nil),
+    CFG_ITEM_INT("sfx_volume", opt, "sfx_volume", nil),
+    CFG_ITEM_INT("audiorate", opt, "audiorate", nil),
+    CFG_ITEM_INT("audioslice_ms", opt, "audioslice_ms", nil),
 ]
 
 ;; ---------------------------------------------------------------------------
@@ -81,7 +71,7 @@ func show_usage (argv, var_) {
 }
 
 func load_default (argv, var_) {
-    set opt_default = true
+    set opt.default = true
     0
 }
 
@@ -92,17 +82,17 @@ pin cmdline_options_early = [
 
 pin cmdline_options_cfg_early = [
     OPT("-c", 1, options_set_str_var,
-        opt_var(\{ opt_configfilename_in }, \{ set opt_configfilename_in = it }),
+        [ tbl = opt, key = "configfilename_in" ],
         "FILE.TXT", "Set config filename"),
     OPT("-cro", 0, options_enable_bool_var,
-        opt_var(\{ opt_config_ro }, \{ set opt_config_ro = it }),
+        [ tbl = opt, key = "config_ro" ],
         nil, "Do not write a config file"),
     OPT("-user", 1, options_set_userdir, nil, "PATH", "Set user directory"),
     OPT("-log", 1, options_set_str_var,
-        opt_var(\{ opt_logfilename_in }, \{ set opt_logfilename_in = it }),
+        [ tbl = opt, key = "logfilename_in" ],
         "FILE.TXT", "Set log filename"),
     OPT("-nolog", 0, options_empty_str_var,
-        opt_var(\{ opt_logfilename_in }, \{ set opt_logfilename_in = it }),
+        [ tbl = opt, key = "logfilename_in" ],
         nil, "Do not create a log file"),
 ]
 
@@ -116,43 +106,43 @@ pin cmdline_options_pbxfile = [
 
 pin cmdline_options_audio_early = [
     OPT("-audio", 0, options_enable_bool_var,
-        opt_var(\{ opt_audio_enabled }, \{ set opt_audio_enabled = it }),
+        [ tbl = opt, key = "audio_enabled" ],
         nil, "Enable audio"),
     OPT("-noaudio", 0, options_disable_bool_var,
-        opt_var(\{ opt_audio_enabled }, \{ set opt_audio_enabled = it }),
+        [ tbl = opt, key = "audio_enabled" ],
         nil, "Disable audio"),
 ]
 
 pin cmdline_options_audio = [
     OPT("-music", 0, options_enable_bool_var,
-        opt_var(\{ opt_music_enabled }, \{ set opt_music_enabled = it }),
+        [ tbl = opt, key = "music_enabled" ],
         nil, "Enable music"),
     OPT("-nomusic", 0, options_disable_bool_var,
-        opt_var(\{ opt_music_enabled }, \{ set opt_music_enabled = it }),
+        [ tbl = opt, key = "music_enabled" ],
         nil, "Disable music"),
     OPT("-sfx", 0, options_enable_bool_var,
-        opt_var(\{ opt_sfx_enabled }, \{ set opt_sfx_enabled = it }),
+        [ tbl = opt, key = "sfx_enabled" ],
         nil, "Enable SFX"),
     OPT("-nosfx", 0, options_disable_bool_var,
-        opt_var(\{ opt_sfx_enabled }, \{ set opt_sfx_enabled = it }),
+        [ tbl = opt, key = "sfx_enabled" ],
         nil, "Disable SFX"),
     OPT("-sfxinitpar", 0, options_enable_bool_var,
-        opt_var(\{ opt_sfx_init_parallel }, \{ set opt_sfx_init_parallel = it }),
+        [ tbl = opt, key = "sfx_init_parallel" ],
         nil, "Init SFX in parallel (if possible)"),
     OPT("-nosfxinitpar", 0, options_disable_bool_var,
-        opt_var(\{ opt_sfx_init_parallel }, \{ set opt_sfx_init_parallel = it }),
+        [ tbl = opt, key = "sfx_init_parallel" ],
         nil, "Do not init SFX in parallel"),
     OPT("-musicvol", 1, options_set_int_var,
-        opt_var(\{ opt_music_volume }, \{ set opt_music_volume = it }),
+        [ tbl = opt, key = "music_volume" ],
         "VOLUME", "Set music volume (0..128)"),
     OPT("-sfxvol", 1, options_set_int_var,
-        opt_var(\{ opt_sfx_volume }, \{ set opt_sfx_volume = it }),
+        [ tbl = opt, key = "sfx_volume" ],
         "VOLUME", "Set SFX volume (0..128)"),
     OPT("-audiohz", 1, options_set_int_var,
-        opt_var(\{ opt_audiorate }, \{ set opt_audiorate = it }),
+        [ tbl = opt, key = "audiorate" ],
         "HZ", "Set audio sample rate (Hz)"),
     OPT("-audioms", 1, options_set_int_var,
-        opt_var(\{ opt_audioslice_ms }, \{ set opt_audioslice_ms = it }),
+        [ tbl = opt, key = "audioslice_ms" ],
         "MS", "Set max audio slice size (ms)"),
 ]
 
@@ -305,8 +295,8 @@ func options_parse_early (argv) {
     var res = options_parse_do(argv, true)
     if res == 0 {
         var filename = nil
-        if opt_logfilename_in != nil {
-            set filename = opt_logfilename_in
+        if opt.logfilename_in != nil {
+            set filename = opt.logfilename_in
         } else {
             val namebuf = os_get_fname_log()
             if namebuf != nil {
@@ -318,13 +308,13 @@ func options_parse_early (argv) {
         }
     }
     if (res == 0) && main_use_cfg {
-        if opt_configfilename_in != nil {
-            set opt_configfilename = opt_configfilename_in
+        if opt.configfilename_in != nil {
+            set opt.configfilename = opt.configfilename_in
         } else {
-            set opt_configfilename = cfg_cfgname()
+            set opt.configfilename = cfg_cfgname()
         }
-        if !opt_default && (cfg_load(opt_configfilename) != 0) {
-            log_warning("Opt: problems loading config file '%s'\n", opt_configfilename)
+        if !opt.default && (cfg_load(opt.configfilename) != 0) {
+            log_warning("Opt: problems loading config file '%s'\n", opt.configfilename)
         }
         ;; parse options again to override configuration
         set res = options_parse_do(argv, true)
@@ -384,17 +374,17 @@ func options_show_usage () {
 }
 
 func options_finish () {
-    set opt_datapath = os_get_path_data()
+    set opt.datapath = os_get_path_data()
 }
 
 func options_shutdown (save_config) {
-    if main_use_cfg && save_config && (opt_configfilename != nil) && !opt_config_ro {
-        if cfg_save(opt_configfilename) != 0 {
-            log_error("Opt: problems saving config file '%s'\n", opt_configfilename)
+    if main_use_cfg && save_config && (opt.configfilename != nil) && !opt.config_ro {
+        if cfg_save(opt.configfilename) != 0 {
+            log_error("Opt: problems saving config file '%s'\n", opt.configfilename)
         }
     }
-    set opt_configfilename = nil
-    set opt_datapath = nil
+    set opt.configfilename = nil
+    set opt.datapath = nil
 }
 
 include "cfg.atm"

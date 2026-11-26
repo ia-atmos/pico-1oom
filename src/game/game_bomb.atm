@@ -27,10 +27,10 @@ func game_turn_bomb_damage (g, pli, attacker) {
     var totaldmg = 0
     var totalbio = 0
     var maxcomp = 0
-    val wslots = if game_num_orbital_weap_4 => WEAPON_SLOT_NUM => (WEAPON_SLOT_NUM - 1)
+    val wslots = if game_num.orbital_weap_4 => WEAPON_SLOT_NUM => (WEAPON_SLOT_NUM - 1)
     loop i in ea.shipdesigns_num {
         val sd = g.srd@(attacker).design@(i)
-        if (!game_num_orbital_comp_fix) || (ea.orbit@(pli).ships@(i) != 0) {   ;; WASBUG bonus from non-existing ships
+        if (!game_num.orbital_comp_fix) || (ea.orbit@(pli).ships@(i) != 0) {   ;; WASBUG bonus from non-existing ships
             set maxcomp = SETMAX(maxcomp, sd.comp)
         }
         loop j in wslots {  ;; WASBUG? last weapon not used
@@ -48,7 +48,7 @@ func game_turn_bomb_damage (g, pli, attacker) {
     }
     var complevel = ((maxcomp - 1) * 2) + 6
     set complevel = SETRANGE(complevel, 1, 20)
-    val wnum = if game_num_orbital_weap_any => WEAPON_NUM => WEAPON_CRYSTAL_RAY
+    val wnum = if game_num.orbital_weap_any => WEAPON_NUM => WEAPON_CRYSTAL_RAY
     loop i in wnum {    ;; WASBUG? excludes death ray and amoeba stream too
         var vcur = tbl@(i)  ;; uint32_t
         if vcur != 0 {
@@ -56,7 +56,7 @@ func game_turn_bomb_damage (g, pli, attacker) {
             var v   ;; uint32_t
             var dmgmin = w.damagemin
             var dmgmax = w.damagemax
-            set vcur = SETMIN(vcur, game_num_max_bomb_dmg)
+            set vcur = SETMIN(vcur, game_num.max_bomb_dmg)
             if vcur < 10 {
                 set v = 1
             } else {
@@ -70,11 +70,11 @@ func game_turn_bomb_damage (g, pli, attacker) {
                             var dmg = rnd_0_nm1(dmgmin + 1, g) - antidote
                             set dmg = SETMAX(dmg, 0)
                             set totalbio = i32(totalbio + u32(v * dmg))
-                            set totalbio = SETMIN(totalbio, game_num_max_bio_dmg)
+                            set totalbio = SETMIN(totalbio, game_num.max_bio_dmg)
                         }
                     }
                 } else {
-                    if game_num_orbital_torpedo == (w.misstype != 0) {  ;; WASBUG damage halving for torpedo affected missiles instead
+                    if game_num.orbital_torpedo == (w.misstype != 0) {  ;; WASBUG damage halving for torpedo affected missiles instead
                         set dmgmax = dmgmax // 2
                     }
                     set dmgmax = dmgmax * w.nummiss
@@ -111,17 +111,17 @@ func game_turn_bomb_damage (g, pli, attacker) {
     var factdmg
     var popdmg
     do {
-        val h = game_num_fact_hp // 5
+        val h = game_num.fact_hp // 5
         val hr = h * 2
-        val hb = game_num_fact_hp - h
+        val hb = game_num.fact_hp - h
         var v = totaldmg // (rnd_1_n(hr, g) + hb)
         set v = SETMIN(v, p.factories)
         set factdmg = v
     }
     do {
-        val h = game_num_pop_hp // 5
+        val h = game_num.pop_hp // 5
         val hr = h * 2
-        val hb = game_num_pop_hp - h
+        val hb = game_num.pop_hp - h
         var v = totaldmg // (rnd_1_n(hr, g) + hb)
         set v = v + totalbio
         set v = SETMIN(v, p.pop)
@@ -177,7 +177,7 @@ func game_turn_bomb (g) {
                     }
                 }
                 ;; d004
-                if flag_do_bomb || (!game_num_orbital_bio_fix) {
+                if flag_do_bomb || (!game_num.orbital_bio_fix) {
                     if biodmg != 0 {
                         var v = p.max_pop3 - biodmg
                         set v = SETMAX(v, 10)

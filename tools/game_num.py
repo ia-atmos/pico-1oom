@@ -24,10 +24,15 @@ cd = ['/* The oracle of tst/game_num.atm: every number of c/src/game/game_num.c.
       '#include <stdio.h>', '#include "game_num.h"', '', 'int main(void)', '{']
 ad = [';; game_num.atm of the port: every number, as tst/c/game_num.c prints it.',
       ';; Generated with it.', '', 'include "../src/game/game_num.atm"', '', 'pin out = []', '']
+# The numbers are the fields of one table, `game_num`: game_num_X of C is
+# game_num.X here.
+atm.append('pin game_num = [')
 for ctype, name, dims, init in decls:
+    field = name[len('game_num_'):]
+    aname = 'game_num.' + field
     dl = re.findall(r'\[([^\]]*)\]', dims)
     if dl:
-        atm.append('pin %s = %s    ;; %s%s' % (name, value(init), ctype, dims))
+        atm.append('    %s = %s,    ;; %s%s' % (field, value(init), ctype, dims))
         idx = ''.join('[i%d]' % k for k in range(len(dl)))
         cl = '    '
         for k, n in enumerate(dl):
@@ -35,7 +40,7 @@ for ctype, name, dims, init in decls:
         cl += '{ printf("%s%s = %%i\\n"%s, %s%s); }' % (name, '[%i]' * len(dl), ''.join(', i%d' % k for k in range(len(dl))), name, idx)
         cd.append(cl)
         al = ''
-        acc = name
+        acc = aname
         for k in range(len(dl)):
             al += 'loop i%d in #%s { ' % (k, acc)
             acc += '@(i%d)' % k
@@ -44,12 +49,13 @@ for ctype, name, dims, init in decls:
         ad.append(al)
     else:
         if ctype == 'bool':
-            atm.append('var %s = %s' % (name, init.strip()))
-            ad.append('set out@+ = string.format("%s = %%i\\n", if %s => 1 => 0)' % (name, name))
+            atm.append('    %s = %s,' % (field, init.strip()))
+            ad.append('set out@+ = string.format("%s = %%i\\n", if %s => 1 => 0)' % (name, aname))
         else:
-            atm.append('var %s = %s    ;; %s' % (name, init.strip(), ctype))
-            ad.append('set out@+ = string.format("%s = %%i\\n", %s)' % (name, name))
+            atm.append('    %s = %s,    ;; %s' % (field, init.strip(), ctype))
+            ad.append('set out@+ = string.format("%s = %%i\\n", %s)' % (name, aname))
         cd.append('    printf("%s = %%i\\n", %s);' % (name, name))
+atm.append(']')
 cd += ['    return 0;', '}']
 ad += ['io.write(string.join(out, ""))']
 open(sys.argv[2], 'w').write('\n'.join(atm) + '\n')

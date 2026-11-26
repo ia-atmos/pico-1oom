@@ -17,12 +17,12 @@ include "game_tech.atm"
 ;; The inline functions of game_misc.h.
 
 func game_planet_get_pop_oper_fact (g, p) {
-    if game_num_factory_cost_fix => p.pop_oper_fact => g.eto@(p.owner).colonist_oper_factories
+    if game_num.factory_cost_fix => p.pop_oper_fact => g.eto@(p.owner).colonist_oper_factories
 }
 
 func game_planet_get_fact_adj_cost (g, p) {
     val e = g.eto@(p.owner)
-    if game_num_factory_cost_fix && (e.race != RACE_MEKLAR) => ((e.factory_cost * p.pop_oper_fact) // 2) => e.factory_adj_cost
+    if game_num.factory_cost_fix && (e.race != RACE_MEKLAR) => ((e.factory_cost * p.pop_oper_fact) // 2) => e.factory_adj_cost
 }
 
 ;; ---------------------------------------------------------------------------
@@ -70,18 +70,18 @@ func game_update_maint_costs (g) {
             set totalcost = u32(totalcost + u32(tbl_ships@(si) * sd.cost))
         }
         set totalcost = totalcost // 50
-        set totalcost = SETMIN(totalcost, game_num_max_ship_maint)
+        set totalcost = SETMIN(totalcost, game_num.max_ship_maint)
         set bases = 0
         loop i in g.galaxy_stars {
             val p = g.planet@(i)
             if p.owner == pi {
                 if p.have_stargate {
-                    set totalcost = u32(totalcost + game_num_stargate_maint)  ;; WASBUG MOO1 sums to a int16_t var after limiting to 32000
+                    set totalcost = u32(totalcost + game_num.stargate_maint)  ;; WASBUG MOO1 sums to a int16_t var after limiting to 32000
                 }
                 set bases = u16(bases + p.missile_bases)
             }
         }
-        set totalcost = SETMIN(totalcost, game_num_max_ship_maint)
+        set totalcost = SETMIN(totalcost, game_num.max_ship_maint)
         set e.ship_maint_bc = totalcost
         set e.bases_maint_bc = u32((bases * game_get_base_cost(g, pi)) // 50)
     }
@@ -107,7 +107,7 @@ func game_update_production (g) {
             val e = g.eto@(owner)
             var pop = p.pop
             var v
-            if game_num_leaving_trans_fix {
+            if game_num.leaving_trans_fix {
                 var rebels = p.rebels
                 if p.trans_num != 0 {   ;; see game_send_transport()
                     set pop = pop - p.trans_num
@@ -225,14 +225,14 @@ func game_update_eco_on_waste (g, player_i, force_adjust) {
         val p = g.planet@(i)
         if p.owner == player_i {
             var v = u16(game_planet_get_waste_percent(nil, g, p, false))
-            val check_locks = (!force_adjust) && game_num_slider_respects_locks && IS_HUMAN(g, p.owner)
+            val check_locks = (!force_adjust) && game_num.slider_respects_locks && IS_HUMAN(g, p.owner)
             ifs {
                 check_locks && (p.slider_lock@(PLANET_SLIDER_ECO) != 0) => {}
                 check_locks && (p.slider_lock@(PLANET_SLIDER_SHIP) != 0) && (p.slider_lock@(PLANET_SLIDER_DEF) != 0) && (p.slider_lock@(PLANET_SLIDER_IND) != 0) && (p.slider_lock@(PLANET_SLIDER_TECH) != 0) => {}
                 (p.slider@(PLANET_SLIDER_ECO) < v) || force_adjust => {
                     val eco_diff = i16(v - p.slider@(PLANET_SLIDER_ECO))
                     var sum = 100   ;; int16_t
-                    if game_num_waste_adjust_fix {
+                    if game_num.waste_adjust_fix {
                         set sum = i16(p.slider@(PLANET_SLIDER_SHIP) + p.slider@(PLANET_SLIDER_DEF) + p.slider@(PLANET_SLIDER_IND) + p.slider@(PLANET_SLIDER_TECH))
                     }
                     if check_locks {
@@ -352,14 +352,14 @@ func game_update_within_range (g) {
                     else => { set p.within_frange@(pi) = 0 }
                 }
                 BOOLVEC_SET(p.within_srange, pi, mindist2 <= srange)
-                if BOOLVEC_IS0(p.within_srange, pi) && ((srange2 > 0) || game_num_ship_scanner_fix) {
+                if BOOLVEC_IS0(p.within_srange, pi) && ((srange2 > 0) || game_num.ship_scanner_fix) {
                     set mindist1 = 10000
                     var k = 0
                     loop {
                         while (k < g.enroute_num) && (mindist1 > srange2)
                         if g.enroute@(k).owner == pi {
                             set dist = u16(util_math_dist_fast(g.enroute@(k).x, g.enroute@(k).y, p.x, p.y))
-                            if game_num_ship_scanner_fix {
+                            if game_num.ship_scanner_fix {
                                 if dist < mindist1 {
                                     set mindist1 = dist
                                 }
@@ -629,7 +629,7 @@ func game_get_pop_growth_max (g, p, max_pop3) {
         }
     }
     var retval = ((v * p.pop) + 5) // 100
-    if !game_num_pop_tenths_fix {
+    if !game_num.pop_tenths_fix {
         set retval = retval + p.pop_tenths
     }
     if (v > 0) && (retval < 1) {
@@ -734,7 +734,7 @@ func game_calc_eta_trans (g, speed, x0, y0, x1, y1) {
 }
 
 func game_transport_dest_ok (g, p, pi) {
-    if !game_num_trans_redir_fix {
+    if !game_num.trans_redir_fix {
         p.within_frange@(pi) != 0   ;; WASBUG MOO1 allows redirection almost anywhere
     } else {
         (p.within_frange@(pi) == 1) && BOOLVEC_IS1(p.explored, pi) && (p.type >= g.eto@(pi).have_colony_for) && (p.owner != PLAYER_NONE)
@@ -744,12 +744,12 @@ func game_transport_dest_ok (g, p, pi) {
 ;; `pi` may be PLAYER_NONE (6): within_frange has 6 entries, and C reads past
 ;; them (into the next field); here it reads nil, which is not 1.
 func game_reloc_dest_ok (g, planet_i, pi) {
-    if game_num_extended_reloc_range => (g.planet@(planet_i).within_frange@(pi) == 1) => (g.planet@(planet_i).owner == pi)
+    if game_num.extended_reloc_range => (g.planet@(planet_i).within_frange@(pi) == 1) => (g.planet@(planet_i).owner == pi)
 }
 
 func game_rng_step (g) {
     ;; TODO disable for multiplayer
-    if !game_num_deterministic {
+    if !game_num.deterministic {
         rnd_0_nm1(2, g)
     }
 }
@@ -780,7 +780,7 @@ func game_turn_soil_enrich (p, best_tform, advanced) {
         if ((p.max_pop1 // 10) % 5) != 0 {
             set max_pop_increase = max_pop_increase + 5
         }
-        if game_num_soil_rounding_fix {
+        if game_num.soil_rounding_fix {
             set max_pop_increase = ((p.max_pop1 + 9) // 10) * 5
         }
     } else {
@@ -789,7 +789,7 @@ func game_turn_soil_enrich (p, best_tform, advanced) {
         if ((p.max_pop1 // 20) % 5) != 0 {
             set max_pop_increase = max_pop_increase + 5
         }
-        if game_num_soil_rounding_fix {
+        if game_num.soil_rounding_fix {
             set max_pop_increase = ((p.max_pop1 + 19) // 20) * 5
         }
     }
@@ -797,11 +797,11 @@ func game_turn_soil_enrich (p, best_tform, advanced) {
     val old_max_pop2 = p.max_pop2
     set p.max_pop2 = i16(p.max_pop1 + max_pop_increase)
     set p.max_pop3 = i16(p.max_pop3 + (p.max_pop2 - old_max_pop2))
-    if game_num_reset_tform_to_max {
+    if game_num.reset_tform_to_max {
         ;; BUG? (see game_misc.c)
         set p.max_pop3 = i16(SETMIN(p.max_pop3, best_tform + p.max_pop2))
     }
-    set p.max_pop3 = i16(SETMIN(p.max_pop3, game_num_max_pop))
+    set p.max_pop3 = i16(SETMIN(p.max_pop3, game_num.max_pop))
 }
 
 func game_ship_build_everywhere (g, owner, ship_i) {

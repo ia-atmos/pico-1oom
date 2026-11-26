@@ -156,14 +156,14 @@ func game_battle_damage_planet (bt, damage0) {
         set damage = damage // 2
     }
     set bt.popdamage = u32(bt.popdamage + damage)
-    var v = bt.popdamage // game_num_pop_hp
-    set bt.popdamage = bt.popdamage % game_num_pop_hp
+    var v = bt.popdamage // game_num.pop_hp
+    set bt.popdamage = bt.popdamage % game_num.pop_hp
     set v = bt.pop - v
     set v = SETMAX(v, 0)
     set bt.pop = i16(v)
     set bt.factdamage = u32(bt.factdamage + damage)
-    set v = bt.factdamage // game_num_fact_hp
-    set bt.factdamage = bt.factdamage % game_num_fact_hp
+    set v = bt.factdamage // game_num.fact_hp
+    set bt.factdamage = bt.factdamage % game_num.fact_hp
     set v = bt.fact - v
     set v = SETMAX(v, 0)
     set bt.fact = u16(v)
@@ -309,12 +309,12 @@ func game_battle_missile_hit (bt, missile_i, target_x, target_y) {
         if b.cloak == 1 {
             set misschance = misschance + 50
         }
-        if !game_num_bt_precap_tohit {
+        if !game_num.bt_precap_tohit {
             set misschance = SETMIN(misschance, 95)
         }
         loop in m.nummissiles {
             var chance = misschance - (w.extraacc * 10)
-            if game_num_bt_precap_tohit {
+            if game_num.bt_precap_tohit {
                 set chance = SETMIN(chance, 95)
             }
             if chance <= rnd_1_n(100, g) {
@@ -622,7 +622,7 @@ func game_battle_reset_specials (bt) {
             set b.missile = 1
         }
     }
-    if game_num_bt_wait_no_reload && b.can_retaliate {  ;; WASBUG MOO1 reloads specials on Wait
+    if game_num.bt_wait_no_reload && b.can_retaliate {  ;; WASBUG MOO1 reloads specials on Wait
         return nil
     }
     set b.can_retaliate = true
@@ -1444,7 +1444,7 @@ func game_battle_with_human_do_sub2 (bt) {
     if items@(SIDE_R) == 0 {
         return BATTLE_TURN_WIN_L
     }
-    if bt.num_turn > game_num_bt_turn_max {
+    if bt.num_turn > game_num.bt_turn_max {
         return BATTLE_TURN_TIMEOUT
     }
     if bt.s@(SIDE_R).race == RACE_NUM {     ;; monster
@@ -1553,7 +1553,7 @@ func game_battle_attack (bt, attacker_i, target_i0, retaliate) {
         set miss_chance_beam = miss_chance_beam + 50
         set miss_chance_missile = miss_chance_missile + 50
     }
-    if !game_num_bt_precap_tohit {
+    if !game_num.bt_precap_tohit {
         set miss_chance_beam = SETMIN(miss_chance_beam, 95)
         set miss_chance_missile = SETMIN(miss_chance_missile, 95)
     }
@@ -1589,7 +1589,7 @@ func game_battle_attack (bt, attacker_i, target_i0, retaliate) {
             }
             set range = range + w.range
             if (range >= dist) && ((!w.is_bomb) || (target_i == 0)) {
-                if !game_num_bt_no_tohit_acc {  ;; BUG? each weapon reduces miss chance
+                if !game_num.bt_no_tohit_acc {  ;; BUG? each weapon reduces miss chance
                     set miss_chance_beam = miss_chance_beam - (w.extraacc * 10)
                     set miss_chance_missile = miss_chance_missile - (w.extraacc * 10)
                 }
@@ -1645,10 +1645,10 @@ func game_battle_attack (bt, attacker_i, target_i0, retaliate) {
                             set b.wpn@(i).numshots = b.wpn@(i).numshots - 1
                         }
                         var miss_chance = if w.is_bomb => miss_chance_missile => miss_chance_beam
-                        if game_num_bt_no_tohit_acc {
+                        if game_num.bt_no_tohit_acc {
                             set miss_chance = miss_chance - (w.extraacc * 10)
                         }
-                        if game_num_bt_precap_tohit {
+                        if game_num.bt_precap_tohit {
                             set miss_chance = SETMIN(miss_chance, 95)
                         }
                         loop in damagemul1 {
@@ -2004,7 +2004,7 @@ func game_battle_area_setup (bt) {
 
 func game_battle_get_absorbdiv (b, w, force_oracle_check) {
     var v = 1
-    if (force_oracle_check || game_num_bt_oracle_fix) && ((b.sbmask & (1 << SHIP_SPECIAL_BOOL_ORACLE)) != 0) {
+    if (force_oracle_check || game_num.bt_oracle_fix) && ((b.sbmask & (1 << SHIP_SPECIAL_BOOL_ORACLE)) != 0) {
         ;; XXX we do not check if w is a beam weapon as this is called by buggy-like-v1.3 AI code for missiles
         set v = 2
     }

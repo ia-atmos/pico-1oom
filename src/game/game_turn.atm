@@ -1,6 +1,7 @@
 ;; Port of c/src/game/game_turn.c, one phase at a time (#9). The phases that
 ;; call into what is not ported yet are still to come; game_turn_process too.
 
+include "game_opt.atm"
 include "../boolvec.atm"
 include "../comp.atm"
 include "../ctypes.atm"
@@ -34,7 +35,6 @@ include "game_tech.atm"
 
 ;; Of c/src/game/game.c (an option of the configuration), here until game.c
 ;; is ported.
-pin game_opt_message_filter = carray(FINISHED_NUM, false)   ;; bool[]
 
 ;; ---------------------------------------------------------------------------
 
@@ -44,7 +44,7 @@ func game_turn_limit_ships (g) {
     loop ei in g.enroute_num {
         val r = g.enroute@(ei)
         loop si in NUM_SHIPDESIGNS {
-            set r.ships@(si) = SETMIN(r.ships@(si), game_num_limit_ships)
+            set r.ships@(si) = SETMIN(r.ships@(si), game_num.limit_ships)
         }
         set r.retreat = false
     }
@@ -52,7 +52,7 @@ func game_turn_limit_ships (g) {
         loop j in g.players {
             val r = g.eto@(j).orbit@(i)
             loop si in NUM_SHIPDESIGNS {
-                set r.ships@(si) = SETMIN(r.ships@(si), game_num_limit_ships)
+                set r.ships@(si) = SETMIN(r.ships@(si), game_num.limit_ships)
             }
         }
     }
@@ -161,7 +161,7 @@ func game_turn_send_transport (g) {
 }
 
 func game_turn_build_eco_sub1 (fact0, colonist_oper_fact, pop1, waste, max_pop2) {
-    if game_num_waste_calc_fix {
+    if game_num.waste_calc_fix {
         ;; WASBUG
         ;; MOO1 adds waste twice using two separate pieces of code.
         ;; The first time (see above) is as described in OSG.
@@ -221,13 +221,13 @@ func game_turn_build_eco (g) {
             set p.waste = SETMAX(p.waste, 0)
             if (ecoprod > 0) && e.have_atmos_terra && (p.growth == PLANET_GROWTH_HOSTILE) {
                 set p.bc_to_ecoproj = i16(p.bc_to_ecoproj + ecoprod)
-                if p.bc_to_ecoproj >= game_num_atmos_cost {
+                if p.bc_to_ecoproj >= game_num.atmos_cost {
                     game_turn_atmos_tform(p)
-                    set ecoprod = p.bc_to_ecoproj - game_num_atmos_cost
+                    set ecoprod = p.bc_to_ecoproj - game_num.atmos_cost
                     set p.bc_to_ecoproj = 0
-                    ;; WASBUG MOO1 did p->bc_to_ecoproj -= game_num_atmos_cost
+                    ;; WASBUG MOO1 did p->bc_to_ecoproj -= game_num.atmos_cost
                     ;; instead which allowed double-spending of credits if
-                    ;; p->bc_to_ecoproj > game_num_atmos_cost.
+                    ;; p->bc_to_ecoproj > game_num.atmos_cost.
                     game_add_planet_to_eco_finished(g, i, owner)
                 } else {
                     set ecoprod = 0
@@ -235,12 +235,12 @@ func game_turn_build_eco (g) {
             }
             if (ecoprod > 0) && e.have_soil_enrich && (p.growth == PLANET_GROWTH_NORMAL) {
                 set p.bc_to_ecoproj = i16(p.bc_to_ecoproj + ecoprod)
-                if p.bc_to_ecoproj > game_num_soil_cost {
+                if p.bc_to_ecoproj > game_num.soil_cost {
                     game_turn_soil_enrich(p, e.have_terraform_n, false)
-                    set ecoprod = p.bc_to_ecoproj - game_num_soil_cost
+                    set ecoprod = p.bc_to_ecoproj - game_num.soil_cost
                     ;; p->bc_to_ecoproj carries over as partial progress
                     ;; towards advanced soil enrichment.
-                    set p.bc_to_ecoproj = SETMIN(p.bc_to_ecoproj, game_num_soil_cost)
+                    set p.bc_to_ecoproj = SETMIN(p.bc_to_ecoproj, game_num.soil_cost)
                     ;; WASBUG MOO1 did not do the SETMIN, allowing
                     ;; double-spending again.
                     game_add_planet_to_eco_finished(g, i, owner)
@@ -250,9 +250,9 @@ func game_turn_build_eco (g) {
             }
             if (ecoprod > 0) && e.have_adv_soil_enrich && (p.growth < PLANET_GROWTH_GAIA) && (p.growth > PLANET_GROWTH_HOSTILE) {
                 set p.bc_to_ecoproj = i16(p.bc_to_ecoproj + ecoprod)
-                if p.bc_to_ecoproj > game_num_adv_soil_cost {
+                if p.bc_to_ecoproj > game_num.adv_soil_cost {
                     game_turn_soil_enrich(p, e.have_terraform_n, true)
-                    set ecoprod = p.bc_to_ecoproj - game_num_adv_soil_cost
+                    set ecoprod = p.bc_to_ecoproj - game_num.adv_soil_cost
                     set p.bc_to_ecoproj = 0
                     ;; WASBUG MOO1 did not reset p->bc_to_ecoproj to 0, but
                     ;; the planet may become hostile due to a random event and
@@ -262,7 +262,7 @@ func game_turn_build_eco (g) {
                     set ecoprod = 0
                 }
             }
-            if (ecoprod > 0) && ((p.max_pop3 - p.max_pop2) < e.have_terraform_n) && (p.max_pop3 < game_num_max_pop) {
+            if (ecoprod > 0) && ((p.max_pop3 - p.max_pop2) < e.have_terraform_n) && (p.max_pop3 < game_num.max_pop) {
                 val v = ecoprod // e.terraform_cost_per_inc
                 val tmax = e.have_terraform_n + p.max_pop2
                 if tmax < (p.max_pop3 + v) {
@@ -273,7 +273,7 @@ func game_turn_build_eco (g) {
                     set ecoprod = 0
                 }
             }
-            set p.max_pop3 = SETMIN(p.max_pop3, game_num_max_pop)
+            set p.max_pop3 = SETMIN(p.max_pop3, game_num.max_pop)
             set ecoprod = SETMAX(ecoprod, 0)
             do {
                 val v = game_get_pop_growth_max(g, p, p.max_pop3) + game_get_pop_growth_for_eco(g, p, ecoprod) + p.pop_tenths
@@ -473,7 +473,7 @@ func game_turn_build_def (g) {
                 var newshield = 0   ;; uint8_t
                 var j = 1
                 loop {
-                    while (j < PSHIELD_NUM) && (curcost >= game_num_pshield_cost@(j))
+                    while (j < PSHIELD_NUM) && (curcost >= game_num.pshield_cost@(j))
                     set newshield = newshield + 5
                     set j = j + 1
                 }
@@ -524,10 +524,10 @@ func game_turn_build_ship (g) {
             }
             val si = p.buildship    ;; uint8_t
             if si == BUILDSHIP_STARGATE {
-                if prod >= game_num_stargate_cost {
+                if prod >= game_num.stargate_cost {
                     set p.have_stargate = true
                     set p.buildship = 0
-                    set p.bc_to_ship = u16(prod - game_num_stargate_cost)
+                    set p.bc_to_ship = u16(prod - game_num.stargate_cost)
                     game_add_planet_to_stargate_finished(g, i, owner)
                 } else {
                     set p.bc_to_ship = u16(prod)
@@ -541,8 +541,8 @@ func game_turn_build_ship (g) {
                     set shipnum = shipnum + 1
                     set prod = prod - cost
                 }
-                if (shipnum + srd.shipcount@(si)) > game_num_limit_ships_all {
-                    set shipnum = i32(game_num_limit_ships_all - srd.shipcount@(si))
+                if (shipnum + srd.shipcount@(si)) > game_num.limit_ships_all {
+                    set shipnum = i32(game_num.limit_ships_all - srd.shipcount@(si))
                 }
                 set shipnum = SETMAX(shipnum, 0)
                 set srd.shipcount@(si) = u32(srd.shipcount@(si) + shipnum)
@@ -587,7 +587,7 @@ func game_turn_reserve (g) {
 }
 
 func game_add_planet_to_build_finished (g, pli, owner, type_) {
-    if game_opt_message_filter@(type_) {
+    if game_opt.message_filter@(type_) {
         return nil
     }
     val p = g.planet@(pli)
@@ -596,7 +596,7 @@ func game_add_planet_to_build_finished (g, pli, owner, type_) {
 }
 
 func game_turn_finished_switch_slider (g, p, from, to) {
-    if game_num_slider_respects_locks && ((p.slider_lock@(from) != 0) || (p.slider_lock@(to) != 0)) {
+    if game_num.slider_respects_locks && ((p.slider_lock@(from) != 0) || (p.slider_lock@(to) != 0)) {
         return false
     }
     if from == to {
@@ -613,7 +613,7 @@ func game_turn_finished_switch_slider (g, p, from, to) {
 }
 
 func game_turn_finished_disable_slider (g, p, from, build_ind) {
-    if game_num_slider_respects_locks && (p.slider_lock@(from) != 0) {
+    if game_num.slider_respects_locks && (p.slider_lock@(from) != 0) {
         return nil
     }
     val first = if build_ind => PLANET_SLIDER_IND => PLANET_SLIDER_TECH
@@ -636,7 +636,7 @@ func game_turn_build_ind (g) {
             var v = e.colonist_oper_factories - p.pop_oper_fact - bonus
             if v > 0 {
                 set v = v * (e.factory_cost // 2)
-                if game_num_factory_cost_fix {
+                if game_num.factory_cost_fix {
                     if e.race != RACE_MEKLAR {
                         set v = (e.factory_cost * p.factories) // 2
                     } else {
@@ -647,14 +647,14 @@ func game_turn_build_ind (g) {
                 set v = 0
             }
             if ((prod // cost) + fact) > (p.pop * p.pop_oper_fact) {
-                if game_num_factory_cost_fix && (fact < (p.pop * p.pop_oper_fact)) {
+                if game_num.factory_cost_fix && (fact < (p.pop * p.pop_oper_fact)) {
                     set num = u16((p.pop * p.pop_oper_fact) - fact)
                     set fact = u16(p.pop * p.pop_oper_fact)
                     set prod = prod - (num * cost)
                 }
                 set p.bc_to_refit = u16(p.bc_to_refit + prod)
                 if p.bc_to_refit >= v {
-                    if game_num_factory_cost_fix && (e.race != RACE_MEKLAR) {
+                    if game_num.factory_cost_fix && (e.race != RACE_MEKLAR) {
                         set p.pop_oper_fact = u8(p.pop_oper_fact + 1)
                         set p.pop_oper_fact = SETMIN(p.pop_oper_fact, e.colonist_oper_factories)
                     } else {
@@ -677,13 +677,13 @@ func game_turn_build_ind (g) {
             } else {
                 set v = 0
             }
-            if game_num_factory_cost_fix && (p.pop_oper_fact < e.colonist_oper_factories) {
+            if game_num.factory_cost_fix && (p.pop_oper_fact < e.colonist_oper_factories) {
                 set p.bc_to_refit = u16(p.bc_to_refit + ((v * cost) // 2))
             } else {
                 set e.reserve_bc = u32(e.reserve_bc + ((v * cost) // 2))
             }
             set fact = u16(fact + num)
-            set fact = SETMIN(fact, game_num_max_factories)
+            set fact = SETMIN(fact, game_num.max_factories)
             set p.factories = i16(fact)
             if (fact != factold) && (fact >= (p.max_pop3 * e.colonist_oper_factories)) {
                 if IS_HUMAN(g, owner) && (p.slider@(PLANET_SLIDER_IND) > 0) {
@@ -809,7 +809,7 @@ func game_turn_move_ships (g) {
             val o = g.eto@(r.owner).orbit@(r.dest)
             loop j in NUM_SHIPDESIGNS {
                 var s = u32(o.ships@(j) + r.ships@(j))  ;; uint32_t
-                set s = SETMIN(s, game_num_limit_ships)
+                set s = SETMIN(s, game_num.limit_ships)
                 set o.ships@(j) = u16(s)
             }
             util_table_remove_item_any_order(i, g.enroute, g.enroute_num)
@@ -839,7 +839,7 @@ func game_turn_explore (g) {
                 if (!flag_visible) && e.have_adv_scanner {
                     loop pli2 in g.galaxy_stars {
                         val p2 = g.planet@(pli2)
-                        if (p2.owner == i) && (util_math_dist_fast(p.x, p.y, p2.x, p2.y) <= game_num_adv_scan_range) {
+                        if (p2.owner == i) && (util_math_dist_fast(p.x, p.y, p2.x, p2.y) <= game_num.adv_scan_range) {
                             set flag_visible = true
                             break
                         }
@@ -903,7 +903,7 @@ func game_turn_explore (g) {
                     if flag_do_colonize {
                         set p.owner = i
                         set p.pop = 2
-                        if game_num_colonized_factories_fix && (p.prev_owner != PLAYER_NONE) && (p.prev_owner != i) {
+                        if game_num.colonized_factories_fix && (p.prev_owner != PLAYER_NONE) && (p.prev_owner != i) {
                             if p.factories != 0 {
                                 set p.pop_oper_fact = 1
                             } else {
@@ -912,7 +912,7 @@ func game_turn_explore (g) {
                             set p.bc_to_refit = 0
                         }
                         set e.orbit@(pli).ships@(best_colonyship) = u16(e.orbit@(pli).ships@(best_colonyship) - 1)
-                        if (pli == g.evn.planet_orion_i) && game_num_news_orion {
+                        if (pli == g.evn.planet_orion_i) && game_num.news_orion {
                             set g.evn.have_orion_conquer = i + 1
                         }
                     }
@@ -963,7 +963,7 @@ func game_turn_transport_shoot (g, planet_i, rowner, num_transports, speed, atta
                 if w.nummiss != 0 {
                     set v = u32(v * w.nummiss)
                 }
-                set v = SETMIN(v, game_num_max_trans_dmg)
+                set v = SETMIN(v, game_num.max_trans_dmg)
                 if w.is_bomb || w.is_bio {
                     set v = 0
                 }
@@ -979,7 +979,7 @@ func game_turn_transport_shoot (g, planet_i, rowner, num_transports, speed, atta
     }
     var complevel = ((bestcomp - speed) * 2) + 12
     set complevel = SETRANGE(complevel, 1, 20)
-    val wnum = if game_num_orbital_weap_any => WEAPON_NUM => WEAPON_CRYSTAL_RAY
+    val wnum = if game_num.orbital_weap_any => WEAPON_NUM => WEAPON_CRYSTAL_RAY
     loop i in wnum {    ;; WASBUG? excludes death ray and amoeba stream too
         var vcur = tbl@(i)  ;; uint32_t
         if vcur != 0 {
@@ -1076,7 +1076,7 @@ func game_turn_transport (g) {
                 val n = pop2 - pop3
                 ;; with no owner, no interdictor (C read g->eto[PLAYER_NONE]: #11, fixed)
                 val have_int = (p.owner != PLAYER_NONE) && g.eto@(p.owner).have_sub_space_int
-                if game_num_combat_trans_fix {    ;; do as OSG says: 50% chance, 25% if interdictor
+                if game_num.combat_trans_fix {    ;; do as OSG says: 50% chance, 25% if interdictor
                     val c = if have_int => 4 => 2
                     loop in n {
                         if rnd_0_nm1(c, g) == 0 {
@@ -1129,7 +1129,7 @@ func game_turn_transport (g) {
                     } else {
                         if p.owner == owner {
                             if p.unrest == PLANET_UNREST_REBELLION {
-                                set p.inbound@(owner) = u16(ADDSATT(p.inbound@(owner), pop3, game_num_max_inbound))
+                                set p.inbound@(owner) = u16(ADDSATT(p.inbound@(owner), pop3, game_num.max_inbound))
                                 set p.total_inbound@(owner) = u16(p.total_inbound@(owner) + pop3)
                             } else {
                                 set p.pop = i16(ADDSATT(p.pop, pop3, p.max_pop3))
@@ -1137,7 +1137,7 @@ func game_turn_transport (g) {
                         } else {
                             ;; e5a6
                             if g.eto@(owner).treaty@(p.owner) != TREATY_ALLIANCE {
-                                set p.inbound@(owner) = u16(ADDSATT(p.inbound@(owner), pop3, game_num_max_inbound))
+                                set p.inbound@(owner) = u16(ADDSATT(p.inbound@(owner), pop3, game_num.max_inbound))
                                 set p.total_inbound@(owner) = u16(p.total_inbound@(owner) + pop2)
                             }
                         }
@@ -1275,13 +1275,13 @@ func game_turn_finished_slider (g) {
         }
         val e = g.eto@(pi)
         var cond_build_ind = p.factories < (p.pop * e.colonist_oper_factories)
-        if game_num_cond_switch_to_ind_fix {
+        if game_num.cond_switch_to_ind_fix {
             set cond_build_ind = p.factories < (p.max_pop3 * e.colonist_oper_factories)
         }
-        if game_num_factory_cost_fix {
+        if game_num.factory_cost_fix {
             set cond_build_ind = cond_build_ind || (p.pop_oper_fact < e.colonist_oper_factories)
         }
-        if BOOLVEC_IS1(p.finished, FINISHED_SOILATMOS) && !(game_num_slider_eco_done_fix && game_planet_can_terraform(g, p, p.owner, true)) {
+        if BOOLVEC_IS1(p.finished, FINISHED_SOILATMOS) && !(game_num.slider_eco_done_fix && game_planet_can_terraform(g, p, p.owner, true)) {
             game_turn_finished_disable_slider(g, p, PLANET_SLIDER_ECO, cond_build_ind)
             game_add_planet_to_build_finished(g, pli, pi, FINISHED_SOILATMOS)
         }
@@ -1298,7 +1298,7 @@ func game_turn_finished_slider (g) {
                 val w = game_planet_get_waste_percent(r_waste, g, p, false)
                 set v = SUBSAT0(v, r_waste.waste)
                 if ((game_get_pop_growth_for_eco(g, p, v) // 10) > 0) || ((p.slider@(PLANET_SLIDER_ECO) != 0) && (e.race == RACE_SILICOID)) {
-                    if (p.pop > p.pop_prev) || (p.slider@(PLANET_SLIDER_ECO) > (w + game_num_eco_slider_slack)) {
+                    if (p.pop > p.pop_prev) || (p.slider@(PLANET_SLIDER_ECO) > (w + game_num.eco_slider_slack)) {
                         game_turn_finished_disable_slider(g, p, PLANET_SLIDER_ECO, cond_build_ind)
                         if p.pop > p.pop_prev {
                             game_add_planet_to_build_finished(g, pli, pi, FINISHED_POPMAX)
@@ -1507,7 +1507,7 @@ func game_turn_process (g) {
     game_update_have_reserve_fuel(g)
     game_turn_update_trade(g)
     game_spy_build(g)
-    if !game_num_hidden_child_labor_fix {
+    if !game_num.hidden_child_labor_fix {
         game_update_production(g)
     }
     game_turn_diplo_adjust(g)
@@ -1595,8 +1595,8 @@ func game_turn_process (g) {
     }
     if true
       && (!g.gaux.flag_cheat_elections)
-      && (game_num_council_years != 0)
-      && (((g.year % game_num_council_years) == 0) || (!g.election_held))
+      && (game_num.council_years != 0)
+      && (((g.year % game_num.council_years) == 0) || (!g.election_held))
       && (num_alive > 2)
       && (((g.galaxy_stars * 2) // 3) <= num_colony)
       && (g.end == GAME_END_NONE) {
@@ -1647,7 +1647,7 @@ func game_turn_process (g) {
     game_turn_finished_slider(g)
     game_turn_claim(g)
     game_update_within_range(g)
-    if game_num_extended_reloc_range {
+    if game_num.extended_reloc_range {
         game_update_reloc_dest(g)
     }
     game_update_visibility(g)

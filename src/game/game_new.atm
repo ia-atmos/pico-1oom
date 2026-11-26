@@ -743,12 +743,12 @@ func game_generate_race_banner (g) {
     loop k in g.players {
         if IS_AI(g, k) {
             val r = g.eto@(k).race
-            set g.eto@(k).trait2 = game_num_tbl_trait2@(r)@(rnd_0_nm1(TRAIT2_TBL_NUM, g))
+            set g.eto@(k).trait2 = game_num.tbl_trait2@(r)@(rnd_0_nm1(TRAIT2_TBL_NUM, g))
         }
     }
     loop k in g.players {
         val r = g.eto@(k).race
-        set g.eto@(k).trait1 = game_num_tbl_trait1@(r)@(rnd_0_nm1(TRAIT1_TBL_NUM, g))
+        set g.eto@(k).trait1 = game_num.tbl_trait1@(r)@(rnd_0_nm1(TRAIT1_TBL_NUM, g))
     }
 }
 
@@ -1072,7 +1072,7 @@ func game_generate_research (g, rflag) {
             val rl = g.srd@(pli).researchlist
             val rmax = if g.eto@(pli).race == RACE_PSILON => 3 => 2
             loop field in TECH_FIELD_NUM {
-                val rr = game_num_ng_tech@(race)@(field)
+                val rr = game_num.ng_tech@(race)@(field)
                 loop tier in TECH_TIER_NUM {
                     var num_taken = 0
                     loop l in 3 {
@@ -1254,7 +1254,7 @@ func game_new (g, gaux, opt) {
     game_generate_relation_etc(g)
     game_generate_research(g, researchflag)
     game_generate_misc(g)
-    if !game_num_update_on_load {
+    if !game_num.update_on_load {
         game_generate_load(g)
     }
     loop i in g.players {

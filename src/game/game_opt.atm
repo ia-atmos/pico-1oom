@@ -1,0 +1,29 @@
+;; The options of the game: the variables `game_opt_*` of C (game.c,
+;; game_event.c, game_nump.c, game_turn.c), as the fields of one table.
+;; `new`, `custom` and `end` are set by game_main.atm (their types come
+;; from game_new.atm and game_end.atm).
+
+pin game_opt = [
+    skip_intro_always = false,
+    skip_intro = false,
+    new_game = false,
+    continue = false,
+    load_game = 0,
+    load_fname = nil,
+    undo_enabled = true,
+    year_save_enabled = false,
+    init_save_enabled = true,
+    next_turn = false,
+    save_quit = false,
+    end = nil,                  ;; game_end_s(): { GAME_END_NONE, 0, 0, 0, 0 }
+    new = nil,                  ;; game_new_options_s()
+    custom = nil,               ;; game_new_options_s()
+    new_value = 200,
+    custom_race_value = 0xaaaaa0,
+    custom_banner_value = 666660,
+    custom_isai_value = 111110,
+    message_filter = [ false, false, false, false, false, false ],  ;; [FINISHED_NUM]
+    skip_random_news = false,
+    fix_bugs = false,
+    fix_starting_ships = false,
+]

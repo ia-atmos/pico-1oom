@@ -2,27 +2,33 @@
 ;; the global options, the handlers of options (`options_*_var`) and the
 ;; constructor of an option (struct cmdline_options_s: `str`, `num_param`,
 ;; `handle`, `var`, `str_param`, `str_help`). In C `var` points to the
-;; variable; here it is `[get=..., put=...]` (`opt_var`), or `nil`.
+;; variable; here it is `[tbl=..., key=...]`, the field of a table, or `nil`.
 
 include "log.atm"
 
 ;; ---------------------------------------------------------------------------
-;; global options (FEATURE_MODEBUG and HAVE_SAMPLERATE are off in the build)
+;; The options of options.c, as the fields of one table `opt` (opt_X of C
+;; is opt.X); FEATURE_MODEBUG and HAVE_SAMPLERATE are off in the build.
 
-var opt_audio_enabled = true
-var opt_music_enabled = true
-var opt_sfx_enabled = true
-var opt_sfx_init_parallel = true
-var opt_music_volume = 64
-var opt_sfx_volume = 100
-var opt_audiorate = 48000
-var opt_audioslice_ms = 50
-var opt_cfg_reset = false
-
-;; The variable `&v` of C, as its two accessors.
-func opt_var (get, put) {
-    [ get = get, put = put ]
-}
+pin opt = [
+    ;; local options of options.c
+    logfilename_in = nil,
+    configfilename_in = nil,    ;; used only for the -c option
+    configfilename = nil,
+    config_ro = false,
+    datapath = nil,
+    default = false,
+    ;; global options
+    audio_enabled = true,
+    music_enabled = true,
+    sfx_enabled = true,
+    sfx_init_parallel = true,
+    music_volume = 64,
+    sfx_volume = 100,
+    audiorate = 48000,
+    audioslice_ms = 50,
+    cfg_reset = false,
+]
 
 ;; `atoi` of C: blanks, a sign, the digits, up to the first other char.
 func opt_atoi (s) {
@@ -46,42 +52,42 @@ func opt_atoi (s) {
 }
 
 func options_enable_int_var (argv, var_) {
-    var_.put(1)
+    set var_.tbl@(var_.key) = 1
     0
 }
 
 func options_disable_int_var (argv, var_) {
-    var_.put(0)
+    set var_.tbl@(var_.key) = 0
     0
 }
 
 func options_set_int_var (argv, var_) {
-    var_.put(opt_atoi(argv@(1)))
+    set var_.tbl@(var_.key) = opt_atoi(argv@(1))
     0
 }
 
 func options_set_str_var (argv, var_) {
-    var_.put(argv@(1))
+    set var_.tbl@(var_.key) = argv@(1)
     0
 }
 
 func options_unset_str_var (argv, var_) {
-    var_.put(nil)
+    set var_.tbl@(var_.key) = nil
     0
 }
 
 func options_empty_str_var (argv, var_) {
-    var_.put("")
+    set var_.tbl@(var_.key) = ""
     0
 }
 
 func options_enable_bool_var (argv, var_) {
-    var_.put(true)
+    set var_.tbl@(var_.key) = true
     0
 }
 
 func options_disable_bool_var (argv, var_) {
-    var_.put(false)
+    set var_.tbl@(var_.key) = false
     0
 }
 

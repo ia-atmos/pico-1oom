@@ -25,7 +25,7 @@ func game_stat_fleet (g, pi) {
     var ve = 0
     var sum = 0
     loop i in e.shipdesigns_num {
-        set sum = sum + (srd.shipcount@(i) * game_num_tbl_hull_w@(srd.design@(i).hull))
+        set sum = sum + (srd.shipcount@(i) * game_num.tbl_hull_w@(srd.design@(i).hull))
     }
     set sum = SETMIN(sum, 0x319750)
     set v4 = 0

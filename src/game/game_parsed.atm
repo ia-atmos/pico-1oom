@@ -534,7 +534,7 @@ func game_parsed_from_planet (sp, g, p) {
     }
     set sp.shield = e.base_shield
     set sp.absorb = tbl_shiptech_shield@(e.base_shield).absorb
-    set sp.hp = game_num_base_hp@(get_best_armor(g, p.owner))
+    set sp.hp = game_num.base_hp@(get_best_armor(g, p.owner))
     set sp.defense = 1
     set sp.misdefense = u8(game_get_best_jammer(g, p.owner, e.tech.percent@(TECH_FIELD_COMPUTER)) + 1)
     if p.missile_bases > 0 {

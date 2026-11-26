@@ -274,7 +274,7 @@ func game_audience_ai_pays_bounty (au) {
     val pa = au.pa
     val eh = g.eto@(ph)
     ui_audience_show2(au)
-    if game_num_aud_bounty_give {   ;; WASBUG MOO1 never gives the bounty
+    if game_num.aud_bounty_give {   ;; WASBUG MOO1 never gives the bounty
         set eh.reserve_bc = u32(eh.reserve_bc + eh.attack_gift_bc@(pa))
         if eh.attack_gift_tech@(pa) != 0 {
             game_tech_get_new(g, ph, eh.attack_gift_field@(pa), eh.attack_gift_tech@(pa), TECHSOURCE_TRADE, pa, PLAYER_NONE, false)
@@ -546,7 +546,7 @@ func audience_menu_treaty (au) {
     }
     var all_num = 0     ;; uint8_t
     loop i in g.players {
-        if (i != ph) && (i != pa) && BOOLVEC_IS1(ea.contact, i) && ((ea.treaty@(i) == TREATY_ALLIANCE) || (game_num_aud_ask_break_nap && (ea.treaty@(i) == TREATY_NONAGGRESSION))) {
+        if (i != ph) && (i != pa) && BOOLVEC_IS1(ea.contact, i) && ((ea.treaty@(i) == TREATY_ALLIANCE) || (game_num.aud_ask_break_nap && (ea.treaty@(i) == TREATY_NONAGGRESSION))) {
             set all_tbl@(all_num) = i
             set all_num = all_num + 1
         }
@@ -706,7 +706,7 @@ func audience_menu_tribute (au) {
     pin bctbl = carray(4)   ;; uint16_t[]
     pin strtbl_build = strbuild_init(au.strtbl_buf, AUDIENCE_STRTBL_BUFSIZE)
     set au.buf = game_str_au_whattr
-    set reserve = SETMIN(reserve, game_num_max_tribute_bc)
+    set reserve = SETMIN(reserve, game_num.max_tribute_bc)
     set reserve = (reserve // 25) * 25
     if reserve < 100 {
         set bcnum = reserve // 25
@@ -1000,7 +1000,7 @@ func game_audience (g, ph, pa) {
     if au.dtype == 32 {
         game_diplo_break_treaty(g, pa, ph)
     }
-    if game_num_aud_update_tech {
+    if game_num.aud_update_tech {
         game_update_tech_util(g)
         game_update_within_range(g)
         game_update_visibility(g)

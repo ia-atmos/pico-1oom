@@ -49,7 +49,7 @@ func game_send_fleet_do (g, owner, from, dest, ships, shiptypes, numtypes, retre
             loop j in numtypes {
                 if ships@(j) > 0 {
                     val st = shiptypes@(j)
-                    set r.ships@(st) = u16(ADDSATT(r.ships@(st), ships@(j), game_num_limit_ships))
+                    set r.ships@(st) = u16(ADDSATT(r.ships@(st), ships@(j), game_num.limit_ships))
                 }
             }
             return true
@@ -254,7 +254,7 @@ func game_fleet_unrefuel (g) {
 }
 
 func game_fleet_get_speed (g, r, pfrom, pto) {
-    if game_num_stargate_redir_fix && ((r.speed == FLEET_SPEED_STARGATE) || (pfrom != PLANET_NONE)) {
+    if game_num.stargate_redir_fix && ((r.speed == FLEET_SPEED_STARGATE) || (pfrom != PLANET_NONE)) {
         val owner = r.owner
         val pt = g.planet@(pto)
         val pf = if pfrom != PLANET_NONE => g.planet@(pfrom) => nil

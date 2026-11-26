@@ -79,7 +79,7 @@ func cfg_apply_item (mname, it, iname, v) {
                 log_warning("Cfg: item '%s.%s' failed check\n", mname, iname)
                 return -1
             }
-            it.put(n)
+            set it.tbl@(it.key) = n
         }
         CFG_TYPE_STR => {
             if type(v) != "string" {
@@ -90,14 +90,14 @@ func cfg_apply_item (mname, it, iname, v) {
                 log_warning("Cfg: item '%s.%s' failed check\n", mname, iname)
                 return -1
             }
-            it.put(v)
+            set it.tbl@(it.key) = v
         }
         CFG_TYPE_BOOL => {
             if type(v) != "boolean" {
                 log_error("Cfg: invalid value of '%s.%s'\n", mname, iname)
                 return -1
             }
-            it.put(v)
+            set it.tbl@(it.key) = v
         }
         else => nil
     }
@@ -195,7 +195,7 @@ func cfg_str_out (s) {
 }
 
 func cfg_save (filename) {
-    if opt_cfg_reset {
+    if opt.cfg_reset {
         return cfg_clear(filename)
     }
     log_message("Cfg: saving configuration to '%s'\n", filename)
@@ -215,14 +215,14 @@ func cfg_save (filename) {
             loop _, item in module.items {
                 match item.type {
                     CFG_TYPE_INT => {
-                        io.write(fd, string.format("        %s = %i,\n", item.name, item.get()))
+                        io.write(fd, string.format("        %s = %i,\n", item.name, item.tbl@(item.key)))
                     }
                     CFG_TYPE_STR => {
-                        val v = item.get()
+                        val v = item.tbl@(item.key)
                         io.write(fd, string.format("        %s = %s,\n", item.name, if v != nil => cfg_str_out(v) => "nil"))
                     }
                     CFG_TYPE_BOOL => {
-                        io.write(fd, string.format("        %s = %s,\n", item.name, if item.get() => "true" => "false"))
+                        io.write(fd, string.format("        %s = %s,\n", item.name, if item.tbl@(item.key) => "true" => "false"))
                     }
                     CFG_TYPE_COMMENT => {
                         io.write(fd, string.format("        ;; %s\n", item.name))

@@ -497,7 +497,7 @@ func game_battle_handle_all (g) {
             if pli == monster_planet@(i) {
                 BOOLVEC_SET1(tbl_have_force, PLAYER_NUM + i)
             } else {
-                if game_num_monster_rest_att && (i != MONSTER_GUARDIAN) {
+                if game_num.monster_rest_att && (i != MONSTER_GUARDIAN) {
                     ;; 1oom option: allow fighting resting monsters
                     val m = if i == MONSTER_CRYSTAL => g.evn.crystal => g.evn.amoeba
                     if (m.counter >= 0) && (m.x == p.x) && (m.y == p.y) {

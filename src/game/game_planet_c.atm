@@ -92,7 +92,7 @@ func game_planet_destroy (g, planet_i, attacker) {
     set p.shield = 0
     set p.bc_to_shield = 0
     BOOLVEC_CLEAR(p.finished, FINISHED_NUM)
-    if game_num_extended_reloc_range {
+    if game_num.extended_reloc_range {
         return nil
     }
     loop i in g.galaxy_stars {
@@ -145,7 +145,7 @@ func game_planet_adjust_percent (g, owner, si, percent, growth) {
                 if si != PLANET_SLIDER_IND {
                     set sum = sum + p.slider@(PLANET_SLIDER_IND)
                 }
-                if game_num_newtech_adjust_fix && (si != PLANET_SLIDER_ECO) {
+                if game_num.newtech_adjust_fix && (si != PLANET_SLIDER_ECO) {
                     var eco = p.slider@(PLANET_SLIDER_ECO) - game_planet_get_waste_percent(nil, g, p, false)
                     set eco = SETMAX(eco, 0)
                     set sum = sum + eco
@@ -186,7 +186,7 @@ func game_planet_can_terraform (g, p, active_player, soilatmos) {
             return true
         }
     }
-    ((p.max_pop2 + e.have_terraform_n) > p.max_pop3) && (p.max_pop3 < game_num_max_pop)
+    ((p.max_pop2 + e.have_terraform_n) > p.max_pop3) && (p.max_pop3 < game_num.max_pop)
 }
 
 func game_planet_update_home (g) {
@@ -244,7 +244,7 @@ func game_planet_get_slider_text (g, p, si, buf, bufsize) {
         PLANET_SLIDER_SHIP => {
             val vthis = game_adjust_prod_by_special((p.prod_after_maint * p.slider@(PLANET_SLIDER_SHIP)) // 100, p.special)
             val vtotal = vthis + p.bc_to_ship
-            var cost = if p.buildship == BUILDSHIP_STARGATE => game_num_stargate_cost => g.srd@(player).design@(p.buildship).cost
+            var cost = if p.buildship == BUILDSHIP_STARGATE => game_num.stargate_cost => g.srd@(player).design@(p.buildship).cost
             if (vtotal < cost) || (p.buildship == BUILDSHIP_STARGATE) {
                 if vthis < 1 {
                     lib_strcpy(buf, game_str_sm_prodnone, bufsize)
@@ -319,7 +319,7 @@ func game_planet_get_slider_text (g, p, si, buf, bufsize) {
                     if p.pop_oper_fact < e.colonist_oper_factories {
                         if e.race != RACE_MEKLAR {
                             set str = game_str_sm_refit
-                            if game_num_factory_cost_fix {
+                            if game_num.factory_cost_fix {
                                 ;; FIXME: Doesn't always match the result
                                 set str = game_str_sm_irc@(p.pop_oper_fact - 1)
                             }
@@ -376,21 +376,21 @@ func game_planet_get_slider_text_eco (g, p, flag_tenths, buf, bufsize) {
     } else {
         set vthis = SUBSAT0(vthis, adjwaste)
         if (vthis > 0) && e.have_atmos_terra && (p.growth == PLANET_GROWTH_HOSTILE) {
-            set vthis = vthis - (game_num_atmos_cost - p.bc_to_ecoproj)
+            set vthis = vthis - (game_num.atmos_cost - p.bc_to_ecoproj)
             if vthis < 0 {
                 set flag_ecoproj = true
                 set str = game_str_sm_ecoatmos
             }
         }
         if (vthis > 0) && e.have_soil_enrich && (p.growth == PLANET_GROWTH_NORMAL) {
-            set vthis = vthis - (game_num_soil_cost - p.bc_to_ecoproj)
+            set vthis = vthis - (game_num.soil_cost - p.bc_to_ecoproj)
             if vthis < 0 {
                 set flag_ecoproj = true
                 set str = game_str_sm_ecosoil
             }
         }
         if (vthis > 0) && e.have_adv_soil_enrich && ((p.growth == PLANET_GROWTH_NORMAL) || (p.growth == PLANET_GROWTH_FERTILE)) {
-            set vthis = vthis - (game_num_adv_soil_cost - p.bc_to_ecoproj)
+            set vthis = vthis - (game_num.adv_soil_cost - p.bc_to_ecoproj)
             if vthis < 0 {
                 set flag_ecoproj = true
                 set str = game_str_sm_ecogaia
@@ -398,7 +398,7 @@ func game_planet_get_slider_text_eco (g, p, flag_tenths, buf, bufsize) {
         }
         if vthis > 0 {
             var tform_cost
-            if p.max_pop3 < game_num_max_pop {
+            if p.max_pop3 < game_num.max_pop {
                 ;; WASBUG In MOO 1.3, if you conquered a planet from a race
                 ;; with more advanced terraforming than you, a negative
                 ;; terraforming cost would be calculated here. This affected
@@ -438,14 +438,14 @@ func game_planet_get_slider_text_eco (g, p, flag_tenths, buf, bufsize) {
                 } else {
                     if (((p.pop - p.trans_num) * 10) + growth) > (max_pop * 10) {
                         set growth = (max_pop - (p.pop - p.trans_num)) * 10
-                        if !game_num_pop_tenths_fix {
+                        if !game_num.pop_tenths_fix {
                             set growth = growth + p.pop_tenths
                         }
                     }
                     set growth2 = game_get_pop_growth_for_eco(g, p, vthis) + growth
                     if (((p.pop - p.trans_num) * 10) + growth2) >= (max_pop * 10) {
                         set growth2 = (max_pop - (p.pop - p.trans_num)) * 10
-                        if !game_num_pop_tenths_fix {
+                        if !game_num.pop_tenths_fix {
                             set growth2 = growth2 + p.pop_tenths
                         }
                         set max = growth != growth2

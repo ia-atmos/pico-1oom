@@ -103,10 +103,10 @@ func ui_newtech_adjust (d) {
         }
         val v = ui_input_list(buf, "> ", rl_in)
         game_update_tech_util(d.g)
-        if !game_num_newtech_adjust_fix {
+        if !game_num.newtech_adjust_fix {
             game_update_eco_on_waste(d.g, d.api, true)
         }
-        game_planet_adjust_percent(d.g, d.api, tbl_a0@(d.dialog_type - 1), game_num_tbl_tech_autoadj@(v), tbl_a2@(d.dialog_type - 1))
+        game_planet_adjust_percent(d.g, d.api, tbl_a0@(d.dialog_type - 1), game_num.tbl_tech_autoadj@(v), tbl_a2@(d.dialog_type - 1))
     }
 }
 

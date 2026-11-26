@@ -1,5 +1,6 @@
 ;; Port of c/src/game/game_event.c and game_event.h.
 
+include "game_opt.atm"
 include "../boolvec.atm"
 include "../comp.atm"
 include "../ctypes.atm"
@@ -26,7 +27,6 @@ include "game_tech.atm"
 
 ;; ---------------------------------------------------------------------------
 
-var game_opt_skip_random_news = false
 
 ;; ---------------------------------------------------------------------------
 
@@ -158,7 +158,7 @@ func game_event_kill_player (g, pi) {
 
 func game_event_new (g) {
     val v = g.evn
-    if g.gaux.flag_cheat_events || (game_num_event_roll == 0) {
+    if g.gaux.flag_cheat_events || (game_num.event_roll == 0) {
         set v.have_plague = 0
         set v.have_quake = false
         set v.have_nova = 0
@@ -185,7 +185,7 @@ func game_event_new (g) {
         DIFFICULTY_HARD => { set chance = (chance * 4) // 5 }
         else => nil
     }
-    if rnd_1_n(game_num_event_roll, g) > chance {
+    if rnd_1_n(game_num.event_roll, g) > chance {
         return nil
     }
     val player = game_event_new_get_victim(g)
@@ -218,7 +218,7 @@ func game_event_new (g) {
           ;; planets with at least 30 factories. This is not true for MOO 1.3,
           ;; but we optionally check for it if accident_chk_factories is set in
           ;; a pbx file.
-          || ((t == GAME_EVENT_ACCIDENT) && game_num_accident_chk_factories && (p.factories < 30))
+          || ((t == GAME_EVENT_ACCIDENT) && game_num.accident_chk_factories && (p.factories < 30))
           || ((t == GAME_EVENT_ENVIRO) && (p.type < PLANET_TYPE_MINIMAL))
           || ((t == GAME_EVENT_ENVIRO) && ((p.growth >= PLANET_GROWTH_FERTILE) || (p.special > PLANET_SPECIAL_NORMAL)))
           || ((t == GAME_EVENT_RICH) && (p.special > PLANET_SPECIAL_NORMAL))
@@ -553,7 +553,7 @@ func game_event_run (g, ge) {
             val e = g.eto@(player)
             val sd = g.srd@(player).design@(0)
             loop i in e.shipdesigns_num {
-                set dmg = dmg + (rnd_1_n(game_num_tbl_hull_w@(sd.hull), g) * e.orbit@(pli).ships@(i))
+                set dmg = dmg + (rnd_1_n(game_num.tbl_hull_w@(sd.hull), g) * e.orbit@(pli).ships@(i))
             }
             set ns.race = e.race
         } else {
@@ -615,7 +615,7 @@ func game_event_run (g, ge) {
             val e = g.eto@(player)
             val sd = g.srd@(player).design@(0)
             loop i in e.shipdesigns_num {
-                set dmg = dmg + (rnd_1_n(game_num_tbl_hull_w@(sd.hull), g) * e.orbit@(pli).ships@(i))
+                set dmg = dmg + (rnd_1_n(game_num.tbl_hull_w@(sd.hull), g) * e.orbit@(pli).ships@(i))
             }
             set dmg = SETMIN(dmg, 32000)
         }
@@ -1051,7 +1051,7 @@ func game_event_run (g, ge) {
         set any_news = true
     }
     ;; 114fb
-    if (!game_opt_skip_random_news) && (!any_news) && (rnd_0_nm1(40, g) == 0) && (g.year > 25) && (g.end == GAME_END_NONE) {
+    if (!game_opt.skip_random_news) && (!any_news) && (rnd_0_nm1(40, g) == 0) && (g.year > 25) && (g.end == GAME_END_NONE) {
         set ns.type = GAME_NEWS_STATS
         set ns.subtype = rnd_0_nm1(4, g)
         ui_news(g, ns)

@@ -178,7 +178,7 @@ func ui_cmd_fleet_redir (g, api, param, num_param, var_) {
                 if (!e.have_hyperspace_comm) && (pon == PLANET_NONE) {
                     return -1
                 }
-                if game_num_retreat_redir_fix && r.retreat && (!e.have_hyperspace_comm) && (pon == dest) {
+                if game_num.retreat_redir_fix && r.retreat && (!e.have_hyperspace_comm) && (pon == dest) {
                     return -1
                 }
                 var in_range = false

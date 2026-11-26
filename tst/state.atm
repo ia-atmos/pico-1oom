@@ -525,7 +525,7 @@ func do_op (op) {
         "ai_p1" => game_ai.turn_p1(g)
         "ai_p2" => game_ai.turn_p2(g)
         "ai_p3" => game_ai.turn_p3(g)
-        "set_event_roll" => { set game_num_event_roll = arg(op, 0) }
+        "set_event_roll" => { set game_num.event_roll = arg(op, 0) }
         "set_year" => { set g.year = arg(op, 0) }
         "event_new" => game_event_new(g)
         "event_run" => {
