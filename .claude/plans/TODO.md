@@ -42,7 +42,7 @@ Last update: 2026-11-26
 | #21 | `%u` back in the port (its ~6 `%d`): needs a compiler of `ia-atmos/lang` main; read access to it was denied here | decision | done 2026-11-26: %u back, with a compiler of main built from the local clone |
 | #22 | The config file is a table of Atmos (`X.load`), not the lines of C: his decision, on #15 (external, the logic unchanged) | work | done 2026-11-26 |
 | #23 | Style: idiomatic Atmos, free to join, split or reorganize modules and functions; the behaviour identical to C in the checks is the criterion (his decision, 2026-11-26, on #16) | decision | settled 2026-11-26 |
-| #24 | The options of the config as tables (`game_opt`, ...), the config read and written from them, in place of a getter and a setter per global (#16, under #23) | work | known, not done |
+| #24 | The options of the config as tables (`game_opt`, ...), the config read and written from them, in place of a getter and a setter per global (#16, under #23) | work | done 2026-11-26: `game_num`, `game_opt`, `opt` |
 | #25 | Rules: only the corrected game. The wrong rules of MOO1 that 1oom keeps by default, and their options (`rules_*_fix`, `fix_bugs`, the fixes of `game_num_fix_bugs_1_3a`), go: the port has the correct rules only (his decision, 2026-11-26) | decision | REVERTED 2026-11-26 by #29: the rules of the game and their options stay as in 1oom |
 | #26 | The bugs of the C of 1oom (#11, #12, #13, `st_shld_absorb`, the size of `realloc` in `game_str_patch`, `shortcuts[i]` past the array in `ui_input_list_dynamic`, the comparator of `qsort` in `uiview.c`; the `target_i` of the AI is initialized by 1oom already) are not reproduced: the port does the correct thing; the C of the checks gets the same fix in a local copy, for the checks only (never committed to 1oom, nothing upstream) | decision | settled 2026-11-26; done 2026-11-26 in `c/` (each marked `PICO-1OOM FIX #26`) |
 | #27 | The integers: the conversions to the widths of C (~1026) go, except at the borders (the save formats) and where the correct game needs a width; module by module with #23 | work | known, not done |
@@ -50,6 +50,8 @@ Last update: 2026-11-26
 | #29 | General instruction for the ports (his, confirmed 2026-11-26, relayed by `atmos`): fidelity is the behaviour observable while running, not the shape of the code nor file formats; idiomatic Atmos; external files (config, logs, saves) free, but the data the inside needs (LBX); only the bugs of safety or of the language fixed (#26) | decision | settled 2026-11-26 |
 | #30 | The saves in a native format of Atmos (`X.dump`/`X.load`), and the checks compare the state of the game, not the bytes of the save (#29; his "Sim, mudar testes") | work | known, not done |
 | #31 | Answer to #29 item 5: how much the port follows it, what is redone, a grade | report | owed |
+| #32 | Excerpt, good: `src/game/game_main.atm:523`, a config item names the field of a table | excerpt | reported 2026-11-26 |
+| #33 | Excerpt, bad: `src/optionsdefs.atm`, `set var_.tbl@(var_.key) = true` in each handler of options | excerpt | reported 2026-11-26 |
 
 ## A. Decisions waiting for an answer
 
