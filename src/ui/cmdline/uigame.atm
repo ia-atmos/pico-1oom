@@ -85,13 +85,13 @@ func ui_game_turn (g, load_game_i, pi) {
                 val v = cmd.handle(g, pi, ui_input_params(), ui_data.input.num - 1, cmd.var_)
                 if v >= 0 {
                     if cmd.handle == cmd_next {
-                        return (UI_TURN_ACT_NEXT_TURN, load_game_i)
+                        return UI_TURN_ACT_NEXT_TURN, load_game_i
                     }
                     if cmd.handle == ui_cmd_load {
-                        return (UI_TURN_ACT_LOAD_GAME, v)
+                        return UI_TURN_ACT_LOAD_GAME, v
                     }
                     if cmd.handle == ui_cmd_quit {
-                        return (UI_TURN_ACT_QUIT_GAME, load_game_i)
+                        return UI_TURN_ACT_QUIT_GAME, load_game_i
                     }
                 }
             }

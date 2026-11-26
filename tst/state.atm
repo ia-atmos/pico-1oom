@@ -153,7 +153,7 @@ set ui_spy_sabotage_ask = func (g_, spy, target) {
         }
     }
     out("sabotage_ask %d %d -> %d %d\n", spy, target, (spy + target) % 4, pl)
-    return ((spy + target) % 4, pl)
+    return (spy + target) % 4, pl
 }
 set ui_spy_sabotage_done = func (g_, pi, spy, target, act, other1, other2, planet, snum) {
     out("sabotage_done %d %d %d %d %d %d %d %d\n", pi, spy, target, act, other1, other2, planet, snum)

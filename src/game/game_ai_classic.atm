@@ -3902,7 +3902,7 @@ func game_ai_classic_aud_sweeten (au) {
         }
     }
     if (bc == 0) && (tech == 0) {
-        return (false, bc, field, tech)
+        return false, bc, field, tech
     }
     (true, bc, field, tech)
 }

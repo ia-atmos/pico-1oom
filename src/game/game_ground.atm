@@ -75,7 +75,7 @@ func ground_best (g, rc, num, field, group) {
             set besti = rc@(j)
         }
     }
-    return (best, besti)
+    return best, besti
 }
 
 func game_ground_resolve_init (g, gr) {

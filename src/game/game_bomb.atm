@@ -127,7 +127,7 @@ func game_turn_bomb_damage (g, pli, attacker) {
         set v = SETMIN(v, p.pop)
         set popdmg = v
     }
-    return (popdmg, factdmg, totalbio)
+    return popdmg, factdmg, totalbio
 }
 
 ;; ---------------------------------------------------------------------------

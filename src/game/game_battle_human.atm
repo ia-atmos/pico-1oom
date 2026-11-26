@@ -899,10 +899,10 @@ func game_battle_special (bt, attacker_i, target_i, dist0) {
                 }
             }
             set bd.stasisby = u8(attacker_i)
-            return (true, belowtarget_out)
+            return true, belowtarget_out
         } else {
             ;; 55ae9
-            return (false, belowtarget_out)    ;; FIXME BUG? returns attacker item offset
+            return false, belowtarget_out    ;; FIXME BUG? returns attacker item offset
         }
     }
     ;; 55afe
@@ -954,7 +954,7 @@ func game_battle_special (bt, attacker_i, target_i, dist0) {
                 set bd.hp1 = 50
                 game_battle_item_destroy(bt, target_i)
                 if target_i != 0 {
-                    return (true, belowtarget_out)
+                    return true, belowtarget_out
                 }
             }
         } else {
@@ -999,7 +999,7 @@ func game_battle_special (bt, attacker_i, target_i, dist0) {
         }
         set belowtarget_out = belowtarget
         if (dist == 100) && (target_i != 0) {   ;; FIXME redundant check
-            return (true, belowtarget_out)
+            return true, belowtarget_out
         }
     }
     ;; 560d4
@@ -1065,7 +1065,7 @@ func game_battle_special (bt, attacker_i, target_i, dist0) {
             if bd.num <= 0 {
                 game_battle_item_destroy(bt, target_i)
                 if target_i != 0 {
-                    return (true, belowtarget_out)
+                    return true, belowtarget_out
                 }
             }
             set b.blackhole = 2
@@ -1094,7 +1094,7 @@ func game_battle_special (bt, attacker_i, target_i, dist0) {
             set b.technull = 2
         }
     }
-    return (false, belowtarget_out)
+    return false, belowtarget_out
 }
 
 func game_battle_repulse_do (bt, target_i, sx, sy, attacker_i) {
@@ -1859,7 +1859,7 @@ func game_battle_get_xy_notsame (bt, item1, item2) {
     if (dx - dy) == 0 {
         set x_ns = -1
     }
-    return (y_ns, x_ns)
+    return y_ns, x_ns
 }
 
 ;; The corners of the reach of an item that a line does not reach, in

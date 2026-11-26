@@ -126,7 +126,7 @@ func util_parse_signed_number (str) {
     }
     if i == d0 {
         ;; no digits: strtol gives 0 and the end at the start
-        return (n == 0, 0)
+        return n == 0, 0
     }
     set v = i32(if neg => -v => v)
     (i == n, v)
@@ -164,7 +164,7 @@ func util_parse_number (str) {
         set i = i + 1
     }
     if i == d0 {
-        return (n == 0, 0)
+        return n == 0, 0
     }
     set v = u32(if neg => -v => v)
     (i == n, v)

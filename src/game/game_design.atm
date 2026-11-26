@@ -686,7 +686,7 @@ func game_design_build_tbl_fit_special (g, gd, buf, sslot) {
 }
 
 func game_design_compact_slots (sd) {
-    loop _ in SPECIAL_SLOT_NUM {
+    loop in SPECIAL_SLOT_NUM {
         loop i in SPECIAL_SLOT_NUM - 1 {
             if sd.special@(i) == 0 {
                 set sd.special@(i) = sd.special@(i + 1)
@@ -700,7 +700,7 @@ func game_design_compact_slots (sd) {
             set sd.wpnn@(i) = 0
         }
     }
-    loop _ in WEAPON_SLOT_NUM {
+    loop in WEAPON_SLOT_NUM {
         loop i in WEAPON_SLOT_NUM - 1 {
             if sd.wpnt@(i) == 0 {
                 set sd.wpnt@(i) = sd.wpnt@(i + 1)

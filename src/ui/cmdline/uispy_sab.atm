@@ -85,7 +85,7 @@ set ui_spy_sabotage_ask = func (g, spy, target) {
                 if (v >= 0) && (cmd.handle == cmd_sab) {
                     val planet = UI_SPY_SAB_PLANET(v)
                     val act = UI_SPY_SAB_ACT(v)
-                    return (act, planet)
+                    return act, planet
                 }
             }
         }
