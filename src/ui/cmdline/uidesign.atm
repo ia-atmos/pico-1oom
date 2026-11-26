@@ -38,7 +38,7 @@ func cmd_design_look (g, api, param, num_param, var_) {
             set v = v | tbl_shiptech_special@(sd.special@(i)).boolmask
         }
         set v = u16(tbl_shiptech_comp@(sd.comp).level + (if (v & (1 << SHIP_SPECIAL_BOOL_SCANNER)) != 0 => 1 => 0))
-        io.write(string.format("%c%s: %s, %s %d\n", flag_c(d.flag_disable_comp), game_str_sd_comp, tbl_shiptech_comp@(sd.comp).nameptr(), game_str_sd_att, v))
+        io.write(string.format("%c%s: %s, %s %u\n", flag_c(d.flag_disable_comp), game_str_sd_comp, tbl_shiptech_comp@(sd.comp).nameptr(), game_str_sd_att, u32(v)))
     }
     io.write(string.format("%c%s: %s", flag_c(d.flag_disable_shield), game_str_sd_shield, tbl_shiptech_shield@(sd.shield).nameptr()))
     if sd.shield != 0 {
@@ -48,18 +48,18 @@ func cmd_design_look (g, api, param, num_param, var_) {
     io.write("\n")
     do {
         val v = u8(extraman + sd.man + tbl_shiptech_jammer@(sd.jammer).level + tbl_shiptech_hull@(sd.hull).defense + 1)
-        io.write(string.format("%c%s: %s, %s %d\n", flag_c(d.flag_disable_jammer), game_str_sd_ecm, tbl_shiptech_jammer@(sd.jammer).nameptr(), game_str_sd_misdef, v))
+        io.write(string.format("%c%s: %s, %s %u\n", flag_c(d.flag_disable_jammer), game_str_sd_ecm, tbl_shiptech_jammer@(sd.jammer).nameptr(), game_str_sd_misdef, u32(v)))
     }
     io.write(string.format("%c%s: %s, %s %i\n", flag_c(d.flag_disable_armor), game_str_sd_armor, tbl_shiptech_armor@(sd.armor).nameptr(), game_str_sd_hp, sd.hp))
     do {
         val warp = tbl_shiptech_engine@(sd.engine).warp
         val def = u8(extraman + sd.man + tbl_shiptech_hull@(sd.hull).defense + 1)
-        io.write(string.format("%c%s: %s, %s %d, %s %d\n", flag_c(d.flag_disable_engine), game_str_sd_engine, tbl_shiptech_engine@(sd.engine).nameptr(), game_str_sd_warp, warp, game_str_sd_def, def))
+        io.write(string.format("%c%s: %s, %s %u, %s %u\n", flag_c(d.flag_disable_engine), game_str_sd_engine, tbl_shiptech_engine@(sd.engine).nameptr(), game_str_sd_warp, u32(warp), game_str_sd_def, u32(def)))
     }
     do {
         val man = u8(extraman + sd.man + 1)
         val cspeed = u8((extraman // 2) + ((sd.man + 3) // 2))
-        io.write(string.format("%c%s: %d, %s %d\n", flag_c(d.flag_disable_cspeed), game_str_sd_man, man, game_str_sd_cspeed, cspeed))
+        io.write(string.format("%c%s: %u, %s %u\n", flag_c(d.flag_disable_cspeed), game_str_sd_man, u32(man), game_str_sd_cspeed, u32(cspeed)))
     }
     loop i in WEAPON_SLOT_NUM {
         val wi = sd.wpnt@(i)

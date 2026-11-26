@@ -1282,7 +1282,7 @@ func game_num_patch (numid, patchnums, first, num) {
             if (is_signed && ((v < s.vmin) || (u32(v) > s.vmax)))
                 || (!is_signed && ((u32(v) < u32(s.vmin)) || (u32(v) > s.vmax)))
             {
-                log_error("NUM: numid '%s' %ssigned value %i (%d) outside range %i..%d\n", numid, if is_signed => "" => "un", v, u32(v), s.vmin, s.vmax)
+                log_error("NUM: numid '%s' %ssigned value %i (%u) outside range %i..%u\n", numid, if is_signed => "" => "un", v, u32(v), s.vmin, u32(s.vmax))
                 return false
             }
             val k = first + i
@@ -1313,13 +1313,17 @@ func game_num_dump () {
         if (s.vmin != prevmin) || (s.vmax != prevmax) {
             set prevmin = s.vmin
             set prevmax = s.vmax
-            log_message("# %i..%d\n", prevmin, prevmax)
+            log_message("# %i..%u\n", prevmin, u32(prevmax))
         }
         log_message("4,%s,0", s.numid)
         loop i in s.size {
             val x = s.get(i)
             val v = if s.numtype == NUMTYPE_BOOL => cint(x) => x
-            log_message(",%d", v)
+            if NUMTYPE_IS_S(s.numtype) {
+                log_message(",%i", v)
+            } else {
+                log_message(",%u", u32(v))
+            }
         }
         log_message("\n")
     }

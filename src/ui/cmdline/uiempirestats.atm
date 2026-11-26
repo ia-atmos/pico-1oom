@@ -21,7 +21,7 @@ func ui_cmd_empirestats (g, api, param, num_param, var_) {
         val e = g.eto@(st.p@(i))
         io.write(string.format(fmt, game_str_tbl_race@(e.race)))
         loop s in 6 {
-            io.write(string.format("   %3d", st.v@(s)@(i)))  ;; (%3u in C)
+            io.write(string.format("   %3u", u32(st.v@(s)@(i))))
         }
         io.write("\n")
     }

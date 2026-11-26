@@ -92,10 +92,10 @@ func ui_battle_prepost (bt, winner) {
     pin force = carray2(2, SHIP_HULL_NUM)   ;; shipsum_t[][]
     game_battle_count_hulls(bt, force)
     loop i in SHIP_HULL_NUM {
-        io.write(string.format("- %5d %s %d\n", force@(SIDE_L)@(i), game_str_tbl_st_hull@(i), force@(SIDE_R)@(i)))   ;; (%u in C)
+        io.write(string.format("- %5u %s %u\n", u32(force@(SIDE_L)@(i)), game_str_tbl_st_hull@(i), u32(force@(SIDE_R)@(i))))
     }
     if bt.bases != 0 {
-        io.write(string.format("- %s %d\n", game_str_sb_bases, bt.bases))
+        io.write(string.format("- %s %u\n", game_str_sb_bases, u32(bt.bases)))
     }
     if winner != SIDE_NONE {
         val party_winner = bt.s@(winner).party

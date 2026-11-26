@@ -129,7 +129,7 @@ func game_audience_str_append_offer (strbuild, g, field, tech, bc) {
         strbuild_catf(strbuild, " %s", game_str_au_tech)
     } else {
         if bc != 0 {
-            strbuild_catf(strbuild, "%d %s", bc, game_str_bc)
+            strbuild_catf(strbuild, "%u %s", u32(bc), game_str_bc)
         }
     }
 }
@@ -210,8 +210,8 @@ func audience_build_diplo_msg (au, framed) {
                 0xc => { set s = game_str_tbl_race@(g.eto@(eh.au_ask_break_treaty@(pa)).race) }
                 0xf => strbuild_catf(strbuild, "%i", g.year + YEAR_BASE)
                 0x13 => strbuild_catf(strbuild, "%i", au.tribute_bc)
-                7 => strbuild_catf(strbuild, "%d", eh.au_want_trade@(pa))
-                0x15 => strbuild_catf(strbuild, "%d", eh.trade_bc@(pa))
+                7 => strbuild_catf(strbuild, "%u", u32(eh.au_want_trade@(pa)))
+                0x15 => strbuild_catf(strbuild, "%u", u32(eh.trade_bc@(pa)))
                 0xa => strbuild_catf(strbuild, AU_C2 ++ " %s" ++ AU_C1, game_str_au_amreca)
                 0x11 => { set s = game_str_tbl_race@(g.eto@(au.pstartwar).race) }
                 0x12 => { set s = game_str_tbl_race@(g.eto@(au.pwar).race) }
@@ -362,7 +362,7 @@ func game_audience_ai_offers_treaty (au) {
                 set au.mode = 6
                 game_audience_set_dtype(au, 78, 3)
             }
-            else => log_fatal_and_die("%s: BUG unhandled dtype %d\n", "game_audience_ai_offers_treaty", au.dtype)
+            else => log_fatal_and_die("%s: BUG unhandled dtype %u\n", "game_audience_ai_offers_treaty", u32(au.dtype))
         }
         ;; BUG? Give the deal-sweetener. Note that this happens even if the
         ;; player didn't refuse at first and thus didn't see the sweetener.

@@ -282,7 +282,7 @@ func game_opt_do_new_seed (argv, var_) {
     set game_opt_load_fname = nil
     set game_opt_continue = false
     set game_opt_new_game = true
-    log_message("Game: -new %d:0x%x:%d:0x%x:%d\n", vo, vr, vb, vs, va)    ;; (%u of C: Atmos has no %u)
+    log_message("Game: -new %u:0x%x:%u:0x%x:%u\n", u32(vo), vr, u32(vb), vs, u32(va))
     0
 }
 

@@ -1248,7 +1248,7 @@ func game_new (g, gaux, opt) {
             }
             set m = m * 10
         }
-        log_message("Game: new game -new %d:0x%x:%d:0x%x:%d -nga %d\n", vo, vr, vb, g.galaxy_seed, va, g.ai_id)
+        log_message("Game: new game -new %u:0x%x:%u:0x%x:%u -nga %u\n", u32(vo), vr, u32(vb), g.galaxy_seed, u32(va), u32(g.ai_id))
     }
     game_generate_home_etc(g, opt)
     game_generate_relation_etc(g)
