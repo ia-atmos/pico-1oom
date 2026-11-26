@@ -317,7 +317,7 @@ func lbxfile_find_dir () {
         }
     }
     log_error("could not find the LBX files! Try running with -data path_to_moo1.\n")
-    -1
+    return -1
 }
 
 ;; The item as a buffer and a position (a pointer of C); or nil.

@@ -77,7 +77,7 @@ func game_save_infer_nebula_type (g, index) {
             return t
         }
     }
-    -1
+    return -1
 }
 
 func game_save_encode_planet (buf, pos, p, pnum, version) {
@@ -278,7 +278,7 @@ func game_save_decode_orbits (buf, pos, o, planets) {
         set q = SG_1OOM_DE_TBL_U16(buf, q, o@(i).ships, NUM_SHIPDESIGNS)
     }
     log_error("Save: decode orbit terminator missing\n")
-    -1
+    return -1
 }
 
 func game_save_encode_eto (buf, pos, e, pnum, planets, version) {
