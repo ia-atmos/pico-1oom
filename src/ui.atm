@@ -35,6 +35,7 @@ var ui_gmap_basic_finish_frame = func (ctx, pi) { ui_not_set("ui_gmap_basic_fini
 var ui_gmap_basic_shutdown = func (ctx) { ui_not_set("ui_gmap_basic_shutdown") }
 
 var ui_newtech = func (g, pi) { ui_not_set("ui_newtech") }
+var ui_newships = func (g, pi) { ui_not_set("ui_newships") }
 
 ;; The spies. `ui_spy_sabotage_ask` gives the action and the planet (the
 ;; `uint8_t *planetptr` of C).

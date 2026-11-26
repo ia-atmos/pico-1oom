@@ -1,0 +1,64 @@
+;; Port of c/src/game/game_cheat.c.
+;; TODO disable for multiplayer and return false
+
+include "../boolvec.atm"
+include "../rnd.atm"
+include "game.atm"
+include "game_misc.atm"
+include "game_tech.atm"
+
+func game_cheat_galaxy (g, pi) {
+    set g.gaux.flag_cheat_galaxy = !g.gaux.flag_cheat_galaxy
+    game_update_tech_util(g)
+    game_update_within_range(g)
+    game_update_visibility(g)
+    loop i in g.galaxy_stars {
+        BOOLVEC_SET1(g.planet@(i).explored, pi)
+    }
+    true
+}
+
+func game_cheat_elections (g, pi) {
+    set g.gaux.flag_cheat_elections = !g.gaux.flag_cheat_elections
+    true
+}
+
+func game_cheat_events (g, pi) {
+    set g.gaux.flag_cheat_events = !g.gaux.flag_cheat_events
+    true
+}
+
+func game_cheat_spy_hint (g, pi) {
+    set g.gaux.flag_cheat_spy_hint = !g.gaux.flag_cheat_spy_hint
+    true
+}
+
+func game_cheat_stars (g, pi) {
+    set g.gaux.flag_cheat_stars = !g.gaux.flag_cheat_stars
+    true
+}
+
+func game_cheat_tech_hint (g, pi) {
+    set g.gaux.flag_cheat_tech_hint = !g.gaux.flag_cheat_tech_hint
+    true
+}
+
+func game_cheat_moola (g, pi) {
+    val e = g.eto@(pi)
+    set e.reserve_bc = u32(e.reserve_bc + 100)
+    game_update_production(g)
+    true
+}
+
+func game_cheat_traits (g, pi) {
+    loop i in g.players {
+        set g.eto@(i).trait2 = rnd_0_nm1(TRAIT2_NUM, g)
+        set g.eto@(i).trait1 = rnd_0_nm1(TRAIT1_NUM, g)
+    }
+    true
+}
+
+func game_cheat_news (g, pi) {
+    set g.gaux.flag_cheat_news = !g.gaux.flag_cheat_news
+    true
+}

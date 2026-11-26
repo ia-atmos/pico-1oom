@@ -1,0 +1,53 @@
+;; Port of c/src/game/game_turn_start.c.
+
+include "../boolvec.atm"
+include "../lib.atm"
+include "../ui.atm"
+include "game.atm"
+include "game_str.atm"
+
+func game_turn_start_messages (g, pi) {
+    val buf = ui_get_strbuf()
+    do {
+        val e = g.eto@(pi)
+        loop i in g.players {
+            if BOOLVEC_IS1(e.contact_broken, i) {
+                BOOLVEC_SET0(e.contact_broken, i)
+                lib_sprintf(buf, UI_STRBUF_SIZE, "%s %s %s", game_str_tr_cont1, game_str_tbl_race@(g.eto@(i).race), game_str_tr_cont2)
+                ui_turn_msg(g, pi, buf)
+            }
+        }
+    }
+    loop pli in g.galaxy_stars {
+        val p = g.planet@(pli)
+        if BOOLVEC_IS1(p.unrefuel, pi) {
+            val str = strbuild_init(buf, UI_STRBUF_SIZE)
+            val name = cstr(p.name)
+            BOOLVEC_SET0(p.unrefuel, pi)
+            strbuild_catf(str, "%s ", game_str_tr_fuel1)
+            if #name > 0 {
+                strbuild_append_char(str, string.byte(name, 0))
+                loop i in (1, #name - 1) {
+                    val c = string.byte(name, i)
+                    strbuild_append_char(str, if (c >= 65) && (c <= 90) => (c + 32) => c)   ;; tolower
+                }
+            }
+            strbuild_catf(str, " %s", game_str_tr_fuel2)
+            set g.planet_focus_i@(pi) = pli
+            ui_turn_msg(g, pi, buf)
+        }
+    }
+    var any_new = false
+    loop si in NUM_SHIPDESIGNS {
+        if g.evn.new_ships@(pi)@(si) != 0 {
+            set any_new = true
+            break
+        }
+    }
+    if any_new {
+        ui_newships(g, pi)
+    }
+    loop si in NUM_SHIPDESIGNS {
+        set g.evn.new_ships@(pi)@(si) = 0
+    }
+}
