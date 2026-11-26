@@ -1,0 +1,19 @@
+;; Port of c/src/ui/cmdline/uiplanet.c, in part (#14).
+
+include "../../boolvec.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+
+;; Gives a string: the name, or "#" and the star type and index.
+func ui_planet_str (g, api, planet_i) {
+    val p = g.planet@(planet_i)
+    ifs {
+        BOOLVEC_IS1(p.explored, api) => cstr(p.name)
+        (p.owner != PLAYER_NONE) && (false
+          || BOOLVEC_IS1(p.within_srange, api)
+          || (p.within_frange@(api) == 1)
+          || (planet_i == g.evn.planet_orion_i)) => cstr(p.name)
+        else => string.format("#%c%i", string.byte(game_str_tbl_sm_stinfo@(p.star_type), 0), planet_i)   ;; HACK
+    }
+}

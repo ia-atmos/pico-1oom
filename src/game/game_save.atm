@@ -18,6 +18,9 @@ include "game_nebula.atm"
 
 val NUM_SAVES = 6
 val NUM_ALL_SAVES = NUM_SAVES + 1 + 1 + 1   ;; continue game, undo, init
+val GAME_SAVE_I_CONTINUE = 7 - 1
+val GAME_SAVE_I_UNDO = 8 - 1
+val GAME_SAVE_I_INIT = 9 - 1
 val SAVE_NAME_LEN = 20
 
 ;; ---------------------------------------------------------------------------

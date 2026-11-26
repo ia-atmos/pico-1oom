@@ -1,0 +1,305 @@
+;; Port of c/src/ui/cmdline/uiinput.c and uiinput.h (without readline). The
+;; input is a string here; a token is a part of it.
+
+include "../../lib.atm"
+include "../../log.atm"
+include "../../os/unix/os.atm"
+include "../../util.atm"
+include "uidefs.atm"
+
+;; `struct input_list_s`: [value, key, str, display].
+pin il_yes_no = [
+    [ value = 1, key = "Y", str = nil, display = "Yes" ],
+    [ value = 0, key = "N", str = nil, display = "No" ],
+    [ value = 0, key = nil, str = nil, display = nil ],
+]
+
+func c_tolower (c) {
+    if (c >= 65) && (c <= 90) => (c + 32) => c
+}
+
+func c_toupper (c) {
+    if (c >= 97) && (c <= 122) => (c - 32) => c
+}
+
+func str_tolower (s) {
+    var r = ""
+    loop i in #s {
+        set r = r ++ string.char(c_tolower(string.byte(s, i)))
+    }
+    r
+}
+
+func ui_input_match_input (in_, key, str) {
+    val len = #in_
+    if len == 0 {
+        return false
+    }
+    if (key != nil) && (len == 1) && (c_tolower(string.byte(in_, 0)) == c_tolower(string.byte(key, 0))) {
+        return true
+    }
+    if str != nil {
+        var i = 0
+        loop {
+            while (i < len) && (i < #str)
+            if string.byte(str, i) != c_tolower(string.byte(in_, i)) {
+                return false
+            }
+            set i = i + 1
+        }
+        if i == #str {
+            return true
+        }
+    }
+    false
+}
+
+func ui_input_wait_enter () {
+    ui_input_line("(press enter)")
+}
+
+;; Without readline: the prompt, then a line of at most 1022 characters.
+func ui_input_line (prompt) {
+    io.write(prompt)
+    val line = io.read()
+    if line == nil {
+        log_message("(end of input)\n")
+        os_exit(0)
+    }
+    ;; (fgets with 1023: a longer line is read in parts, as C does)
+    if #line > 1022 {
+        throw "ui_input_line: line longer than 1022 characters"
+    }
+    ;; the line ends at a '\r' (as C ends it at '\n' or '\r')
+    var i = 0
+    loop {
+        while (i < #line) && (string.byte(line, i) != 13)
+        set i = i + 1
+    }
+    string.sub(line, 0, i - 1)
+}
+
+func ui_input_line_len_trim (prompt, maxlen) {
+    val line = ui_input_line(prompt)
+    pin buf = carray(1024)
+    loop i in #line {
+        set buf@(i) = string.byte(line, i)
+    }
+    util_trim_whitespace(buf, 1024)
+    if #cstr(buf) > maxlen {
+        set buf@(maxlen - 1) = 0
+    }
+    cstr(buf)
+}
+
+func ui_input_list (title, prompt, list) {
+    ui_input_list_dynamic(title, prompt, [ list = list, ctx = nil, get_display = nil, is_ok = nil ])
+}
+
+func ui_input_list_dynamic (title, prompt, ld) {
+    val list = ld.list
+    func display (l) {
+        if ld.get_display != nil => ld.get_display(ld.ctx, l) => l.display
+    }
+    var num_shortcuts = 0
+    loop {
+        while display(list@(num_shortcuts)) != nil
+        set num_shortcuts = num_shortcuts + 1
+    }
+    pin shortcuts = []
+    loop i in num_shortcuts {
+        var s = display(list@(i))
+        if string.byte(s, 0) == 40 {   ;; '('
+            set s = string.sub(s, 1, #s - 1)
+        }
+        set shortcuts@(i) = str_tolower(s)
+    }
+    loop i in num_shortcuts {
+        var is_unique = false
+        var len = 0
+        loop {
+            while !is_unique
+            set len = len + 1
+            while len < #shortcuts@(i)
+            set is_unique = true
+            loop j in num_shortcuts {
+                if (i != j) && (string.sub(shortcuts@(i), 0, len - 1) == string.sub(shortcuts@(j), 0, len - 1)) {
+                    set is_unique = false
+                    break
+                }
+            }
+            if is_unique && (len == 1) {
+                val c = c_toupper(string.byte(shortcuts@(i), 0))
+                loop j in num_shortcuts {
+                    if (i != j) && (list@(j).key != nil) && (string.byte(list@(j).key, 0) == c) {
+                        set is_unique = false
+                        break
+                    }
+                }
+            }
+        }
+        set shortcuts@(i) = string.sub(shortcuts@(i), 0, len - 1)
+    }
+    loop {
+        io.write("\n")
+        if title != nil {
+            io.write(title ++ "\n")
+        }
+        var k = 0
+        loop {
+            val l = list@(k)
+            while (l.str != nil) || (l.key != nil)
+            var s
+            var is_ok
+            if ld.get_display != nil {
+                set s = ld.get_display(ld.ctx, l)
+                set is_ok = ld.is_ok(ld.ctx, l)
+            } else {
+                set s = l.display
+                set is_ok = true
+            }
+            if s != nil {
+                io.write(string.format("  %s) ", l.key))
+                if !is_ok {
+                    io.write("(")
+                }
+                io.write(s)
+                if !is_ok {
+                    io.write(")")
+                }
+                io.write("\n")
+            }
+            set k = k + 1
+        }
+        val in_ = ui_input_line(prompt)
+        set k = 0
+        loop {
+            val l = list@(k)
+            while (l.str != nil) || (l.key != nil)
+            if ui_input_match_input(in_, l.key, if l.str != nil => l.str => shortcuts@(k)) {
+                if (ld.is_ok != nil) && (!ld.is_ok(ld.ctx, l)) {
+                    break
+                }
+                return l.value
+            }
+            set k = k + 1
+        }
+        io.write("???\n")
+    }
+}
+
+;; Splits the line into tokens (of at most UI_INPUT_TOKEN_MAX); a command is
+;; looked up in `cmdsptr`, a vector of vectors of `input_cmd_s` (each ends
+;; with a nil `str_cmd`). Gives 0, or -1 for too many tokens or a missing '"'.
+func ui_input_tokenize (inputbuf, cmdsptr) {
+    var num = 0
+    set ui_data.input.num = 0
+    val n = #inputbuf
+    func at (i) {
+        if i < n => string.byte(inputbuf, i) => 0
+    }
+    func is_ws (c) {
+        (c == 32) || (c == 9)
+    }
+    var p = 0
+    loop {
+        while is_ws(at(p))
+        set p = p + 1
+    }
+    if at(p) == 35 {   ;; '#'
+        return 0
+    }
+    loop {
+        while (at(p) != 0) && (at(p) != 10) && (at(p) != 13)
+        val start = p
+        var c = at(p)
+        if c == 34 {   ;; '"'
+            set p = p + 1
+            set c = at(p)
+            loop {
+                while (c != 34) && (c != 10) && (c != 13) && (c != 0)
+                if c == 92 {   ;; '\\'
+                    set p = p + 1
+                    set c = at(p)
+                }
+                set p = p + 1
+                set c = at(p)
+            }
+            if c != 34 {
+                log_error("Input: missing terminating '\"'\n")
+                return -1
+            }
+        } else {
+            loop {
+                while (c != 32) && (c != 9) && (c != 10) && (c != 13) && (c != 0)
+                set p = p + 1
+                set c = at(p)
+            }
+        }
+        if num >= UI_INPUT_TOKEN_MAX {
+            return -1   ;; (C writes one token past the table first)
+        }
+        val tok = ui_data.input.tok@(num)
+        set tok.str = string.sub(inputbuf, start, p - 1)
+        set tok.data = nil
+        set tok.type = INPUT_TOKEN_UNKNOWN
+        if c != 0 {
+            set p = p + 1
+        }
+        set num = num + 1
+        loop {
+            while is_ws(at(p))
+            set p = p + 1
+        }
+    }
+    loop i in num {
+        val tok = ui_data.input.tok@(i)
+        val s = tok.str
+        if string.byte(s, 0) != 34 {
+            val ok, v = util_parse_signed_number(s)
+            if ok {
+                val c0 = string.byte(s, 0)
+                set tok.type = if (c0 == 43) || (c0 == 45) => INPUT_TOKEN_RELNUMBER => INPUT_TOKEN_NUMBER
+                set tok.data = v
+            }
+        } else {
+            set tok.str = string.sub(s, 1, #s - 1)
+        }
+    }
+    if (num > 0) && (cmdsptr != nil) && (ui_data.input.tok@(0).type == INPUT_TOKEN_UNKNOWN) {
+        val p0 = ui_data.input.tok@(0).str
+        loop ci in #cmdsptr {
+            val cmds = cmdsptr@(ci)
+            if cmds == nil {
+                break
+            }
+            var k = 0
+            loop {
+                while cmds@(k).str_cmd != nil
+                val cmd = cmds@(k)
+                if (cmd.handle != nil) && (cmd.str_cmd == p0) {
+                    if ((num - 1) < cmd.num_param_min) || ((num - 1) > cmd.num_param_max) {
+                        log_error("Input: wrong number of parameters %i for '%s' (min %i, max %i)\n", num - 1, cmd.str_cmd, cmd.num_param_min, cmd.num_param_max)
+                        set num = 0
+                    }
+                    set ui_data.input.tok@(0).type = INPUT_TOKEN_COMMAND
+                    set ui_data.input.tok@(0).data = cmd
+                    set ui_data.input.num = num
+                    return 0
+                }
+                set k = k + 1
+            }
+        }
+    }
+    set ui_data.input.num = num
+    0
+}
+
+;; The tokens after the command, as the `param` of a handler.
+func ui_input_params () {
+    val v = []
+    loop i in (1, ui_data.input.num - 1) {
+        set v@(i - 1) = ui_data.input.tok@(i)
+    }
+    v
+}

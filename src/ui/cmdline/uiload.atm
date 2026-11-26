@@ -1,0 +1,60 @@
+;; Port of c/src/ui/cmdline/uiload.c.
+
+include "../../util.atm"
+include "../../game/game_save.atm"
+include "uiinput.atm"
+
+func ui_load_game () {
+    pin lg_in = [
+        [ value = 0, key = "1", str = nil, display = nil ],
+        [ value = 1, key = "2", str = nil, display = nil ],
+        [ value = 2, key = "3", str = nil, display = nil ],
+        [ value = 3, key = "4", str = nil, display = nil ],
+        [ value = 4, key = "5", str = nil, display = nil ],
+        [ value = 5, key = "6", str = nil, display = nil ],
+        [ value = 7, key = "7", str = nil, display = nil ],
+        [ value = 8, key = "8", str = nil, display = nil ],
+        [ value = 9, key = "9", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var num = 0
+    loop i in NUM_ALL_SAVES {
+        if game_save_tbl_have_save@(i) {
+            set lg_in@(num).value = i
+            set lg_in@(num).display = cstr(game_save_tbl_name@(i))
+            set num = num + 1
+        }
+    }
+    if num == 0 {
+        return -1
+    }
+    set lg_in@(num).value = -1
+    set lg_in@(num).key = "Q"
+    set lg_in@(num).str = "q"
+    set lg_in@(num).display = "(quit)"
+    set num = num + 1
+    set lg_in@(num).value = 0
+    set lg_in@(num).key = nil
+    set lg_in@(num).str = nil
+    set lg_in@(num).display = nil
+    ui_input_list("Load game", "> ", lg_in)
+}
+
+func ui_cmd_load (g, api, param, num_param, var_) {
+    if num_param == 0 {
+        return ui_load_game()
+    } else {
+        val ok, v = util_parse_signed_number(param@(0).str)
+        if ok {
+            if (v >= 1) && (v <= NUM_ALL_SAVES) {
+                return v - 1
+            } else {
+                if (v >= 2300) && (v <= 9999) {
+                    return v
+                }
+            }
+        }
+    }
+    -1
+}

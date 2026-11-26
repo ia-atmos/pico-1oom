@@ -1,0 +1,15 @@
+;; Port of c/src/ui/cmdline/uicheat.c.
+
+include "../../game/game_cheat.atm"
+
+func ui_cmd_cheat_galaxy (g, api, param, num_param, var_) {
+    if game_cheat_galaxy(g, api) => 0 => -1
+}
+
+func ui_cmd_cheat_events (g, api, param, num_param, var_) {
+    if game_cheat_events(g, api) => 0 => -1
+}
+
+func ui_cmd_cheat_moola (g, api, param, num_param, var_) {
+    if game_cheat_moola(g, api) => 0 => -1
+}

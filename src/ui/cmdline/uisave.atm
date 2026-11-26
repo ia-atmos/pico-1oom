@@ -1,0 +1,63 @@
+;; Port of c/src/ui/cmdline/uisave.c.
+
+include "../../util.atm"
+include "../../game/game_save.atm"
+include "uiinput.atm"
+
+func ui_save_game (g) {
+    pin lg_in = [
+        [ value = 0, key = "1", str = nil, display = nil ],
+        [ value = 1, key = "2", str = nil, display = nil ],
+        [ value = 2, key = "3", str = nil, display = nil ],
+        [ value = 3, key = "4", str = nil, display = nil ],
+        [ value = 4, key = "5", str = nil, display = nil ],
+        [ value = 5, key = "6", str = nil, display = nil ],
+        [ value = 7, key = "7", str = nil, display = nil ],
+        [ value = 8, key = "8", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var num = 0
+    loop i in NUM_ALL_SAVES {
+        if game_save_tbl_have_save@(i) {
+            set lg_in@(num).value = i
+            set lg_in@(num).display = cstr(game_save_tbl_name@(i))
+            set num = num + 1
+        }
+    }
+    if num == 0 {
+        return -1
+    }
+    set lg_in@(num).value = -1
+    set lg_in@(num).key = "Q"
+    set lg_in@(num).str = "q"
+    set lg_in@(num).display = "(quit)"
+    set num = num + 1
+    set lg_in@(num).value = -1
+    set lg_in@(num).key = nil
+    set lg_in@(num).str = nil
+    set lg_in@(num).display = nil
+    val v = ui_input_list("Save game", "> ", lg_in)
+    if (v >= 0) && (v < NUM_ALL_SAVES) {
+        var savename = ui_input_line("Save name > ")
+        if (savename == nil) || (#savename == 0) {
+            set savename = if game_save_tbl_have_save@(v) => cstr(game_save_tbl_name@(v)) => "(unnamed)"
+        }
+        return game_save_do_save_i(v, savename, g)
+    }
+    0
+}
+
+func ui_cmd_save (g, api, param, num_param, var_) {
+    if num_param == 0 {
+        return ui_save_game(g)
+    } else {
+        var ok, v = util_parse_signed_number(param@(0).str)
+        if ok && (v >= 1) && (v <= NUM_ALL_SAVES) {
+            set v = v - 1
+            val savename = if num_param == 2 => param@(1).str => (if game_save_tbl_have_save@(v) => cstr(game_save_tbl_name@(v)) => "(unnamed)")
+            return game_save_do_save_i(v, savename, g)
+        }
+    }
+    -1
+}

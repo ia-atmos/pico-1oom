@@ -1,0 +1,23 @@
+;; Port of c/src/ui/cmdline/uifinished.c.
+
+include "../../boolvec.atm"
+include "../../game/game.atm"
+include "../../game/game_planet_c.atm"
+include "uidefs.atm"
+
+func ui_finished_print_all (g, api) {
+    if g.evn.build_finished_num@(api) > 0 {
+        set g.evn.build_finished_num@(api) = 0
+        loop pli in g.galaxy_stars {
+            val p = g.planet@(pli)
+            if (p.owner == api) && ((p.finished@(0) & (~(1 << FINISHED_SHIP))) != 0) {
+                loop type in FINISHED_NUM {
+                    if (type != FINISHED_SHIP) && BOOLVEC_IS1(p.finished, type) {
+                        BOOLVEC_SET0(p.finished, type)
+                        io.write(string.format("- %s\n", cstr(game_planet_get_finished_text(g, p, type, ui_data.strbuf, UI_STRBUF_SIZE))))
+                    }
+                }
+            }
+        }
+    }
+}

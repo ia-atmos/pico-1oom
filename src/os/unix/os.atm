@@ -150,3 +150,20 @@ func os_get_fname_cfg (gamestr, uistr, hwstr) {
 func os_get_fname_log () {
     "1oom_log.txt"
 }
+
+;; `exit(code)` of C: runs the function given to `atexit` (one, as 1oom
+;; uses), then ends the program.
+var os_atexit_fn = nil
+
+func os_atexit (f) {
+    set os_atexit_fn = f
+}
+
+func os_exit (code) {
+    if os_atexit_fn != nil {
+        val f = os_atexit_fn
+        set os_atexit_fn = nil
+        f()
+    }
+    os.exit(code)
+}

@@ -1,0 +1,79 @@
+;; Port of c/src/ui/cmdline/uicmdline.c: the textual interface. It includes
+;; its screens and sets the functions of ui.atm that the logic calls.
+
+include "../../lib.atm"
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_turn.atm"
+include "uidefs.atm"
+include "uiending.atm"
+include "uigame.atm"
+include "uiintro.atm"
+
+val idstr_ui = "cmdline"
+var ui_use_audio = false
+
+func ui_early_show_message_box (msg) {
+}
+
+func ui_early_init () {
+    0
+}
+
+func ui_init () {
+    0
+}
+
+func ui_late_init () {
+    0
+}
+
+func ui_shutdown () {
+}
+
+set ui_get_strbuf = func () {
+    ui_data.strbuf
+}
+
+set ui_sound_play_sfx = func (sfxi) {
+}
+
+set ui_landing = func (g, pi, planet_i) {
+}
+
+set ui_turn_pre = func (g) {
+}
+
+set ui_turn_msg = func (g, pi, str) {
+    io.write(string.format("%s | %i | Message: %s\n", cstr(g.emperor_names@(pi)), g.year + YEAR_BASE, cstr(str)))
+}
+
+set ui_copyprotection_check = func (g) {
+    set copyprot_status = -99
+}
+
+set ui_copyprotection_lose = func (g, ge) {
+}
+
+set ui_newships = func (g, pi) {
+    var first = true
+    io.write(string.format("%s | %i | New ships:", cstr(g.emperor_names@(pi)), g.year + YEAR_BASE))
+    loop i in NUM_SHIPDESIGNS {
+        val n = g.evn.new_ships@(pi)@(i)
+        if n != 0 {
+            val sd = g.srd@(pi).design@(i)
+            if !first {
+                io.write(",")
+            } else {
+                set first = false
+            }
+            io.write(string.format(" %i * %s", n, cstr(sd.name)))
+        }
+    }
+    io.write("\n")
+}
+
+;; uimainmenu.c is not ported yet (#14).
+func ui_main_menu (newopts, customopts, challengeopts, load_game_i) {
+    throw "ui/cmdline: the main menu is not ported yet"
+}

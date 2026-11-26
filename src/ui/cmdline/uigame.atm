@@ -1,0 +1,106 @@
+;; Port of c/src/ui/cmdline/uigame.c.
+
+include "../../lib.atm"
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_turn_start.atm"
+include "uicheat.atm"
+include "uicmds.atm"
+include "uidefs.atm"
+include "uifinished.atm"
+include "uihelp.atm"
+include "uiinput.atm"
+include "uiplanet.atm"
+include "uiswitch.atm"
+
+;; The commands of the screens that are not ported yet (#14): they throw.
+func ui_cmd_not_ported (name) {
+    func (g, api, param, num_param, var_) {
+        throw "ui/cmdline: the command '" ++ name ++ "' is not ported yet"
+    }
+}
+
+func cmd_next (g, api, param, num_param, var_) {
+    0
+}
+
+pin cmds_turn = [
+    input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),  ;; (var: cmdsptr_turn, set below)
+    input_cmd_s("n", nil, "Next turn", 0, 0, 0, cmd_next, 0),
+    input_cmd_s("v", "[RANGE] [+DIST] [FILTERS]", "View galaxy up to RANGE and or DIST from planet\nFILTERS: Planet, Fleet, Transport,\n         mY, Opponent,\n         Unexplored, eXplored,\n         uNcolonized, Colonized", 0, 3, 0, ui_cmd_not_ported("v"), 0),
+    input_cmd_s("l", "[PLANET|*]", "Look at planet", 0, 1, 0, ui_cmd_not_ported("l"), 0),
+    input_cmd_s("g", "PLANET", "Go to planet", 1, 1, 0, ui_cmd_not_ported("g"), 0),
+    input_cmd_s("s", "SLIDER VALUE", "Set planet slider\nSLIDER is s, d, i, e or t\nVALUE can be +N or -N for relative adjustment", 2, 2, 0, ui_cmd_not_ported("s"), 0),
+    input_cmd_s("sl", "SLIDER", "Toggle planet slider lock", 1, 1, 0, ui_cmd_not_ported("sl"), 0),
+    input_cmd_s("b", "[SHIP]", "Select ship to build", 0, 1, 0, ui_cmd_not_ported("b"), 0),
+    input_cmd_s("bscrap", "VALUE", "Scrap missile bases", 1, 1, 0, ui_cmd_not_ported("bscrap"), 0),
+    input_cmd_s("reloc", "[PLANET]", "Relocate built ships to", 0, 1, 0, ui_cmd_not_ported("reloc"), 0),
+    input_cmd_s("trans", "[PLANET NUM]", "Transport troops to", 0, 2, 0, ui_cmd_not_ported("trans"), 0),
+    input_cmd_s("res", "[BC]", "Transfer reserves", 0, 1, 0, ui_cmd_not_ported("res"), 0),
+    input_cmd_s("fs", "PLANET [NUM]*", "Send fleet to\nAll ships are sent if no NUM given", 1, 7, 0, ui_cmd_not_ported("fs"), 0),
+    input_cmd_s("des", nil, "Ship design", 0, 0, 0, ui_cmd_not_ported("des"), 0),
+    input_cmd_s("fleet", nil, "Display fleets", 0, 0, 0, ui_cmd_not_ported("fleet"), 0),
+    input_cmd_s("scrap", "[SHIP]", "Scrap ship", 0, 1, 0, ui_cmd_not_ported("scrap"), 0),
+    input_cmd_s("specs", "[SHIP]", "Show fleet specs", 0, 1, 0, ui_cmd_not_ported("specs"), 0),
+    input_cmd_s("redir", "[#Fn|#Tn PLANET]", "Redirect fleet/transport to planet\nShows redirectable items if no params given", 0, 2, 0, ui_cmd_not_ported("redir"), 0),
+    input_cmd_s("t", "[FIELD]", "View technology\nFIELD is c, o, f, p, r or w\nShows sliders if no field given", 0, 1, 0, ui_cmd_not_ported("t"), 0),
+    input_cmd_s("ts", "FIELD VALUE", "Set tech slider to value\nVALUE can be +N or -N for relative adjustment", 2, 2, 0, ui_cmd_not_ported("ts"), 0),
+    input_cmd_s("tsl", "FIELD", "Toggle tech slider lock", 1, 1, 0, ui_cmd_not_ported("tsl"), 0),
+    input_cmd_s("t=", nil, "Equalize tech sliders", 0, 0, 0, ui_cmd_not_ported("t="), 0),
+    input_cmd_s("emp", nil, "Empire overview", 0, 0, 0, ui_cmd_not_ported("emp"), 0),
+    input_cmd_s("tax", "VALUE", "Set tax (tenths of percent)\nVALUE can be +N or -N for relative adjustment", 1, 1, 0, ui_cmd_not_ported("tax"), 0),
+    input_cmd_s("races", nil, "Show races", 0, 0, 0, ui_cmd_not_ported("races"), 0),
+    input_cmd_s("stats", nil, "Show stats", 0, 0, 0, ui_cmd_not_ported("stats"), 0),
+    input_cmd_s("spy", "RACE VALUE|MODE", "Set spy spending (tenths of percent) or mode (Hide, Esp., Sabotage)\nVALUE can be +N or -N for relative adjustment", 2, 2, 0, ui_cmd_not_ported("spy"), 0),
+    input_cmd_s("sec", "VALUE", "Set security spending (tenths of percent)\nVALUE can be +N or -N for relative adjustment", 1, 1, 0, ui_cmd_not_ported("sec"), 0),
+    input_cmd_s("rep", nil, "Show report", 0, 0, 0, ui_cmd_not_ported("rep"), 0),
+    input_cmd_s("aud", nil, "Audience", 0, 0, 0, ui_cmd_not_ported("aud"), 0),
+    input_cmd_s("galaxy", nil, nil, 0, 0, 0, ui_cmd_cheat_galaxy, 0),
+    input_cmd_s("events", nil, nil, 0, 0, 0, ui_cmd_cheat_events, 0),
+    input_cmd_s("moola", nil, nil, 0, 0, 0, ui_cmd_cheat_moola, 0),
+    input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+]
+
+pin cmdsptr_turn = [
+    cmds_turn,
+    ui_cmds_opts,
+    nil,
+]
+
+set cmds_turn@(0).var_ = cmdsptr_turn
+
+;; Gives (action, load_game_i): the `*load_game_i_ptr` of C.
+func ui_game_turn (g, load_game_i, pi) {
+    ui_switch_1_opts(g, pi)
+    game_turn_start_messages(g, pi)
+    ui_finished_print_all(g, pi)
+    loop {
+        val prompt = string.format("%s | %i | %s > ", cstr(g.emperor_names@(pi)), g.year + YEAR_BASE, ui_planet_str(g, pi, g.planet_focus_i@(pi)))
+        val input = ui_input_line(prompt)
+        if (ui_input_tokenize(input, cmdsptr_turn) == 0) && (ui_data.input.num > 0) {
+            if ui_data.input.tok@(0).type == INPUT_TOKEN_COMMAND {
+                val cmd = ui_data.input.tok@(0).data
+                val v = cmd.handle(g, pi, ui_input_params(), ui_data.input.num - 1, cmd.var_)
+                if v >= 0 {
+                    if cmd.handle == cmd_next {
+                        return (UI_TURN_ACT_NEXT_TURN, load_game_i)
+                    }
+                    if cmd.handle == ui_cmd_load {
+                        return (UI_TURN_ACT_LOAD_GAME, v)
+                    }
+                    if cmd.handle == ui_cmd_quit {
+                        return (UI_TURN_ACT_QUIT_GAME, load_game_i)
+                    }
+                }
+            }
+        }
+    }
+}
+
+func ui_game_start (g) {
+    BOOLVEC_CLEAR(ui_data.players_viewing, PLAYER_NUM)
+    io.write("Welcome! Type ? to get the list of commands.\n")
+}
+
+func ui_game_end (g) {
+}

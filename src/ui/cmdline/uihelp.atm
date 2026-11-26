@@ -1,0 +1,75 @@
+;; Port of c/src/ui/cmdline/uihelp.c.
+
+include "../../lib.atm"
+include "uidefs.atm"
+
+func get_cmds_w (cmds, lmax0) {
+    var lmax = lmax0
+    var i = 0
+    loop {
+        while cmds@(i).str_cmd != nil
+        var l = #cmds@(i).str_cmd + 1
+        if cmds@(i).str_param != nil {
+            set l = l + #cmds@(i).str_param
+        }
+        if l > lmax {
+            set lmax = l
+        }
+        set i = i + 1
+    }
+    lmax
+}
+
+func get_cmdsptr_w (cmdsptr, lmax0) {
+    var lmax = lmax0
+    loop k in #cmdsptr {
+        val cmds = cmdsptr@(k)
+        if cmds == nil {
+            break
+        }
+        set lmax = get_cmds_w(cmds, lmax)
+    }
+    lmax
+}
+
+func show_cmds (cmdsptr, lmax) {
+    val fmt1 = string.format("    %%-%is ", lmax)
+    val fmt2 = string.format("%%s\n%%-%is", lmax + 5)
+    loop k in #cmdsptr {
+        val cmds = cmdsptr@(k)
+        if cmds == nil {
+            break
+        }
+        var i = 0
+        loop {
+            while cmds@(i).str_cmd != nil
+            val c = cmds@(i)
+            if c.str_help != nil {
+                val buf = string.format("%s %s", c.str_cmd, if c.str_param != nil => c.str_param => "")
+                io.write(string.format(fmt1, buf))
+                var p = c.str_help
+                loop {
+                    var q = -1
+                    loop j in #p {
+                        if string.byte(p, j) == 10 {
+                            set q = j
+                            break
+                        }
+                    }
+                    while q >= 0
+                    io.write(string.format(fmt2, string.sub(p, 0, q - 1), ""))
+                    set p = string.sub(p, q + 1, #p - 1)
+                }
+                io.write(p ++ "\n")
+            }
+            set i = i + 1
+        }
+    }
+}
+
+func ui_cmd_help (g, api, param, num_param, var_) {
+    val cmdsptr = var_
+    val w = get_cmdsptr_w(cmdsptr, 0) + 1
+    show_cmds(cmdsptr, w)
+    0
+}

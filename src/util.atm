@@ -101,3 +101,81 @@ func util_table_remove_item_keep_order_zero (itemi, tbl, itemnum, zero) {
     }
     cstruct_copy(tbl@(itemnum - 1), zero())
 }
+
+;; `util_parse_signed_number(str, &v)` (`strtol` base 10 in C), on a string:
+;; gives (ok, v). As `strtol`: blanks before, a sign, the digits; ok if
+;; nothing follows (so "" is 0 and ok).
+func util_parse_signed_number (str) {
+    var i = 0
+    val n = #str
+    loop {
+        while (i < n) && ((string.byte(str, i) == 32) || ((string.byte(str, i) >= 9) && (string.byte(str, i) <= 13)))
+        set i = i + 1
+    }
+    var neg = false
+    if (i < n) && ((string.byte(str, i) == 43) || (string.byte(str, i) == 45)) {   ;; + -
+        set neg = string.byte(str, i) == 45
+        set i = i + 1
+    }
+    val d0 = i
+    var v = 0
+    loop {
+        while (i < n) && (string.byte(str, i) >= 48) && (string.byte(str, i) <= 57)
+        set v = (v * 10) + (string.byte(str, i) - 48)
+        set i = i + 1
+    }
+    if i == d0 {
+        ;; no digits: strtol gives 0 and the end at the start
+        return (n == 0, 0)
+    }
+    set v = i32(if neg => -v => v)
+    (i == n, v)
+}
+
+;; `util_parse_number(str, &v)` (`strtoul` base 0 in C), on a string: gives
+;; (ok, v). Blanks, a sign, then "0x" hex, "0" octal or decimal; ok if
+;; nothing follows. A '-' negates in 32 bits, as `strtoul`.
+func util_parse_number (str) {
+    val n = #str
+    var i = 0
+    loop {
+        while (i < n) && ((string.byte(str, i) == 32) || ((string.byte(str, i) >= 9) && (string.byte(str, i) <= 13)))
+        set i = i + 1
+    }
+    var neg = false
+    if (i < n) && ((string.byte(str, i) == 43) || (string.byte(str, i) == 45)) {
+        set neg = string.byte(str, i) == 45
+        set i = i + 1
+    }
+    var base = 10
+    if (i < n) && (string.byte(str, i) == 48) {
+        if ((i + 2) < (n + 1)) && ((i + 1) < n) && ((string.byte(str, i + 1) == 120) || (string.byte(str, i + 1) == 88)) && ((i + 2) < n) && (util_digit(string.byte(str, i + 2), 16) >= 0) {
+            set base = 16
+            set i = i + 2
+        } else {
+            set base = 8
+        }
+    }
+    val d0 = i
+    var v = 0
+    loop {
+        while (i < n) && (util_digit(string.byte(str, i), base) >= 0)
+        set v = (v * base) + util_digit(string.byte(str, i), base)
+        set i = i + 1
+    }
+    if i == d0 {
+        return (n == 0, 0)
+    }
+    set v = u32(if neg => -v => v)
+    (i == n, v)
+}
+
+func util_digit (c, base) {
+    val d = ifs {
+        (c >= 48) && (c <= 57) => c - 48
+        (c >= 97) && (c <= 122) => c - 87
+        (c >= 65) && (c <= 90) => c - 55
+        else => 99
+    }
+    if d < base => d => -1
+}

@@ -1,0 +1,17 @@
+;; Port of c/src/ui/cmdline/uiending.c. `name` is a string.
+
+func ui_play_ending_good (race, name) {
+    io.write("\n" ++ name ++ " won! :)\n\n")
+}
+
+func ui_play_ending_tyrant (race, name) {
+    io.write("\n" ++ name ++ " won... :/\n\n")
+}
+
+func ui_play_ending_funeral (p0, p2) {
+    io.write("\nFuneral. :(\n\n")
+}
+
+func ui_play_ending_exile (name) {
+    io.write("\n" ++ name ++ " was exiled. >:I\n\n")
+}

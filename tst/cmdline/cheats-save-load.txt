@@ -1,0 +1,12 @@
+-new 230:0:0:777
+n
+moola
+n
+galaxy
+events
+n
+n
+save 2 mine
+load 2
+n
+quit !

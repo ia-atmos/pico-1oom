@@ -6,6 +6,22 @@
 
 include "ctypes.atm"
 
+;; The interface itself (`ui_early_init`, `ui_main_menu`, `ui_game_turn`,
+;; ...) is called by game_main.atm; each interface defines those functions.
+
+val MAIN_MENU_ACT_NEW_GAME = 0
+val MAIN_MENU_ACT_CUSTOM_GAME = 1
+val MAIN_MENU_ACT_CHALLENGE_GAME = 2
+val MAIN_MENU_ACT_LOAD_GAME = 3
+val MAIN_MENU_ACT_LOAD_GAME_MOO13 = 4
+val MAIN_MENU_ACT_CONTINUE_GAME = 5
+val MAIN_MENU_ACT_QUIT_GAME = 6
+val MAIN_MENU_ACT_TUTOR = 7
+
+val UI_TURN_ACT_NEXT_TURN = 0
+val UI_TURN_ACT_LOAD_GAME = 1
+val UI_TURN_ACT_QUIT_GAME = 2
+
 val UI_STRBUF_SIZE = 1024
 
 ;; Not set by an interface: what C would do with no interface (a link error).

@@ -1,0 +1,23 @@
+;; Port of c/src/ui/cmdline/uicmds.c and uicmds.h.
+
+include "uidefs.atm"
+include "uiload.atm"
+include "uisave.atm"
+
+func ui_cmd_dummy_ret (g, api, param, num_param, var_) {
+    var_
+}
+
+func ui_cmd_quit (g, api, param, num_param, var_) {
+    if (num_param == 1) && (param@(0).str == "!") {
+        os_exit(0)  ;; EXIT_SUCCESS
+    }
+    0
+}
+
+pin ui_cmds_opts = [
+    input_cmd_s("load", "[SAVENUM]", "Load game", 0, 1, 0, ui_cmd_load, 0),
+    input_cmd_s("save", "[SAVENUM [SAVENAME]]", "Save game", 0, 2, 0, ui_cmd_save, 0),
+    input_cmd_s("quit", "[!]", "Quit the game; add ! to quit without saving", 0, 1, 0, ui_cmd_quit, 0),
+    input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+]

@@ -1,0 +1,49 @@
+;; Port of c/src/game/game_nump.c, in part (#14): the fixes of the rules.
+;; The patches of numbers from PBX files come with the options.
+
+include "game_num.atm"
+include "game_parsed.atm"
+include "game_shipdesign.atm"
+include "game_types.atm"
+include "game_techtypes.atm"
+
+var game_opt_fix_bugs = false
+var game_opt_fix_starting_ships = false
+
+func game_num_fix_bugs () {
+    set game_num_ng_tech@(RACE_SILICOID)@(TECH_FIELD_PLANETOLOGY)@(24) = 1
+    set game_num_ng_tech@(RACE_SILICOID)@(TECH_FIELD_PLANETOLOGY)@(30) = 1
+    set game_num_accident_chk_factories = true
+    set game_num_weapon_list_max = 64
+    set game_num_aud_bounty_give = true
+    set game_num_aud_update_tech = true
+    set game_num_update_on_load = false
+    set game_num_combat_trans_fix = true
+    set game_num_eco_slider_slack = 0
+    set game_num_reset_tform_to_max = false
+}
+
+func game_num_fix_bugs_1_3a () {
+    set game_num_ai_4_colony_curse_fix = true
+    set game_num_max_factories = 2700
+    set game_num_bt_oracle_fix = true
+    set game_num_orbital_weap_any = true
+    set game_num_orbital_torpedo = true
+    set game_num_ship_scanner_fix = true
+    set tbl_monster@(MONSTER_GUARDIAN)@(3).special@(1) = 16
+    set tbl_monster@(MONSTER_GUARDIAN)@(4).special@(1) = 26
+    set tbl_monster@(MONSTER_GUARDIAN)@(4).repair = 30
+}
+
+func game_num_fix_starting_ships () {
+    set tbl_startship@(0).engines = 2
+    set tbl_startship@(1).engines = 27
+    set tbl_startship@(2).engines = 110
+    set tbl_startship@(3).engines = 85
+    set tbl_startship@(4).engines = 100
+    set tbl_startship@(0).cost = 8
+    set tbl_startship@(1).cost = 14
+    set tbl_startship@(2).cost = 74
+    set tbl_startship@(3).cost = 65
+    set tbl_startship@(4).cost = 570
+}

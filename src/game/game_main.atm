@@ -1,0 +1,523 @@
+;; Port of c/src/game/game.c: the options of the game and the main loop
+;; (`main_do`). The items of the config file come with cfg.c (#14).
+
+include "../log.atm"
+include "../rnd.atm"
+include "../ui.atm"
+include "../util.atm"
+include "game.atm"
+include "game_ai.atm"
+include "game_aux.atm"
+include "game_end.atm"
+include "game_misc.atm"
+include "game_new.atm"
+include "game_num.atm"
+include "game_nump.atm"
+include "game_save.atm"
+include "game_tech.atm"
+include "game_turn.atm"
+
+var game_opt_skip_intro_always = false
+var game_opt_skip_intro = false
+var game_opt_new_game = false
+var game_opt_continue = false
+var game_opt_load_game = 0
+var game_opt_load_fname = nil
+var game_opt_undo_enabled = true
+var game_opt_year_save_enabled = false
+var game_opt_init_save_enabled = true
+var game_opt_next_turn = false
+var game_opt_save_quit = false
+
+pin game_opt_end = game_end_s()     ;; { GAME_END_NONE, 0, 0, 0, 0 }
+pin game_opt_new = game_new_options_s()
+pin game_opt_custom = game_new_options_s()
+
+var game_opt_new_value = 200
+var game_opt_custom_race_value = 0xaaaaa0
+var game_opt_custom_banner_value = 666660
+var game_opt_custom_isai_value = 111110
+
+pin game_opt_message_filter = [ false, false, false, false, false, false ]  ;; [FINISHED_NUM]
+
+pin game = game_s()
+pin game_aux = game_aux_s()
+
+;; ---------------------------------------------------------------------------
+
+func game_start (g) {
+    if g.seed == 0 {
+        set g.seed = rnd_get_new_seed()
+        log_message("Game: seed was 0, got new seed 0x%0x\n", g.seed)
+    }
+    if g.ai_id >= GAME_AI_NUM {
+        log_warning("Game: AI ID was %i >= %i, setting to %i (%s)\n", g.ai_id, GAME_AI_NUM, GAME_AI_CLASSIC, game_ais@(GAME_AI_CLASSIC).name)
+        set g.ai_id = GAME_AI_CLASSIC
+    }
+    set game_ai = game_ais@(g.ai_id)
+    game_update_production(g)
+    game_update_tech_util(g)
+    if game_num_update_on_load {
+        loop i in g.players {
+            game_update_eco_on_waste(g, i, false)
+            game_update_seen_by_orbit(g, i)
+        }
+    }
+    game_update_within_range(g)
+    game_update_visibility(g)
+    game_update_have_reserve_fuel(g)
+}
+
+func game_stop (g) {
+    set g.gaux.flag_cheat_galaxy = false
+    set g.gaux.flag_cheat_elections = false
+    set g.gaux.flag_cheat_events = false
+    set g.gaux.flag_cheat_spy_hint = false
+    set g.gaux.flag_cheat_stars = false
+    set g.gaux.flag_cheat_tech_hint = false
+    set g.gaux.flag_cheat_news = false
+}
+
+func game_set_opts_from_value (go, v0) {
+    var v = v0
+    var v2 = v % 10
+    set v = v // 10
+    set go.difficulty = v2
+    set v2 = v % 10
+    set v = v // 10
+    set go.galaxy_size = v2
+    set go.players = v
+}
+
+func game_get_opts_value (g) {
+    g.difficulty + (g.galaxy_size * 10) + (g.players * 100)
+}
+
+func game_set_custom_opts_from_cfg (go) {
+    var races = u32(game_opt_custom_race_value)
+    var banners = u32(game_opt_custom_banner_value)
+    var is_ai = u32(game_opt_custom_isai_value)
+    loop i in PLAYER_NUM {
+        set go.pdata@(i).race = races % 0x10
+        set races = races // 0x10
+        set go.pdata@(i).banner = banners % 10
+        set banners = banners // 10
+        set go.pdata@(i).is_ai = (is_ai % 10) != 0
+        set is_ai = is_ai // 10
+    }
+}
+
+func game_save_custom_opts_to_cfg (go) {
+    set game_opt_custom_race_value = 0
+    set game_opt_custom_banner_value = 0
+    set game_opt_custom_isai_value = 0
+    loop k in PLAYER_NUM {
+        val i = PLAYER_NUM - 1 - k
+        set game_opt_custom_race_value = (game_opt_custom_race_value * 0x10) + go.pdata@(i).race
+        set game_opt_custom_banner_value = (game_opt_custom_banner_value * 10) + go.pdata@(i).banner
+        set game_opt_custom_isai_value = (game_opt_custom_isai_value * 10) + cint(go.pdata@(i).is_ai)
+    }
+}
+
+func game_apply_rules () {
+    if game_opt_fix_bugs {
+        game_num_fix_bugs()
+    }
+    if game_opt_fix_starting_ships {
+        game_num_fix_starting_ships()
+    }
+    game_num_fix_bugs_1_3a()
+}
+
+;; ---------------------------------------------------------------------------
+;; The options (`argv` is a vector of strings: the option and its arguments).
+
+func game_opt_do_new_seed (argv, var_) {
+    val buf = string.sub(argv@(1), 0, SETMIN(#argv@(1), 511) - 1)
+    ;; the parts between ':', nil where empty at a ':'
+    pin parts = [ nil, nil, nil, nil, nil ]
+    do {
+        var start = 0
+        var k = 0
+        loop {
+            while k < 5
+            var e = start
+            loop {
+                while (e < #buf) && (string.byte(buf, e) != 58)
+                set e = e + 1
+            }
+            val atcolon = (start < #buf) && (string.byte(buf, start) == 58)
+            set parts@(k) = if atcolon => nil => string.sub(buf, start, e - 1)
+            set k = k + 1
+            if e >= #buf {
+                break
+            }
+            set start = e + 1
+        }
+    }
+    val stropt = parts@(0)
+    val strrace = parts@(1)
+    val strbanner = parts@(2)
+    val strseed = parts@(3)
+    val strhuman = parts@(4)
+    var vo
+    var vr
+    var vb
+    var vs
+    var va
+    do {
+        var v = 0
+        if stropt != nil {
+            val ok, x = util_parse_number(stropt)
+            if !ok {
+                log_error("invalid value '%s'\n", stropt)
+                return -1
+            }
+            set v = x
+        } else {
+            set v = game_opt_new_value
+        }
+        set vo = v
+        var v2 = v % 10
+        set v = v // 10
+        if v2 > DIFFICULTY_NUM {
+            log_error("invalid difficulty num %i\n", v2)
+            return -1
+        }
+        set game_opt_new.difficulty = v2
+        set v2 = v % 10
+        set v = v // 10
+        if v2 > GALAXY_SIZE_HUGE {
+            log_error("invalid galaxy size num %i\n", v2)
+            return -1
+        }
+        set game_opt_new.galaxy_size = v2
+        set v2 = v % 10
+        if (v2 < 2) || (v2 > PLAYER_NUM) {
+            log_error("invalid players num %i\n", v2)
+            return -1
+        }
+        set game_opt_new.players = v2
+    }
+    do {
+        var v = 0
+        if strrace != nil {
+            val ok, x = util_parse_number(strrace)
+            if !ok {
+                log_error("invalid value '%s'\n", strrace)
+                return -1
+            }
+            set v = x
+        }
+        set vr = v
+        loop i in PLAYER_NUM {
+            var v2 = v & 0xf
+            set v = v >> 4
+            if v2 > RACE_NUM {
+                log_error("invalid race num %i\n", v2)
+                return -1
+            }
+            set v2 = if v2 != 0 => (v2 - 1) => RACE_RANDOM
+            set game_opt_new.pdata@(i).race = v2
+        }
+    }
+    do {
+        var v = 0
+        if strbanner != nil {
+            val ok, x = util_parse_number(strbanner)
+            if !ok {
+                log_error("invalid value '%s'\n", strbanner)
+                return -1
+            }
+            set v = x
+        }
+        set vb = v
+        loop i in PLAYER_NUM {
+            var v2 = v % 10
+            set v = v // 10
+            if v2 > BANNER_NUM {
+                log_error("invalid banner num %i\n", v2)
+                return -1
+            }
+            set v2 = if v2 != 0 => (v2 - 1) => BANNER_RANDOM
+            set game_opt_new.pdata@(i).banner = v2
+        }
+    }
+    do {
+        var v = 0
+        if strseed != nil {
+            val ok, x = util_parse_number(strseed)
+            if !ok {
+                log_error("invalid value '%s'\n", strseed)
+                return -1
+            }
+            set v = x
+        }
+        set vs = v
+        set game_opt_new.galaxy_seed = v
+    }
+    do {
+        var v = 1
+        if strhuman != nil {
+            val ok, x = util_parse_number(strhuman)
+            if !ok {
+                log_error("invalid value '%s'\n", strhuman)
+                return -1
+            }
+            set v = x
+        }
+        set va = v
+        loop i in PLAYER_NUM {
+            val v2 = v % 10
+            set v = v // 10
+            set game_opt_new.pdata@(i).is_ai = v2 == 0
+        }
+    }
+    set game_opt_skip_intro = true
+    set game_opt_load_game = 0
+    set game_opt_load_fname = nil
+    set game_opt_continue = false
+    set game_opt_new_game = true
+    log_message("Game: -new %d:0x%x:%d:0x%x:%d\n", vo, vr, vb, vs, va)    ;; (%u of C: Atmos has no %u)
+    0
+}
+
+func game_opt_do_load (argv, var_) {
+    val ok, v = util_parse_number(argv@(1))
+    if ok && (((v >= 1) && (v <= NUM_ALL_SAVES)) || ((v >= 2300) && (v <= 9999))) {
+        set game_opt_load_game = v
+        set game_opt_load_fname = nil
+        log_message("Game: load game %i\n", game_opt_load_game)
+    } else {
+        set game_opt_load_game = 0
+        set game_opt_load_fname = argv@(1)
+        log_message("Game: load game '%s'\n", game_opt_load_fname)
+    }
+    set game_opt_skip_intro = true
+    set game_opt_continue = false
+    set game_opt_new_game = false
+    0
+}
+
+func game_opt_do_continue (argv, var_) {
+    set game_opt_load_game = 0
+    set game_opt_load_fname = nil
+    set game_opt_skip_intro = true
+    set game_opt_continue = true
+    set game_opt_new_game = false
+    log_message("Game: continue game\n")
+    0
+}
+
+val idstr_main = "game"
+
+;; ---------------------------------------------------------------------------
+
+;; Gives 0 at the end (C: `return 0` from `main_do`).
+func main_do () {
+    var game_end = game_end_s()
+    cstruct_copy(game_end, game_opt_end)
+    if ui_late_init() != 0 {
+        return 1
+    }
+    game_aux_init(game_aux, game)
+    game_save_check_saves()
+    var skip_to_ending = (game_opt_end.type != GAME_END_NONE) && (game_opt_end.varnum == 2)
+    if (!skip_to_ending) && (!(game_opt_skip_intro || game_opt_skip_intro_always)) {
+        ui_play_intro()
+    }
+    loop {
+        if !skip_to_ending {
+            pin game_new_opts = game_new_options_s()
+            pin game_challenge_opts = game_new_options_s()
+            var main_menu_action = nil
+            var load_game_i = 0
+            var go = nil    ;; the label of C to go to: "new", "start", "load", "continue"
+            ifs {
+                game_opt_new_game => {
+                    set game_opt_new_game = false
+                    cstruct_copy(game_new_opts, game_opt_new)
+                    set go = "new"
+                }
+                game_opt_load_fname != nil => {
+                    if game_save_do_load_fname(game_opt_load_fname, nil, game) != 0 {
+                        log_fatal_and_die("Game: could not load save '%s'\n", game_opt_load_fname)
+                    }
+                    set game_opt_load_fname = nil
+                    set go = "start"
+                }
+                game_opt_load_game != 0 => {
+                    set load_game_i = game_opt_load_game
+                    if load_game_i < 2300 {
+                        set load_game_i = load_game_i - 1
+                    }
+                    set game_opt_load_game = 0
+                    if (load_game_i >= 2300) || game_save_tbl_have_save@(load_game_i) {
+                        set go = "load"
+                    } else {
+                        log_warning("Game: direct load game %i failed due to missing savegame\n", load_game_i + 1)
+                        ;; try again, now with game_opt_load_game set to 0
+                        skip
+                    }
+                }
+                game_opt_continue => {
+                    set game_opt_continue = false
+                    if game_save_tbl_have_save@(GAME_SAVE_I_CONTINUE) {
+                        set go = "continue"
+                    } else {
+                        log_warning("Game: direct continue failed due to missing savegame\n")
+                        ;; try again, now with game_opt_continue set to false
+                        skip
+                    }
+                }
+                else => {
+                    game_set_opts_from_value(game_new_opts, game_opt_new_value)
+                    game_set_custom_opts_from_cfg(game_opt_custom)
+                    set main_menu_action, load_game_i = ui_main_menu(game_new_opts, game_opt_custom, game_challenge_opts, load_game_i)
+                }
+            }
+            if go == nil {
+                set go = match main_menu_action {
+                    MAIN_MENU_ACT_NEW_GAME => "new"
+                    MAIN_MENU_ACT_CUSTOM_GAME => "custom"
+                    MAIN_MENU_ACT_CHALLENGE_GAME => "challenge"
+                    MAIN_MENU_ACT_TUTOR => "tutor"
+                    MAIN_MENU_ACT_LOAD_GAME => "load"
+                    MAIN_MENU_ACT_LOAD_GAME_MOO13 => "moo13"
+                    MAIN_MENU_ACT_CONTINUE_GAME => "continue"
+                    MAIN_MENU_ACT_QUIT_GAME => "quit"
+                }
+            }
+            ;; the main loop of a game, again from "load" when a game is loaded in game
+            var restart = true
+            loop {
+                while restart
+                set restart = false
+                match go {
+                    "new" => {
+                        game_new(game, game_aux, game_new_opts)
+                        set game_opt_new_value = game_get_opts_value(game)
+                        if game_opt_init_save_enabled {
+                            game_save_do_save_i(GAME_SAVE_I_INIT, "Init", game)
+                        }
+                    }
+                    "custom" => {
+                        game_new(game, game_aux, game_opt_custom)
+                        game_save_custom_opts_to_cfg(game_opt_custom)
+                        if game_opt_init_save_enabled {
+                            game_save_do_save_i(GAME_SAVE_I_INIT, "Init", game)
+                        }
+                    }
+                    "challenge" => {
+                        game_new(game, game_aux, game_challenge_opts)
+                        if game_opt_init_save_enabled {
+                            game_save_do_save_i(GAME_SAVE_I_INIT, "Init", game)
+                        }
+                    }
+                    "tutor" => {
+                        game_new_tutor(game, game_aux)
+                    }
+                    "load" => {
+                        if false
+                          || ((load_game_i < NUM_ALL_SAVES) && (game_save_do_load_i(load_game_i, game) != 0))
+                          || ((load_game_i >= 2300) && (game_save_do_load_year(load_game_i, nil, game) != 0)) {
+                            log_fatal_and_die("Game: could not load save %i\n", load_game_i)
+                        }
+                    }
+                    "moo13" => {
+                        throw "game_main: the saves of MOO 1.3 are not ported yet (#14)"
+                    }
+                    "continue" => {
+                        if game_save_do_load_i(GAME_SAVE_I_CONTINUE, game) != 0 {
+                            log_fatal_and_die("Game: could not start or continue from save 7\n")
+                        }
+                    }
+                    "quit" => {
+                        log_message("Game: quit (main)\n")
+                        return 0
+                    }
+                    "start" => nil
+                }
+                ;; main_menu_start_game:
+                game_aux_start(game_aux, game)
+                game_start(game)
+                ui_game_start(game)
+                set game_end.type = GAME_END_NONE
+                loop {
+                    while (game_end.type == GAME_END_NONE) || (game_end.type == GAME_END_FINAL_WAR)
+                    loop {
+                        while ((game_end.type == GAME_END_NONE) || (game_end.type == GAME_END_FINAL_WAR)) && (game.active_player < game.players)
+                        val pi = game.active_player
+                        if IS_HUMAN(game, pi) && IS_ALIVE(game, pi) {
+                            if game_opt_next_turn {
+                                set game_opt_next_turn = false
+                                break
+                            }
+                            var act
+                            if game_opt_save_quit {
+                                set act = UI_TURN_ACT_QUIT_GAME
+                            } else {
+                                set act, load_game_i = ui_game_turn(game, load_game_i, pi)
+                            }
+                            match act {
+                                UI_TURN_ACT_LOAD_GAME => {
+                                    set main_menu_action = MAIN_MENU_ACT_LOAD_GAME
+                                    ui_game_end(game)
+                                    set go = "load"
+                                    set restart = true
+                                    break
+                                }
+                                UI_TURN_ACT_QUIT_GAME => {
+                                    if game_save_do_save_i(GAME_SAVE_I_CONTINUE, "Continue", game) != 0 {
+                                        log_error("Game: could create continue save\n")
+                                    }
+                                    set game_end.type = GAME_END_QUIT
+                                }
+                                UI_TURN_ACT_NEXT_TURN => {
+                                    if game_opt_undo_enabled && (game_save_do_save_i(GAME_SAVE_I_UNDO, "Undo", game) != 0) {
+                                        log_error("Game: could create undo save\n")
+                                    }
+                                    if game_opt_year_save_enabled && (game_save_do_save_year(nil, game) != 0) {
+                                        log_error("Game: could create year save\n")
+                                    }
+                                }
+                            }
+                        }
+                        set game.active_player = game.active_player + 1
+                    }
+                    if restart {
+                        break
+                    }
+                    if game_end.type != GAME_END_QUIT {
+                        set game_end = game_turn_process(game)
+                    }
+                    set game.active_player = PLAYER_0
+                }
+            }
+            ui_game_end(game)
+        }
+        ;; do_ending:
+        set skip_to_ending = false
+        match game_end.type {
+            GAME_END_QUIT => {
+                log_message("Game: quit (ingame)\n")
+                if game_opt_save_quit {
+                    set game_opt_save_quit = false
+                    return 0
+                }
+            }
+            GAME_END_WON_GOOD => ui_play_ending_good(game_end.race, cstr(game_end.name))
+            GAME_END_WON_TYRANT => ui_play_ending_tyrant(game_end.race, cstr(game_end.name))
+            GAME_END_LOST_FUNERAL => ui_play_ending_funeral(game_end.race, game_end.banner_dead)
+            GAME_END_LOST_EXILE => ui_play_ending_exile(cstr(game_end.name))
+            else => nil
+        }
+        set game_end.type = GAME_END_NONE
+        game_stop(game)
+    }
+}
+
+func main_do_shutdown () {
+    ;; TODO save game if in progress
+    game_aux_shutdown(game_aux)
+}

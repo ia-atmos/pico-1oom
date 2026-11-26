@@ -1,0 +1,52 @@
+;; Port of c/src/ui/cmdline/uidefs.h.
+
+include "../../boolvec.atm"
+include "../../ctypes.atm"
+include "../../ui.atm"
+include "../../game/game_types.atm"
+
+val UI_INPUT_TOKEN_MAX = 32
+
+;; `struct input_cmd_s`: `handle(g, api, param, num_param, var)`, where
+;; `param` is a vector of the tokens after the command.
+func input_cmd_s (str_cmd, str_param, str_help, num_param_min, num_param_max, flags, handle, var_) {
+    [
+        str_cmd       = str_cmd,
+        str_param     = str_param,
+        str_help      = str_help,
+        num_param_min = num_param_min,
+        num_param_max = num_param_max,
+        flags         = flags,
+        handle        = handle,
+        var_          = var_,
+    ]
+}
+
+val INPUT_TOKEN_NONE = 0
+val INPUT_TOKEN_UNKNOWN = 1
+val INPUT_TOKEN_COMMAND = 2
+val INPUT_TOKEN_NUMBER = 3
+val INPUT_TOKEN_RELNUMBER = 4
+
+;; `struct input_token_s`: the union `data` is `data` (a command or a number).
+func input_token_s () {
+    [ str = nil, data = nil, type = INPUT_TOKEN_NONE ]
+}
+
+val BATTLE_SCREEN_HEIGHT = 8 * 3
+val BATTLE_SCREEN_WIDTH = (10 * 4) + 7 + 20
+
+pin ui_data = [
+    input = [
+        tok = carrayf(UI_INPUT_TOKEN_MAX, input_token_s),
+        num = 0,
+    ],
+    battle = [
+        screen = carray2(BATTLE_SCREEN_HEIGHT, BATTLE_SCREEN_WIDTH),    ;; char[][]
+    ],
+    view = [
+        item = carray(PLANETS_MAX + FLEET_ENROUTE_MAX + TRANSPORT_MAX),     ;; uint32_t[]
+    ],
+    players_viewing = BOOLVEC_DECLARE(PLAYER_NUM),
+    strbuf = carray(UI_STRBUF_SIZE),    ;; char[]
+]

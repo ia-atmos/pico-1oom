@@ -1,0 +1,129 @@
+;; Port of c/src/main.c (with ui/cmdline): the program `1oom_cmdline`.
+;;   atmos -o 1oom_cmdline src/main.atm
+;; For now (#14) the options are parsed here, in part: those of game.c,
+;; -data and -user; -cro and -nolog are accepted. options.c and cfg.c (the
+;; config file, the log file, -file of PBX) are still to port.
+
+include "lbx.atm"
+include "log.atm"
+include "os/unix/os.atm"
+include "game/game_main.atm"
+include "ui/cmdline/uicmdline.atm"
+include "game/game_ai_classic.atm"
+
+func main_shutdown () {
+    main_do_shutdown()
+    ui_shutdown()
+    log_message("Thanks for playing 1oom.\n")
+}
+
+;; The options of game.c (main_cmdline_options): name, number of arguments,
+;; handler.
+func opt_undo (argv, v) {
+    set game_opt_undo_enabled = true
+    0
+}
+
+func opt_noundo (argv, v) {
+    set game_opt_undo_enabled = false
+    0
+}
+
+func opt_yearsave (argv, v) {
+    set game_opt_year_save_enabled = true
+    0
+}
+
+func opt_noyearsave (argv, v) {
+    set game_opt_year_save_enabled = false
+    0
+}
+
+func opt_skipintro (argv, v) {
+    set game_opt_skip_intro_always = true
+    0
+}
+
+func opt_noskipintro (argv, v) {
+    set game_opt_skip_intro_always = false
+    0
+}
+
+func opt_nextturn (argv, v) {
+    set game_opt_next_turn = true
+    0
+}
+
+func opt_savequit (argv, v) {
+    set game_opt_save_quit = true
+    0
+}
+
+pin main_cmdline_options = [
+    [ name = "-new", nargs = 1, handle = game_opt_do_new_seed ],
+    [ name = "-load", nargs = 1, handle = game_opt_do_load ],
+    [ name = "-continue", nargs = 0, handle = game_opt_do_continue ],
+    [ name = "-undo", nargs = 0, handle = opt_undo ],
+    [ name = "-noundo", nargs = 0, handle = opt_noundo ],
+    [ name = "-yearsave", nargs = 0, handle = opt_yearsave ],
+    [ name = "-noyearsave", nargs = 0, handle = opt_noyearsave ],
+    [ name = "-skipintro", nargs = 0, handle = opt_skipintro ],
+    [ name = "-noskipintro", nargs = 0, handle = opt_noskipintro ],
+    [ name = "-nextturn", nargs = 0, handle = opt_nextturn ],
+    [ name = "-savequit", nargs = 0, handle = opt_savequit ],
+]
+
+func main_1oom (argv) {
+    if lbxfile_init() != 0 {
+        return 1
+    }
+    log_message("1oom v1.11.9: main:%s ui:%s hw:%s os:%s\n", idstr_main, idstr_ui, "nop", "unix")
+    os_atexit(main_shutdown)
+    var i = 0
+    loop {
+        while i < #argv
+        val a = argv@(i)
+        ifs {
+            a == "-data" => {
+                set i = i + 1
+                os_set_path_data(argv@(i))
+            }
+            a == "-user" => {
+                set i = i + 1
+                os_set_path_user(argv@(i))
+            }
+            (a == "-cro") || (a == "-nolog") => nil
+            else => {
+                var found = false
+                loop k in #main_cmdline_options {
+                    val o = main_cmdline_options@(k)
+                    if o.name == a {
+                        val oargv = [a]
+                        loop j in o.nargs {
+                            set oargv@(j + 1) = argv@(i + 1 + j)
+                        }
+                        if o.handle(oargv, nil) != 0 {
+                            return 3
+                        }
+                        set i = i + o.nargs
+                        set found = true
+                    }
+                }
+                if !found {
+                    log_error("unknown option '%s'\n", a)
+                    return 3
+                }
+            }
+        }
+        set i = i + 1
+    }
+    if lbxfile_find_dir() != 0 {
+        return 4
+    }
+    game_apply_rules()
+    log_message("USER: '%s'\n", os_get_path_user())
+    main_do()
+}
+
+val r = main_1oom([...])
+os_exit(r)

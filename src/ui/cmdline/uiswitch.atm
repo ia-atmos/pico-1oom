@@ -1,0 +1,107 @@
+;; Port of c/src/ui/cmdline/uiswitch.c.
+
+include "../../boolvec.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+include "uiinput.atm"
+
+val UI_SWITCH_BLANK_LINES = 80
+
+func ui_switch (g, tbl_pi, num_pi, allow_opts) {
+    loop i in UI_SWITCH_BLANK_LINES {
+        io.write("\n")
+    }
+    io.write(string.format("*** %i\n", g.year + YEAR_BASE))
+    loop i in num_pi {
+        val pi = tbl_pi@(i)
+        io.write(string.format("* %s %i: %s\n", game_str_player, pi + 1, cstr(g.emperor_names@(pi))))
+    }
+    ;; TODO if (allow_opts) { save, load, quit ... }
+    ui_input_wait_enter()
+    false
+}
+
+func ui_switch_1_opts (g, pi) {
+    pin viewing = BOOLVEC_DECLARE(PLAYER_NUM)
+    if (g.gaux.local_players <= 1) || IS_AI(g, pi) {
+        return false
+    }
+    BOOLVEC_CLEAR(viewing, PLAYER_NUM)
+    BOOLVEC_SET1(viewing, pi)
+    if !BOOLVEC_COMP(ui_data.players_viewing, viewing, PLAYER_NUM) {
+        BOOLVEC_COPY(ui_data.players_viewing, viewing, PLAYER_NUM)
+        return ui_switch(g, [pi], 1, true)
+    }
+    false
+}
+
+func ui_switch_1 (g, pi) {
+    pin viewing = BOOLVEC_DECLARE(PLAYER_NUM)
+    if (g.gaux.local_players <= 1) || IS_AI(g, pi) {
+        return nil
+    }
+    BOOLVEC_CLEAR(viewing, PLAYER_NUM)
+    BOOLVEC_SET1(viewing, pi)
+    if !BOOLVEC_COMP(ui_data.players_viewing, viewing, PLAYER_NUM) {
+        BOOLVEC_COPY(ui_data.players_viewing, viewing, PLAYER_NUM)
+        ui_switch(g, [pi], 1, false)
+    }
+}
+
+func ui_switch_2 (g, pi1, pi2) {
+    pin tbl = carray(2)
+    var n = 0
+    pin viewing = BOOLVEC_DECLARE(PLAYER_NUM)
+    if g.gaux.local_players <= 1 {
+        return false
+    }
+    BOOLVEC_CLEAR(viewing, PLAYER_NUM)
+    if IS_HUMAN(g, pi1) && IS_ALIVE(g, pi1) {
+        BOOLVEC_SET1(viewing, pi1)
+        set tbl@(n) = pi1
+        set n = n + 1
+    }
+    if IS_HUMAN(g, pi2) && IS_ALIVE(g, pi2) {
+        BOOLVEC_SET1(viewing, pi2)
+        set tbl@(n) = pi2
+        set n = n + 1
+    }
+    if (n == 2) && (pi1 > pi2) {
+        set tbl@(0) = pi2
+        set tbl@(1) = pi1
+    }
+    if !BOOLVEC_COMP(ui_data.players_viewing, viewing, PLAYER_NUM) {
+        BOOLVEC_COPY(ui_data.players_viewing, viewing, PLAYER_NUM)
+        ui_switch(g, tbl, n, false)
+        return true
+    }
+    false
+}
+
+func ui_switch_all (g) {
+    pin tbl = carray(PLAYER_NUM)
+    var n = 0
+    pin viewing = BOOLVEC_DECLARE(PLAYER_NUM)
+    if g.gaux.local_players <= 1 {
+        return nil
+    }
+    BOOLVEC_CLEAR(viewing, PLAYER_NUM)
+    loop pi in g.players {
+        if IS_HUMAN(g, pi) && IS_ALIVE(g, pi) {
+            set tbl@(n) = pi
+            set n = n + 1
+        }
+    }
+    ;; (C: `viewing` stays clear)
+    if !BOOLVEC_COMP(ui_data.players_viewing, viewing, PLAYER_NUM) {
+        BOOLVEC_COPY(ui_data.players_viewing, viewing, PLAYER_NUM)
+        ui_switch(g, tbl, n, false)
+    }
+}
+
+func ui_switch_wait (g) {
+    if g.gaux.local_players > 1 {
+        ui_input_wait_enter()
+    }
+}
