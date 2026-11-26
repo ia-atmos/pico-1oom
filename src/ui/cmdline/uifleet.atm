@@ -1,0 +1,361 @@
+;; Port of c/src/ui/cmdline/uifleet.c. A fleet or transport enroute is
+;; given by its index (`r - g->enroute` in C).
+
+include "../../boolvec.atm"
+include "../../lib.atm"
+include "../../game/game.atm"
+include "../../game/game_design.atm"
+include "../../game/game_fleet.atm"
+include "../../game/game_misc.atm"
+include "../../game/game_num.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+include "uiinput.atm"
+include "uiplanet.atm"
+
+func get_fleet_planet_on (g, r) {
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if (p.x == r.x) && (p.y == r.y) {
+            return i
+        }
+    }
+    PLANET_NONE
+}
+
+func ui_fleet_buf80 (s) {
+    if #s >= 80 {
+        log_fatal_and_die("lib_sprintf: buffer too small, need %d, have %d", #s, 80)
+    }
+    s
+}
+
+func ui_fleet_print_fleet_orbit (g, api, planet_i, pi) {
+    val r = g.eto@(pi).orbit@(planet_i)
+    if BOOLVEC_IS1(r.visible, api) {
+        val p = g.planet@(planet_i)
+        val buf = ui_fleet_buf80(string.format("%s [%i] (%i,%i) %s", game_str_fl_inorbit, planet_i, p.x, p.y, ui_planet_str(g, api, planet_i)))
+        io.write(string.format("%-40s", buf))
+        loop k in NUM_SHIPDESIGNS {
+            io.write(string.format(" %5i", r.ships@(k)))
+        }
+        if pi != api {
+            io.write(string.format("  %s", game_str_tbl_race@(g.eto@(pi).race)))
+        }
+        io.write("\n")
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func ui_fleet_print_fleets_orbit (g, api, planet_i, show_my, show_opp) {
+    if show_my {
+        ui_fleet_print_fleet_orbit(g, api, planet_i, api)
+    }
+    if show_opp {
+        loop i in g.players {
+            val r = g.eto@(i).orbit@(planet_i)
+            if (i != api) && BOOLVEC_IS1(r.visible, api) {
+                ui_fleet_print_fleet_orbit(g, api, planet_i, i)
+            }
+        }
+    }
+}
+
+func ui_fleet_print_fleet_enroute (g, api, ri, pon0) {
+    val r = g.enroute@(ri)
+    var pon = pon0
+    val p = g.planet@(r.dest)
+    val buf = ui_fleet_buf80(string.format("#F%i (%i,%i) %s [%i] %s", ri, r.x, r.y, game_str_fl_moving, r.dest, ui_planet_str(g, api, r.dest)))
+    io.write(string.format("%-40s", buf))
+    loop k in NUM_SHIPDESIGNS {
+        io.write(string.format(" %5i", r.ships@(k)))
+    }
+    if (r.owner == api) || g.eto@(api).have_ia_scanner {
+        if pon == PLANET_NONE {
+            set pon = get_fleet_planet_on(g, r)
+        }
+        val eta = game_calc_eta_ship(g, game_fleet_get_speed(g, r, pon, r.dest), p.x, p.y, r.x, r.y)
+        io.write(string.format("  %s %i %s", game_str_sm_eta, eta, if eta == 1 => game_str_sm_turn => game_str_sm_turns))
+    }
+    if r.owner != api {
+        io.write(string.format("  %s", game_str_tbl_race@(g.eto@(r.owner).race)))
+    }
+    io.write("\n")
+}
+
+func ui_fleet_print_transport_enroute (g, api, ri) {
+    val r = g.transport@(ri)
+    val e = g.eto@(api)
+    val p = g.planet@(r.dest)
+    val buf = ui_fleet_buf80(string.format("#T%i (%i,%i) %s [%i] %s", ri, r.x, r.y, game_str_fl_moving, r.dest, ui_planet_str(g, api, r.dest)))
+    io.write(string.format("%-40s", buf))
+    io.write(string.format(" %5i", r.pop))
+    val eta = game_calc_eta_trans(g, e.have_engine, p.x, p.y, r.x, r.y)
+    io.write(string.format("  %s %i %s\n", game_str_sm_eta, eta, if eta == 1 => game_str_sm_turn => game_str_sm_turns))
+}
+
+func ui_cmd_fleet_list (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val sd = g.srd@(api).design
+    loop j in e.shipdesigns_num {
+        io.write(string.format("%c %s", if j == 0 => 45 => 44, cstr(sd@(j).name)))
+    }
+    io.write("\n")
+    loop i in g.galaxy_stars {
+        ui_fleet_print_fleet_orbit(g, api, i, api)
+    }
+    loop i in g.enroute_num {
+        val r = g.enroute@(i)
+        if (r.owner == api) && BOOLVEC_IS1(r.visible, api) {
+            ui_fleet_print_fleet_enroute(g, api, i, PLANET_NONE)
+        }
+    }
+    0
+}
+
+func ui_cmd_fleet_redir (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val sd_num = e.shipdesigns_num
+    ifs {
+        num_param == 0 => {
+            loop i in g.enroute_num {
+                val r = g.enroute@(i)
+                if r.owner == api {
+                    loop j in sd_num {
+                        if r.ships@(j) != 0 {
+                            val pon = get_fleet_planet_on(g, r)
+                            if e.have_hyperspace_comm || (pon != PLANET_NONE) {
+                                ui_fleet_print_fleet_enroute(g, api, i, pon)
+                            }
+                            break
+                        }
+                    }
+                }
+            }
+            if e.have_hyperspace_comm {
+                loop i in g.transport_num {
+                    if g.transport@(i).owner == api {
+                        ui_fleet_print_transport_enroute(g, api, i)
+                    }
+                }
+            }
+        }
+        num_param == 1 => { return -1 }
+        else => {
+            val s = param@(0).str
+            if string.byte(s, 0) != 35 {   ;; '#'
+                return -1
+            }
+            val c1 = c_tolower(string.byte(s, 1) || 0)
+            var is_fleet
+            ifs {
+                c1 == 102 => { set is_fleet = true }    ;; 'f'
+                c1 == 116 => { set is_fleet = false }   ;; 't'
+                else => { return -1 }
+            }
+            val ok, n = util_parse_signed_number(string.sub(s, 2, #s - 1))
+            if false
+              || (!ok)
+              || (n < 0)
+              || (is_fleet && (n >= g.enroute_num))
+              || ((!is_fleet) && (n >= g.transport_num)) {
+                return -1
+            }
+            val dest = ui_planet_from_param(g, api, param@(1))
+            if dest == PLANET_NONE {
+                io.write("Unknown destination\n")
+                return -1
+            }
+            val p = g.planet@(dest)
+            val dist = game_get_min_dist(g, api, dest)
+            if is_fleet {
+                val r = g.enroute@(n)
+                if r.owner != api {
+                    return -1
+                }
+                val pon = get_fleet_planet_on(g, r)
+                if (!e.have_hyperspace_comm) && (pon == PLANET_NONE) {
+                    return -1
+                }
+                if game_num_retreat_redir_fix && r.retreat && (!e.have_hyperspace_comm) && (pon == dest) {
+                    return -1
+                }
+                var in_range = false
+                ifs {
+                    p.within_frange@(api) == 1 => { set in_range = true }
+                    p.within_frange@(api) == 2 => {
+                        set in_range = true
+                        loop k in e.shipdesigns_num {
+                            if (r.ships@(k) != 0) && (!g.srd@(api).have_reserve_fuel@(k)) {
+                                set in_range = false
+                                break
+                            }
+                        }
+                    }
+                    else => nil
+                }
+                if !in_range {
+                    io.write(string.format("%s %i %s\n", game_str_sm_outsr, dist - e.fuel_range, game_str_sm_parsecs2))
+                    return -1
+                }
+                game_fleet_redirect(g, r, pon, dest)
+            } else {
+                val r = g.transport@(n)
+                if (r.owner != api) || (!e.have_hyperspace_comm) {
+                    return -1
+                }
+                if p.within_frange@(api) != 1 {
+                    io.write(string.format("%s %i %s\n", game_str_sm_outsr, dist - e.fuel_range, game_str_sm_parsecs2))
+                    return -1
+                }
+                if !game_transport_dest_ok(g, p, api) {
+                    io.write("Destination not OK\n")
+                    return -1
+                }
+                set r.dest = dest
+            }
+        }
+    }
+    0
+}
+
+func ui_cmd_fleet_send (g, api, param, num_param, var_) {
+    val pfi = g.planet_focus_i@(api)
+    val e = g.eto@(api)
+    val o = e.orbit@(pfi)
+    pin ships = carray(NUM_SHIPDESIGNS)     ;; shipcount_t[]
+    val pti = ui_planet_from_param(g, api, param@(0))
+    if pti == PLANET_NONE {
+        io.write("Unknown destination\n")
+        return -1
+    }
+    if pti == pfi {
+        io.write("Not sending fleet to planet it is orbiting\n")
+        return -1
+    }
+    val pt = g.planet@(pti)
+    do {
+        var any_ships = false
+        loop i in NUM_SHIPDESIGNS {
+            set ships@(i) = if i < e.shipdesigns_num => o.ships@(i) => 0
+            if (i < e.shipdesigns_num) && (ships@(i) != 0) {
+                set any_ships = true
+            }
+        }
+        if !any_ships {
+            io.write("No ships on orbit\n")
+            return -1
+        }
+    }
+    if num_param > 1 {
+        var i = 0
+        loop {
+            while (i < e.shipdesigns_num) && (i < (num_param - 1))
+            if param@(1 + i).type != INPUT_TOKEN_NUMBER {
+                io.write(string.format("Invalid param %i\n", 1 + i))
+                return -1
+            }
+            val n = u16(param@(1 + i).data)
+            if n > ships@(i) {
+                io.write(string.format("Trying to send more ships than you have (%i > %i)\n", n, ships@(i)))
+                return -1
+            }
+            set ships@(i) = n
+            set i = i + 1
+        }
+        loop {
+            while i < NUM_SHIPDESIGNS
+            set ships@(i) = 0
+            set i = i + 1
+        }
+    }
+    do {
+        var any_ships = false
+        loop i in e.shipdesigns_num {
+            if ships@(i) != 0 {
+                set any_ships = true
+                break
+            }
+        }
+        if !any_ships {
+            io.write("Not sending empty fleet\n")
+            return -1
+        }
+    }
+    do {
+        var have_reserve_fuel = true
+        val hrf = g.srd@(api).have_reserve_fuel
+        loop i in e.shipdesigns_num {
+            if (ships@(i) != 0) && (!hrf@(i)) {
+                set have_reserve_fuel = false
+                break
+            }
+        }
+        if !((pt.within_frange@(api) == 1) || ((pt.within_frange@(api) == 2) && have_reserve_fuel)) {
+            io.write("Out of range\n")
+            return -1
+        }
+    }
+    pin shiptypes = [ 0, 1, 2, 3, 4, 5 ]
+    game_send_fleet_from_orbit(g, api, pfi, pti, ships, shiptypes, NUM_SHIPDESIGNS)
+    0
+}
+
+func ui_cmd_fleet_scrap (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val srd = g.srd@(api)
+    var n = -1
+    if e.shipdesigns_num <= 1 {
+        return -1
+    }
+    if num_param == 0 {
+        pin rl_in = [
+            [ value = 0, key = "1", str = nil, display = nil ],
+            [ value = 1, key = "2", str = nil, display = nil ],
+            [ value = 2, key = "3", str = nil, display = nil ],
+            [ value = 3, key = "4", str = nil, display = nil ],
+            [ value = 4, key = "5", str = nil, display = nil ],
+            [ value = 5, key = "6", str = nil, display = nil ],
+            [ value = 0, key = nil, str = nil, display = nil ],
+            [ value = 0, key = nil, str = nil, display = nil ],
+        ]
+        var i = 0
+        loop {
+            while i < e.shipdesigns_num
+            set rl_in@(i).display = cstr(srd.design@(i).name)
+            set i = i + 1
+        }
+        set rl_in@(i).value = -1
+        set rl_in@(i).key = "Q"
+        set rl_in@(i).str = "q"
+        set rl_in@(i).display = "(quit)"
+        set i = i + 1
+        set rl_in@(i).value = 0
+        set rl_in@(i).key = nil
+        set rl_in@(i).str = nil
+        set rl_in@(i).display = nil
+        set n = ui_input_list("Scrap", "> ", rl_in)
+    } else {
+        if param@(0).type == INPUT_TOKEN_NUMBER {
+            set n = param@(0).data
+            if (n < 1) || (n > e.shipdesigns_num) {
+                return -1
+            }
+        } else {
+            loop i in e.shipdesigns_num {
+                if str_casecmp_eq(cstr(srd.design@(i).name), param@(0).str) {
+                    set n = i
+                    break
+                }
+            }
+            if n == -1 {
+                return -1
+            }
+        }
+    }
+    if (n >= 0) && (n < e.shipdesigns_num) {
+        game_design_scrap(g, api, n, var_ != 0)
+    }
+    0
+}
