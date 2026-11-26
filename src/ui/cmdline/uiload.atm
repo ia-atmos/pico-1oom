@@ -56,5 +56,5 @@ func ui_cmd_load (g, api, param, num_param, var_) {
             }
         }
     }
-    -1
+    return -1
 }

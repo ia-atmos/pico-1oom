@@ -1,0 +1,448 @@
+;; Port of c/src/ui/cmdline/uibattle.c. The screen of the battle is
+;; `ui_data.battle.screen`, rows of bytes; `gfx` of an item is the index
+;; into `battlegfx` (a pointer cast to int in C).
+
+include "../../lib.atm"
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_battle.atm"
+include "../../game/game_shipdesign.atm"
+include "../../game/game_shiptech.atm"
+include "../../game/game_str.atm"
+include "uicmds.atm"
+include "uidefs.atm"
+include "uihelp.atm"
+include "uiinput.atm"
+include "uiswitch.atm"
+
+pin battlegfx = [
+    [ "    ", "  > ", "    " ],
+    [ "    ", " |> ", "    " ],
+    [ " \\  ", " >> ", " /  " ],
+    [ "=\\  ", "|O> ", "=/  " ],
+    [ "    ", " <  ", "    " ],
+    [ "    ", " <| ", "    " ],
+    [ "  / ", " << ", "  \\ " ],
+    [ "  /=", " <O|", "  \\=" ],
+    [ "/--\\", "|  |", "\\--/" ],
+    [ "+  +", "    ", "+   " ],
+    [ "  * ", " *  ", "*  *" ],
+]
+
+func battlegfx_c (t, dy, dx) {
+    string.byte(battlegfx@(t)@(dy), dx)
+}
+
+;; `lib_sprintf(&screen[l][pos], size, ...)`: the text at `pos` of row `l`.
+func ui_battle_screen_print (l, pos, s) {
+    val row = ui_data.battle.screen@(l)
+    val bufsize = BATTLE_SCREEN_WIDTH - pos
+    if #s >= bufsize {
+        log_fatal_and_die("lib_sprintf: buffer too small, need %d, have %d", #s, bufsize)
+    }
+    loop i in #s {
+        set row@(pos + i) = string.byte(s, i)
+    }
+    set row@(pos + #s) = 0
+}
+
+func cmd_battle_look (g, api, param, num_param, var_) {
+    0
+}
+
+pin cmds_battle = [
+    input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),
+    input_cmd_s("[1-9][a-j]", nil, "Move to / shoot coordinates", 0, 0, 0, nil, 0),
+    input_cmd_s("[a-j][1-9]", nil, "Move to / shoot coordinates", 0, 0, 0, nil, 0),
+    input_cmd_s("w", nil, "Wait", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_WAIT),
+    input_cmd_s("d", nil, "Done", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_DONE),
+    input_cmd_s("m", nil, "Missile", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_MISSILE),
+    input_cmd_s("a", nil, "Auto", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_AUTO),
+    input_cmd_s("r", nil, "Retreat", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_RETREAT),
+    input_cmd_s("s", nil, "Scan", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_SCAN),
+    input_cmd_s("p", nil, "Planet", 0, 0, 0, ui_cmd_dummy_ret, UI_BATTLE_ACT_PLANET),
+    input_cmd_s("l", nil, "Look area, highlight clickable", 0, 0, 0, cmd_battle_look, 0),
+    input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+]
+pin cmdsptr_battle = [ cmds_battle, nil ]
+set cmds_battle@(0).var_ = cmdsptr_battle
+
+;; ---------------------------------------------------------------------------
+
+func ui_battle_draw_reach (bt, itemi) {
+    loop sy in BATTLE_AREA_H {
+        loop sx in BATTLE_AREA_W {
+            val sv = bt.area@(sy)@(sx)
+            if (sv == 1) || (sv >= 30) {
+                val tx = (sx * 4) + 3
+                val ty = sy * 3
+                loop dy in 3 {
+                    loop dx in 4 {
+                        if ui_data.battle.screen@(ty + dy)@(tx + dx) == 32 {
+                            set ui_data.battle.screen@(ty + dy)@(tx + dx) = 46   ;; '.'
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+func ui_battle_prepost (bt, winner) {
+    pin force = carray2(2, SHIP_HULL_NUM)   ;; shipsum_t[][]
+    game_battle_count_hulls(bt, force)
+    loop i in SHIP_HULL_NUM {
+        io.write(string.format("- %5d %s %d\n", force@(SIDE_L)@(i), game_str_tbl_st_hull@(i), force@(SIDE_R)@(i)))   ;; (%u in C)
+    }
+    if bt.bases != 0 {
+        io.write(string.format("- %s %d\n", game_str_sb_bases, bt.bases))
+    }
+    if winner != SIDE_NONE {
+        val party_winner = bt.s@(winner).party
+        val str = if party_winner >= PLAYER_NUM => game_str_tbl_mon_names@(party_winner - PLAYER_NUM) => game_str_tbl_races@(bt.g.eto@(party_winner).race)
+        io.write(string.format("%s %s\n", str, game_str_bp_won))
+    }
+}
+
+func ui_battle_draw_scan_weap (b, wi) {
+    if b.wpn@(wi).n != 0 {
+        val w = tbl_shiptech_weap@(b.wpn@(wi).t)
+        var s = string.format("%i x %s", b.wpn@(wi).n, w.nameptr())
+        if b.wpn@(wi).numshots >= 0 {
+            set s = s ++ string.format(" (x %i)", b.wpn@(wi).numshots)
+        }
+        if #s >= 40 {
+            strbuild_fatal_too_small([ buf = s, str_start = 0 ])
+        }
+        s
+    } else {
+        ""
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+set ui_battle_init = func (bt) {
+    val g = bt.g
+    val p = g.planet@(bt.planet_i)
+    val party_u = bt.s@(SIDE_L).party
+    val party_d = bt.s@(SIDE_R).party
+    ui_switch_2(bt.g, party_u, party_d)
+    val s1 = if party_d >= PLAYER_NUM => game_str_tbl_mon_names@(party_d - PLAYER_NUM) => game_str_tbl_races@(g.eto@(if bt.flag_human_att => party_u => party_d).race)
+    val s2 = if party_d >= PLAYER_NUM => game_str_bp_attacks => game_str_bp_attack
+    val s3 = game_str_tbl_races@(g.eto@(if bt.flag_human_att => party_d => party_u).race)
+    io.write(string.format("%s | %s | %s %s %s\n", game_str_bp_scombat, cstr(p.name), s1, s2, s3))
+    ui_battle_prepost(bt, SIDE_NONE)
+    pin cl_cont_auto = [
+        [ value = UI_BATTLE_AUTORESOLVE_OFF, key = "C", str = nil, display = "Continue" ],
+        [ value = UI_BATTLE_AUTORESOLVE_AUTO, key = "A", str = nil, display = "Autoresolve" ],
+        [ value = UI_BATTLE_AUTORESOLVE_RETREAT, key = "R", str = nil, display = "Retreat" ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    ui_input_list("Fight?", "> ", cl_cont_auto)
+}
+
+set ui_battle_shutdown = func (bt, colony_destroyed, winner) {
+    ui_battle_prepost(bt, winner)
+    ui_switch_wait(bt.g)
+}
+
+set ui_battle_draw_planetinfo = func (bt, side_r) {
+    val b = bt.item@(0)     ;; planet
+    if b.side == SIDE_NONE {
+        return nil
+    }
+    io.write(string.format("%s, %s %i, %s %i\n", cstr(b.name), game_str_bt_pop, bt.pop, game_str_bt_ind, bt.fact))
+    if bt.s@(bt.item@(bt.cur_item).side).flag_have_scan || (side_r == (b.side == SIDE_R)) {
+        io.write(string.format("%s:\n", game_str_bt_bases))
+        if bt.have_subspace_int {
+            io.write(string.format("- %s\n", game_str_bt_subint))
+        }
+        var w = tbl_shiptech_weap@(b.wpn@(0).t)
+        if (!bt.s@(b.side).flag_base_missile) && (w.nummiss == 1) {
+            set w = tbl_shiptech_weap@(b.wpn@(1).t)
+        }
+        io.write(string.format("- 3 %s %s\n", w.nameptr(), game_str_bt_launch))
+        io.write(string.format("- bdef %i, mdef %i, att %i, hits %i, dam %i, shield %i\n", b.defense, b.misdefense, b.complevel, b.hp1, b.hploss, b.absorb))
+    }
+}
+
+set ui_battle_draw_scan = func (bt, side_r) {
+    val scan_side = if side_r => SIDE_R => SIDE_L
+    val itembase = if scan_side == SIDE_L => 1 => (bt.s@(SIDE_L).items + 1)
+    val itemnum = bt.s@(scan_side).items
+    if !bt.s@(scan_side).flag_have_scan {
+        io.write("No scanners available.\n")
+        return nil
+    }
+    loop i in itemnum {
+        val b = bt.item@(itembase + i)
+        pin gfx = carray2(3, 5)
+        var tgfx = b.gfx
+        if b.side == SIDE_R {
+            set tgfx = tgfx + 4
+        }
+        loop dy in 3 {
+            loop dx in 4 {
+                set gfx@(dy)@(dx) = battlegfx_c(tgfx, dy, dx)
+            }
+            set gfx@(dy)@(4) = 0
+        }
+        set gfx@(0)@(if b.side == SIDE_R => 0 => 3) = 49 + b.shiptbli    ;; '1'
+        if b.num > 0 {
+            val buf = if b.num >= 1000 => string.format("%ik", b.num // 1000) => string.format("%i", b.num)
+            loop j in #buf {
+                set gfx@(2)@(j + 1) = string.byte(buf, j)
+            }
+        }
+        val specsh = func (k) {
+            if b.special@(k) != 0 => game_str_tbl_st_specsh@(b.special@(k)) => ""
+        }
+        io.write(string.format("%-30s %-30s %s\n", cstr(b.name), ui_battle_draw_scan_weap(b, 0), game_str_tbl_st_specsh@(b.special@(0))))
+        io.write(string.format("%-30s %-30s %s\n", string.format("%s  bdef %i, mdef %i, att %i", cstr(gfx@(0)), b.defense, b.misdefense, b.complevel), ui_battle_draw_scan_weap(b, 1), specsh(1)))
+        io.write(string.format("%-30s %-30s %s\n", string.format("%s  hits %i, dmg %i", cstr(gfx@(1)), b.hp1, b.hploss), ui_battle_draw_scan_weap(b, 2), specsh(2)))
+        io.write(string.format("%-30s %-30s\n", string.format("%s  shield %i, speed %i", cstr(gfx@(2)), b.absorb, b.man - b.unman), ui_battle_draw_scan_weap(b, 3)))
+    }
+}
+
+set ui_battle_draw_misshield = func (bt, target_i, target_x, target_y, missile_i) { nil }
+
+set ui_battle_draw_damage = func (bt, target_i, target_x, target_y, damage) {
+    val loc = string.char(bt.item@(target_i).sx + 97) ++ string.char(bt.item@(target_i).sy + 49)
+    io.write(string.format("%s: Hit, %d damage\n", loc, damage))
+}
+
+set ui_battle_draw_explos_small = func (bt, x, y) { nil }
+
+set ui_battle_draw_basic = func (bt) {
+    ui_battle_draw_arena(bt, 0, 0)
+}
+
+set ui_battle_draw_basic_copy = func (bt) {
+    ui_battle_draw_arena(bt, 0, 0)
+}
+
+set ui_battle_draw_missile = func (bt, missilei, x, y, tx0, ty0) {
+    ;; incoming tx, ty unused
+    val tx = ((x * 4) // 32) + 3
+    val ty = (y * 3) // 24
+    set ui_data.battle.screen@(ty)@(tx) = 88   ;; 'X'
+}
+
+set ui_battle_draw_cloaking = func (bt, from, to, sx, sy) { nil }
+
+set ui_battle_draw_arena = func (bt, itemi, dmode) {
+    loop l in BATTLE_SCREEN_HEIGHT {
+        loop k in BATTLE_SCREEN_WIDTH {
+            set ui_data.battle.screen@(l)@(k) = 32
+        }
+    }
+    loop l in 8 * 3 {
+        val row = ui_data.battle.screen@(l)
+        set row@(2) = 124   ;; '|'
+        set row@(3 + (BATTLE_AREA_W * 4) + 1) = 124
+        set row@(3 + (BATTLE_AREA_W * 4) + 2) = 10
+        set row@(3 + (BATTLE_AREA_W * 4) + 3) = 0
+        if (l % 3) == 1 {
+            set row@(1) = 49 + (l // 3)
+        }
+    }
+    loop i in (1, bt.items_num) {
+        val pos = 3 + (BATTLE_AREA_W * 4) + 2
+        val b = bt.item@(i)
+        var l = if b.side == SIDE_L => 0 => 12
+        set l = l + (b.shiptbli * 2)
+        ui_battle_screen_print(l, pos, string.format(" %i%c %i/%i\n", b.shiptbli + 1, if b.side == SIDE_L => 62 => 60, b.hp1 - b.hploss, b.hp1))
+        set l = l + 1
+        ui_battle_screen_print(l, pos, string.format(" %s\n", cstr(b.name)))
+    }
+    loop i in (0, bt.items_num) {
+        if (i != itemi) || (dmode == 0) {   ;; normal
+            val b = bt.item@(i)
+            if b.side != SIDE_NONE {
+                ui_battle_draw_item(bt, i, b.sx * 32, b.sy * 24)
+            }
+        }
+    }
+    loop i in bt.num_rocks {
+        val r = bt.rock@(i)
+        val tx = (r.sx * 4) + 3
+        val ty = r.sy * 3
+        loop dy in 3 {
+            loop dx in 4 {
+                set ui_data.battle.screen@(ty + dy)@(tx + dx) = battlegfx_c(10, dy, dx)
+            }
+        }
+    }
+    loop i in bt.num_missile {
+        val m = bt.missile@(i)
+        val target = m.target
+        if (target != MISSILE_TARGET_NONE) && ((target != itemi) || (dmode != 2)) {   ;; hide target missile
+            val b = bt.item@(target)
+            ui_battle_draw_missile(bt, i, m.x, m.y, (b.sx * 32) + 16, (b.sy * 24) + 12)
+        }
+    }
+}
+
+set ui_battle_draw_item = func (bt, itemi, x, y) {
+    val b = bt.item@(itemi)
+    val tx = ((x * 4) // 32) + 3
+    val ty = (y * 3) // 24
+    var tgfx = b.gfx
+    if (itemi != 0) && (b.side == SIDE_R) {
+        set tgfx = tgfx + 4
+    }
+    loop dy in 3 {
+        loop dx in 4 {
+            set ui_data.battle.screen@(ty + dy)@(tx + dx) = battlegfx_c(tgfx, dy, dx)
+        }
+    }
+    if (b.selected != 0) && (bt.s@(b.side).flag_auto == 0) {
+        if b.selected != 2 {    ;; moving
+            loop dy in 3 {
+                loop dx in 4 {
+                    val c = battlegfx_c(9, dy, dx)
+                    if c != 32 {
+                        set ui_data.battle.screen@(ty + dy)@(tx + dx) = c
+                    }
+                }
+            }
+        }
+    }
+    if itemi != 0 {
+        set ui_data.battle.screen@(ty)@(tx + (if b.side == SIDE_R => 0 => 3)) = 49 + b.shiptbli
+    }
+    if b.num > 0 {
+        val buf = if b.num >= 1000 => string.format("%ik", b.num // 1000) => string.format("%i", b.num)
+        loop i in #buf {
+            set ui_data.battle.screen@(ty + 2)@(tx + i + 1) = string.byte(buf, i)
+        }
+    }
+}
+
+set ui_battle_draw_bomb_attack = func (bt, attacker_i, target_i, bombtype) { nil }
+set ui_battle_draw_beam_attack = func (bt, attacker_i, target_i, wpni) { nil }
+set ui_battle_draw_stasis = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_pulsar = func (bt, attacker_i, ptype, dmgtbl) { nil }
+set ui_battle_draw_stream1 = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_stream2 = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_blackhole = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_technull = func (bt, attacker_i, target_i) { nil }
+set ui_battle_draw_repulse = func (bt, attacker_i, target_i, sx, sy) { nil }
+
+set ui_battle_draw_retreat = func (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    val tx = (b.sx * 4) + 3
+    val ty = b.sy * 3
+    ui_battle_draw_arena(bt, itemi, 1)
+    ui_battle_draw_bottom(bt)
+    loop dy in 3 {
+        loop dx in 4 {
+            set ui_data.battle.screen@(ty + dy)@(tx + dx) = 82  ;; 'R'
+        }
+    }
+    ui_battle_draw_finish(bt)
+}
+
+set ui_battle_draw_bottom = func (bt) { nil }
+
+set ui_battle_draw_finish = func (bt) {
+    io.write("  +-A---B---C---D---E---F---G---H---I---J---+\n")
+    loop l in 8 * 3 {
+        io.write(cstr(ui_data.battle.screen@(l)))
+    }
+    io.write("  +-A---B---C---D---E---F---G---H---I---J---+\n")
+}
+
+set ui_battle_area_setup = func (bt) { nil }
+set ui_battle_turn_pre = func (bt) { nil }
+set ui_battle_turn_post = func (bt) { nil }
+
+set ui_battle_turn = func (bt) {
+    val itemi = bt.cur_item
+    val b = bt.item@(itemi)
+    ui_battle_draw_arena(bt, 0, 0)
+    ui_battle_draw_finish(bt)
+    if false
+      || (b.stasisby > 0)
+      || ((itemi == 0) && (b.num <= 0))
+      || bt.turn_done
+      || ((b.missile != 0) && (b.maxrange == 0) && bt.has_attacked) {
+        return UI_BATTLE_ACT_DONE
+    }
+    val prompt = string.format("%s: %d %s > ", cstr(bt.g.emperor_names@(bt.s@(b.side).party)), b.num, cstr(b.name))
+    if #prompt >= (EMPEROR_NAME_LEN + SHIP_NAME_LEN + 20) {
+        log_fatal_and_die("lib_sprintf: buffer too small, need %d, have %d", #prompt, EMPEROR_NAME_LEN + SHIP_NAME_LEN + 20)
+    }
+    loop {
+        val input = ui_input_line(prompt)
+        if (ui_input_tokenize(input, cmdsptr_battle) == 0) && (ui_data.input.num > 0) {
+            if ui_data.input.tok@(0).type == INPUT_TOKEN_COMMAND {
+                val cmd = ui_data.input.tok@(0).data
+                val v = cmd.handle(bt.g, 0, ui_input_params(), ui_data.input.num - 1, cmd.var_)
+                if v >= 0 {
+                    if cmd.handle == ui_cmd_dummy_ret {
+                        return v
+                    } else {
+                        if cmd.handle == cmd_battle_look {
+                            ui_battle_draw_arena(bt, 0, 0)
+                            ui_battle_draw_reach(bt, itemi)
+                            ui_battle_draw_finish(bt)
+                        }
+                    }
+                }
+            } else {
+                var x = -1
+                var y = -1
+                val p = ui_data.input.tok@(0).str
+                func at (k) {
+                    if k < #p => string.byte(p, k) => 0
+                }
+                val c0 = at(0)
+                ifs {
+                    (c0 >= 49) && (c0 <= 56) => {     ;; '1'..'8'
+                        set y = c0 - 49
+                        val c1 = at(1)
+                        if (c1 >= 97) && (c1 <= 106) {    ;; 'a'..'j'
+                            set x = c1 - 97
+                            if at(2) != 0 {
+                                set x = -1
+                            }
+                        }
+                    }
+                    (c0 >= 97) && (c0 <= 106) => {
+                        set x = c0 - 97
+                        val c1 = at(1)
+                        if (c1 >= 49) && (c1 <= 56) {
+                            set y = c1 - 49
+                            if at(2) != 0 {
+                                set y = -1
+                            }
+                        }
+                    }
+                    else => nil
+                }
+                if (x >= 0) && (y >= 0) {
+                    return BATTLE_XY_SET(x, y)  ;; UI_BATTLE_ACT_CLICK
+                }
+            }
+        }
+    }
+}
+
+set ui_battle_ai_pre = func (bt) { nil }
+set ui_battle_ai_post = func (bt) { false }
+
+set ui_gfx_get_ship = func (look0) {
+    var look = look0
+    if look >= (SHIP_LOOK_PER_BANNER * BANNER_NUM) {
+        set look = 3
+    } else {
+        set look = (look % SHIP_LOOK_PER_BANNER) // SHIP_LOOK_PER_HULL
+    }
+    look
+}
+
+set ui_gfx_get_planet = func (look) { 8 }
+set ui_gfx_get_rock = func (look) { 10 }

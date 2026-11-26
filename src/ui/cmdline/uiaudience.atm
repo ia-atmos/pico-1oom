@@ -1,0 +1,79 @@
+;; Port of c/src/ui/cmdline/uiaudience.c.
+
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_audience.atm"
+include "../../game/game_str.atm"
+include "uiinput.atm"
+include "uiswitch.atm"
+
+pin ui_audience_mood = [ " :)", ">:(", " :V" ]
+
+func ui_audience_show (au) {
+    val g = au.g
+    val moodi = match au.gfxi {
+        3 => 0
+        4 => 1
+        else => 2
+    }
+    io.write(string.format("Audience | %s | %s | %s\n", game_str_tbl_race@(g.eto@(au.pa).race), ui_audience_mood@(moodi), if au.buf == nil => "(null)" => cstr(au.buf)))
+}
+
+func ui_audience_ask (au) {
+    pin rl_in = [
+        [ value = 0, key = "1", str = nil, display = nil ],
+        [ value = 1, key = "2", str = nil, display = nil ],
+        [ value = 2, key = "3", str = nil, display = nil ],
+        [ value = 3, key = "4", str = nil, display = nil ],
+        [ value = 4, key = "5", str = nil, display = nil ],
+        [ value = 5, key = "6", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var num = 0
+    loop i in AUDIENCE_STR_MAX - 1 {
+        val s = au.strtbl@(i)
+        if (s != false) && (s != nil) {
+            if (au.condtbl == nil) || au.condtbl@(i) {
+                set rl_in@(num).value = i
+                val t = cstr(s)
+                set rl_in@(num).display = string.sub(t, 2, #t - 1)  ;; skip "[ "
+                set num = num + 1
+            }
+        } else {
+            break
+        }
+    }
+    set rl_in@(num).value = 0
+    set rl_in@(num).key = nil
+    set rl_in@(num).str = nil
+    set rl_in@(num).display = nil
+    ui_audience_show(au)
+    ui_input_list(nil, "> ", rl_in)
+}
+
+set ui_audience_start = func (au) {
+    ui_switch_2(au.g, au.ph, au.pa)
+}
+
+set ui_audience_show1 = func (au) { ui_audience_show(au) }
+set ui_audience_show2 = func (au) { ui_audience_show(au) }
+set ui_audience_show3 = func (au) { ui_audience_show(au) }
+set ui_audience_ask2a = func (au) { ui_audience_ask(au) }
+set ui_audience_ask2b = func (au) { ui_audience_ask(au) }
+set ui_audience_ask3 = func (au) { ui_audience_ask(au) }
+set ui_audience_ask4 = func (au) { ui_audience_ask(au) }
+
+set ui_audience_newtech = func (au, pi) {
+    if pi == PLAYER_NONE {
+        ui_newtech(au.g, au.ph)
+        ui_newtech(au.g, au.pa)
+    } else {
+        ui_newtech(au.g, pi)
+    }
+    ui_switch_2(au.g, au.ph, au.pa)
+}
+
+set ui_audience_end = func (au) {
+    ui_switch_1(au.g, au.ph)
+}

@@ -1,0 +1,157 @@
+;; Port of c/src/ui/cmdline/uispy_sab.c.
+
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+include "uihelp.atm"
+include "uiinput.atm"
+include "uiplanet.atm"
+include "uiswitch.atm"
+
+func UI_SPY_SAB_MAKE (act, planet) {
+    (act << 8) | planet
+}
+
+func UI_SPY_SAB_ACT (v) {
+    (u32(v) >> 8) & 0xf
+}
+
+func UI_SPY_SAB_PLANET (v) {
+    v & 0xff
+}
+
+;; `var_` is the `struct ui_sab_data_s`: [target, act].
+func cmd_look_sab (g, api, param, num_param, var_) {
+    val sabdata = var_
+    loop i in g.galaxy_stars {
+        val p = g.planet@(i)
+        if p.owner == sabdata.target {
+            ui_planet_look(g, api, i, true)
+        }
+    }
+    0
+}
+
+func cmd_sab (g, api, param, num_param, var_) {
+    val sabdata = var_
+    var planet = 0
+    val act = sabdata.act
+    val target = sabdata.target
+    if act != UI_SABOTAGE_NONE {
+        set planet = ui_planet_from_param(g, api, param@(0))
+        if planet == PLANET_NONE {
+            return -1
+        }
+        val p = g.planet@(planet)
+        if p.owner != target {
+            io.write(string.format("The planet does not belong to the %s\n", game_str_tbl_race@(g.eto@(target).race)))
+            return -1
+        }
+    }
+    UI_SPY_SAB_MAKE(act, planet)
+}
+
+pin cmds_sab = [
+    input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),
+    input_cmd_s("l", nil, "List target planets", 0, 0, 0, cmd_look_sab, 0),
+    input_cmd_s("b", "PLANET", "Sabotage missile bases", 1, 1, 0, cmd_sab, UI_SABOTAGE_BASES),
+    input_cmd_s("f", "PLANET", "Sabotage factories", 1, 1, 0, cmd_sab, UI_SABOTAGE_FACT),
+    input_cmd_s("r", "PLANET", "Incite revolt", 1, 1, 0, cmd_sab, UI_SABOTAGE_REVOLT),
+    input_cmd_s("n", nil, "Do nothing", 0, 0, 0, cmd_sab, UI_SABOTAGE_NONE),
+    input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+]
+pin cmdsptr_sab = [ cmds_sab, nil ]
+set cmds_sab@(0).var_ = cmdsptr_sab
+
+;; Gives (act, planet): the `*planetptr` of C.
+set ui_spy_sabotage_ask = func (g, spy, target) {
+    pin sabdata = [ target = target, act = 0 ]
+    ui_switch_1(g, spy)
+    io.write(string.format("Sabotage | %s | %s\n", game_str_tbl_race@(g.eto@(target).race), game_str_sb_choose))
+    loop {
+        val input = ui_input_line("> ")
+        if (ui_input_tokenize(input, cmdsptr_sab) == 0) && (ui_data.input.num > 0) {
+            if ui_data.input.tok@(0).type == INPUT_TOKEN_COMMAND {
+                val cmd = ui_data.input.tok@(0).data
+                var var_
+                if cmd.handle == ui_cmd_help {
+                    set var_ = cmd.var_
+                } else {
+                    set sabdata.act = cmd.var_
+                    set var_ = sabdata
+                }
+                val v = cmd.handle(g, spy, ui_input_params(), ui_data.input.num - 1, var_)
+                if (v >= 0) && (cmd.handle == cmd_sab) {
+                    val planet = UI_SPY_SAB_PLANET(v)
+                    val act = UI_SPY_SAB_ACT(v)
+                    return (act, planet)
+                }
+            }
+        }
+    }
+}
+
+set ui_spy_sabotage_done = func (g, pi, spy, target, act, other1, other2, planet, snum) {
+    val p = g.planet@(planet)
+    ui_switch_1(g, pi)
+    io.write(string.format("Sabotage | %s | ", cstr(p.name)))
+    if spy == PLAYER_NONE {
+        io.write(string.format("%s ", game_str_sb_unkn))
+    } else {
+        io.write(string.format("%s %s ", if spy == pi => game_str_sb_your => game_str_tbl_race@(g.eto@(spy).race), game_str_sb_spies))
+    }
+    if snum > 0 {
+        match act {
+            UI_SABOTAGE_BASES => {
+                io.write(string.format("%s %i %s", game_str_sb_destr, snum, if snum == 1 => game_str_sb_mbase => game_str_sb_mbases))
+            }
+            UI_SABOTAGE_REVOLT => {
+                if p.unrest == PLANET_UNREST_REBELLION {
+                    io.write(game_str_sb_increv)
+                } else {
+                    val v = if p.pop == 0 => 0 => ((p.rebels * 100) // p.pop)
+                    io.write(string.format("%s %i %s %i%%.", game_str_sb_inc1, snum, game_str_sb_inc2, v))
+                }
+            }
+            else => {  ;; UI_SABOTAGE_FACT
+                io.write(string.format("%s %i %s", game_str_sb_destr, snum, if snum == 1 => game_str_sb_fact2 => game_str_sb_facts))
+            }
+        }
+    } else {
+        io.write(string.format("%s ", game_str_sb_failed))
+        match act {
+            UI_SABOTAGE_BASES => {
+                if p.missile_bases == 0 {
+                    io.write(game_str_sb_nobases)
+                }
+            }
+            UI_SABOTAGE_REVOLT => {
+                io.write(game_str_sb_noinc)  ;; FIXME never happens?
+            }
+            else => {  ;; UI_SABOTAGE_FACT
+                if p.factories == 0 {
+                    io.write(game_str_sb_nofact)
+                }
+            }
+        }
+    }
+    io.write("\n")
+    if other2 == PLAYER_NONE {
+        ui_switch_wait(g)
+        return PLAYER_NONE
+    }
+    pin rl_in = [
+        [ value = 0, key = "1", str = nil, display = nil ],
+        [ value = 1, key = "2", str = nil, display = nil ],
+        [ value = PLAYER_NONE, key = "Q", str = nil, display = game_str_mm_quit ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    ;; (C sets the first entry twice: the second stays with no display)
+    set rl_in@(0).value = other1
+    set rl_in@(0).display = game_str_tbl_races@(g.eto@(other1).race)
+    set rl_in@(0).value = other2
+    set rl_in@(0).display = game_str_tbl_races@(g.eto@(other2).race)
+    io.write(string.format("Sabotage | %s | %s\n", cstr(p.name), game_str_sb_frame))
+    ui_input_list(game_str_nt_victim, "> ", rl_in)
+}

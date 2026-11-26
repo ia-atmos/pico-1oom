@@ -1,0 +1,30 @@
+-new 230:0:0:99
+l
+l *
+s s 30
+s t +10
+s e -5
+sl i
+s i 50
+b
+b
+b
+l
+res
+res 5
+bscrap 1
+g 1
+g +1
+g -1
+l #x5
+n
+1
+1
+l
+reloc
+trans
+trans 3 5
+n
+1
+l
+quit !

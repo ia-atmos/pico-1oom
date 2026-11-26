@@ -1,0 +1,66 @@
+;; Port of c/src/ui/cmdline/uispy_esp.c.
+
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "../../game/game_tech.atm"
+include "uiinput.atm"
+include "uiswitch.atm"
+
+set ui_spy_steal = func (g, spy, target, flags_field) {
+    pin rl_in = [
+        [ value = -1, key = "1", str = nil, display = nil ],
+        [ value = -1, key = "2", str = nil, display = nil ],
+        [ value = -1, key = "3", str = nil, display = nil ],
+        [ value = -1, key = "4", str = nil, display = nil ],
+        [ value = -1, key = "5", str = nil, display = nil ],
+        [ value = -1, key = "6", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var num = 0
+    var v = -1
+    ui_switch_1(g, spy)
+    do {
+        val e = g.eto@(target)
+        var rbuf = ""
+        var usean = false
+        val r = game_str_tbl_race@(e.race)
+        loop i in #r {
+            val c = c_toupper(string.byte(r, i))
+            set rbuf = rbuf ++ string.char(c)
+            if (c == 65) || (c == 69) || (c == 73) || (c == 79) || (c == 85) {    ;; A E I O U
+                set usean = true
+            }
+        }
+        io.write(string.format("%s%s %s %s. ", game_str_es_youresp1, if usean => "N" => "", rbuf, game_str_es_youresp2))
+    }
+    loop i in TECH_FIELD_NUM {
+        if (flags_field & (1 << i)) != 0 {
+            set rl_in@(num).value = i
+            set rl_in@(num).display = game_str_tbl_te_field@(i)
+            set num = num + 1
+        }
+    }
+    if num > 0 {
+        set rl_in@(num).value = -1
+        set rl_in@(num).key = "Q"
+        set rl_in@(num).str = "q"
+        set rl_in@(num).display = "(quit)"
+        set num = num + 1
+        set rl_in@(num).value = 0
+        set rl_in@(num).key = nil
+        set rl_in@(num).str = nil
+        set rl_in@(num).display = nil
+        set v = ui_input_list(game_str_es_youresp3, "> ", rl_in)
+    }
+    v
+}
+
+set ui_spy_stolen = func (g, pi, spy, field, tech) {
+    pin buf = carray(0x80)
+    val s = if spy != PLAYER_NONE => game_str_tbl_race@(g.eto@(spy).race) => game_str_es_unkn
+    ui_switch_1(g, pi)
+    io.write(string.format("%s %s | %s %s %s\n", s, game_str_es_thesp1, s, game_str_es_thesp2, cstr(game_tech_get_name(g.gaux, field, tech, buf, #buf))))
+    ui_switch_wait(g)
+}

@@ -309,7 +309,7 @@ func ui_cmd_planet_look (g, api, param, num_param, var_) {
         ui_planet_look(g, api, pi, true)
         return 0
     }
-    -1
+    return -1
 }
 
 func ui_cmd_planet_go (g, api, param, num_param, var_) {
@@ -318,7 +318,7 @@ func ui_cmd_planet_go (g, api, param, num_param, var_) {
         set g.planet_focus_i@(api) = planet_i
         return 0
     }
-    -1
+    return -1
 }
 
 func ui_cmd_planet_slider (g, api, param, num_param, var_) {
