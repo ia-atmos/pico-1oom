@@ -1,0 +1,76 @@
+;; Port of c/src/ui/cmdline/uiempire.c.
+
+include "../../comp.atm"
+include "../../game/game.atm"
+include "../../game/game_misc.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+
+func ui_empire_slider (param, base) {
+    var v
+    ifs {
+        param@(0).type == INPUT_TOKEN_NUMBER => { set v = param@(0).data }
+        param@(0).type == INPUT_TOKEN_RELNUMBER => { set v = base + param@(0).data }
+        else => { return -1 }
+    }
+    SETRANGE(v, 0, 200)
+}
+
+func ui_cmd_empire_look (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    pin buf = carray(64)
+    io.write(string.format("%s, %s\n", game_str_tbl_races@(e.race), cstr(g.emperor_names@(api))))
+    io.write(string.format("- %s: ", game_str_pl_spending))
+    game_print_prod_of_total(g, api, e.ship_maint_bc, buf, #buf)
+    io.write(string.format("Ships %s", cstr(buf)))
+    game_print_prod_of_total(g, api, e.bases_maint_bc, buf, #buf)
+    io.write(string.format(", Bases %s", cstr(buf)))
+    do {
+        var v = 0
+        loop i in PLAYER_NUM {
+            if i != api {
+                set v = v + e.spying@(i)
+            }
+        }
+        io.write(string.format(", Spying %i.%i%%", v // 10, v % 10))
+    }
+    do {
+        val v = e.security
+        io.write(string.format(", Security %i.%i%%\n", v // 10, v % 10))
+    }
+    io.write(string.format("- %s: Trade %i %s, Planets %i %s\n", game_str_pl_tincome, e.total_trade_bc, game_str_bc, i32(e.total_production_bc), game_str_bc))
+    io.write(string.format("- %s: %i %s\n", game_str_pl_reserve, i32(e.reserve_bc), game_str_bc))
+    do {
+        val tax = e.tax
+        val bc = (tax * e.total_production_bc) // 2000
+        io.write(string.format("- Tax: %i.%i%% +%i %s\n", tax // 10, tax % 10, i32(bc), game_str_bc))
+    }
+    do {
+        var v = e.security // 5
+        if e.race == RACE_DARLOK {
+            set v = v + 20
+        }
+        io.write(string.format("- Security: %i%%\n", v))
+    }
+    0
+}
+
+func ui_cmd_empire_tax (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val v = ui_empire_slider(param, e.tax)
+    if v < 0 {
+        return -1
+    }
+    set e.tax = v
+    0
+}
+
+func ui_cmd_empire_security (g, api, param, num_param, var_) {
+    val e = g.eto@(api)
+    val v = ui_empire_slider(param, e.security)
+    if v < 0 {
+        return -1
+    }
+    set e.security = v
+    0
+}

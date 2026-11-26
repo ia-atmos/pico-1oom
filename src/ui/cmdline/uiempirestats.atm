@@ -1,0 +1,29 @@
+;; Port of c/src/ui/cmdline/uiempirestats.c.
+
+include "../../comp.atm"
+include "../../game/game.atm"
+include "../../game/game_stat.atm"
+include "../../game/game_str.atm"
+
+func ui_cmd_empirestats (g, api, param, num_param, var_) {
+    pin st = game_stats_s()
+    var maxlen = 0
+    io.write(string.format("%s | %s: %i\n", game_str_ra_stats, game_str_year, g.year + YEAR_BASE))
+    game_stats_all(g, api, st)
+    loop i in st.num {
+        val e = g.eto@(st.p@(i))
+        set maxlen = SETMAX(maxlen, #game_str_tbl_race@(e.race))
+    }
+    val fmt = string.format("%%-%is", maxlen)
+    io.write(string.format(fmt, ""))
+    io.write("   Fleet Tech  Prod  Pop Planets Total\n")
+    loop i in st.num {
+        val e = g.eto@(st.p@(i))
+        io.write(string.format(fmt, game_str_tbl_race@(e.race)))
+        loop s in 6 {
+            io.write(string.format("   %3d", st.v@(s)@(i)))  ;; (%3u in C)
+        }
+        io.write("\n")
+    }
+    0
+}

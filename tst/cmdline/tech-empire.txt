@@ -1,0 +1,29 @@
+-new 430:0:0:31337
+t
+t c
+t w
+t p
+ts c 50
+ts r +10
+ts f -100
+tsl w
+ts w 90
+t=
+t
+emp
+tax 20
+tax +5
+sec 10
+sec +300
+emp
+stats
+n
+1
+1
+n
+1
+1
+t
+emp
+stats
+quit !

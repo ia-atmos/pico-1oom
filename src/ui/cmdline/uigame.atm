@@ -6,12 +6,15 @@ include "../../game/game.atm"
 include "../../game/game_turn_start.atm"
 include "uicheat.atm"
 include "uicmds.atm"
+include "uiempire.atm"
+include "uiempirestats.atm"
 include "uidefs.atm"
 include "uifinished.atm"
 include "uihelp.atm"
 include "uiinput.atm"
 include "uiplanet.atm"
 include "uiswitch.atm"
+include "uitech.atm"
 
 ;; The commands of the screens that are not ported yet (#14): they throw.
 func ui_cmd_not_ported (name) {
@@ -43,16 +46,16 @@ pin cmds_turn = [
     input_cmd_s("scrap", "[SHIP]", "Scrap ship", 0, 1, 0, ui_cmd_not_ported("scrap"), 0),
     input_cmd_s("specs", "[SHIP]", "Show fleet specs", 0, 1, 0, ui_cmd_not_ported("specs"), 0),
     input_cmd_s("redir", "[#Fn|#Tn PLANET]", "Redirect fleet/transport to planet\nShows redirectable items if no params given", 0, 2, 0, ui_cmd_not_ported("redir"), 0),
-    input_cmd_s("t", "[FIELD]", "View technology\nFIELD is c, o, f, p, r or w\nShows sliders if no field given", 0, 1, 0, ui_cmd_not_ported("t"), 0),
-    input_cmd_s("ts", "FIELD VALUE", "Set tech slider to value\nVALUE can be +N or -N for relative adjustment", 2, 2, 0, ui_cmd_not_ported("ts"), 0),
-    input_cmd_s("tsl", "FIELD", "Toggle tech slider lock", 1, 1, 0, ui_cmd_not_ported("tsl"), 0),
-    input_cmd_s("t=", nil, "Equalize tech sliders", 0, 0, 0, ui_cmd_not_ported("t="), 0),
-    input_cmd_s("emp", nil, "Empire overview", 0, 0, 0, ui_cmd_not_ported("emp"), 0),
-    input_cmd_s("tax", "VALUE", "Set tax (tenths of percent)\nVALUE can be +N or -N for relative adjustment", 1, 1, 0, ui_cmd_not_ported("tax"), 0),
+    input_cmd_s("t", "[FIELD]", "View technology\nFIELD is c, o, f, p, r or w\nShows sliders if no field given", 0, 1, 0, ui_cmd_tech_look, 0),
+    input_cmd_s("ts", "FIELD VALUE", "Set tech slider to value\nVALUE can be +N or -N for relative adjustment", 2, 2, 0, ui_cmd_tech_slider, 0),
+    input_cmd_s("tsl", "FIELD", "Toggle tech slider lock", 1, 1, 0, ui_cmd_tech_slider_lock, 0),
+    input_cmd_s("t=", nil, "Equalize tech sliders", 0, 0, 0, ui_cmd_tech_equals, 0),
+    input_cmd_s("emp", nil, "Empire overview", 0, 0, 0, ui_cmd_empire_look, 0),
+    input_cmd_s("tax", "VALUE", "Set tax (tenths of percent)\nVALUE can be +N or -N for relative adjustment", 1, 1, 0, ui_cmd_empire_tax, 0),
     input_cmd_s("races", nil, "Show races", 0, 0, 0, ui_cmd_not_ported("races"), 0),
-    input_cmd_s("stats", nil, "Show stats", 0, 0, 0, ui_cmd_not_ported("stats"), 0),
+    input_cmd_s("stats", nil, "Show stats", 0, 0, 0, ui_cmd_empirestats, 0),
     input_cmd_s("spy", "RACE VALUE|MODE", "Set spy spending (tenths of percent) or mode (Hide, Esp., Sabotage)\nVALUE can be +N or -N for relative adjustment", 2, 2, 0, ui_cmd_not_ported("spy"), 0),
-    input_cmd_s("sec", "VALUE", "Set security spending (tenths of percent)\nVALUE can be +N or -N for relative adjustment", 1, 1, 0, ui_cmd_not_ported("sec"), 0),
+    input_cmd_s("sec", "VALUE", "Set security spending (tenths of percent)\nVALUE can be +N or -N for relative adjustment", 1, 1, 0, ui_cmd_empire_security, 0),
     input_cmd_s("rep", nil, "Show report", 0, 0, 0, ui_cmd_not_ported("rep"), 0),
     input_cmd_s("aud", nil, "Audience", 0, 0, 0, ui_cmd_not_ported("aud"), 0),
     input_cmd_s("galaxy", nil, nil, 0, 0, 0, ui_cmd_cheat_galaxy, 0),

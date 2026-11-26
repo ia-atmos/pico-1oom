@@ -1,0 +1,136 @@
+;; Port of c/src/ui/cmdline/uitech.c.
+
+include "../../comp.atm"
+include "../../game/game.atm"
+include "../../game/game_misc.atm"
+include "../../game/game_str.atm"
+include "../../game/game_tech.atm"
+include "uidefs.atm"
+
+val ui_tech_slchars = "cofprw"
+
+func ui_tech_slider_from_param (param) {
+    val c = string.byte(param.str, 0)
+    loop i in #ui_tech_slchars {
+        if string.byte(ui_tech_slchars, i) == c {
+            return i
+        }
+    }
+    if (c == nil) || (c == 0) {
+        return #ui_tech_slchars    ;; (strchr finds the '\0')
+    }
+    TECH_FIELD_NUM
+}
+
+val LIGHTBULB_CHARS = 8
+val ui_tech_lightbulb = " .,_oO?!"
+
+func ui_tech_look_sliders (g, api) {
+    val e = g.eto@(api)
+    val t = e.tech
+    loop f in TECH_FIELD_NUM {
+        io.write(string.format("%c%c %12s: %3i ", if t.slider_lock@(f) != 0 => 42 => 32, string.byte(ui_tech_slchars, f), game_str_tbl_te_field@(f), t.slider@(f)))
+        if (t.percent@(f) < 99) || (t.project@(f) != 0) {
+            var complpercent = game_tech_current_research_percent2(g, api, f)
+            if complpercent > 0 {
+                if complpercent < 10 {
+                    io.write(" ")
+                }
+                io.write(string.format("%i%%", complpercent))
+            } else {
+                set complpercent = game_tech_current_research_percent1(g, api, f)
+                val pos = (complpercent * LIGHTBULB_CHARS) // 100
+                io.write(" " ++ string.sub(ui_tech_lightbulb, pos, pos) ++ " ")
+            }
+            io.write(" ")
+            io.write(if game_tech_current_research_has_max_bonus(g, api, f) => "X" => " ")
+        } else {
+            io.write(game_str_te_max)
+        }
+        if t.project@(f) != 0 {
+            io.write("  ")
+            game_tech_get_name(g.gaux, f, t.project@(f), ui_data.strbuf, UI_STRBUF_SIZE)
+            io.write(cstr(ui_data.strbuf))
+        }
+        io.write("\n")
+    }
+}
+
+func ui_tech_look_field (g, api, f) {
+    val t = g.eto@(api).tech
+    val q = g.srd@(api).researchcompleted@(f)
+    pin completed = []
+    var num = t.completed@(f)
+    if f == TECH_FIELD_WEAPON {
+        set completed@(#completed) = -2
+        set completed@(#completed) = -1
+    }
+    loop i in num {
+        set completed@(#completed) = i8(q@(i))
+    }
+    if f == TECH_FIELD_WEAPON {
+        set num = num + 2
+    }
+    if t.project@(f) != 0 {
+        set completed@(#completed) = i8(t.project@(f))
+        set num = num + 1
+    }
+    io.write(game_str_tbl_te_field@(f) ++ "\n")
+    loop i in num {
+        game_tech_get_name(g.gaux, f, completed@(i), ui_data.strbuf, UI_STRBUF_SIZE)
+        io.write("- ")
+        io.write(cstr(ui_data.strbuf))
+        io.write(": ")
+        game_tech_get_descr(g.gaux, f, completed@(i), ui_data.strbuf, UI_STRBUF_SIZE)
+        io.write(cstr(ui_data.strbuf) ++ "\n")
+    }
+}
+
+func ui_cmd_tech_look (g, api, param, num_param, var_) {
+    if num_param == 0 {
+        ui_tech_look_sliders(g, api)
+    } else {
+        val f = ui_tech_slider_from_param(param@(0))
+        if f == TECH_FIELD_NUM {
+            return -1
+        }
+        ui_tech_look_field(g, api, f)
+    }
+    0
+}
+
+func ui_cmd_tech_slider (g, api, param, num_param, var_) {
+    val t = g.eto@(api).tech
+    val f = ui_tech_slider_from_param(param@(0))
+    var v
+    if f == TECH_FIELD_NUM {
+        return -1
+    }
+    ifs {
+        param@(1).type == INPUT_TOKEN_NUMBER => { set v = param@(1).data }
+        param@(1).type == INPUT_TOKEN_RELNUMBER => { set v = t.slider@(f) + param@(1).data }
+        else => { return -1 }
+    }
+    set v = SETRANGE(v, 0, 100)
+    if t.slider_lock@(f) == 0 {
+        set t.slider@(f) = v
+        game_adjust_slider_group(t.slider, f, t.slider@(f), TECH_FIELD_NUM, t.slider_lock)
+    }
+    0
+}
+
+func ui_cmd_tech_slider_lock (g, api, param, num_param, var_) {
+    val t = g.eto@(api).tech
+    val f = ui_tech_slider_from_param(param@(0))
+    if f == TECH_FIELD_NUM {
+        return -1
+    }
+    set t.slider_lock@(f) = if t.slider_lock@(f) != 0 => 0 => 1
+    0
+}
+
+func ui_cmd_tech_equals (g, api, param, num_param, var_) {
+    val t = g.eto@(api).tech
+    game_equalize_slider_group(t.slider, TECH_FIELD_NUM, t.slider_lock)
+    0
+}
