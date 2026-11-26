@@ -17,13 +17,15 @@ shift
 TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 "$ATMOS" -o "$TMP/atm" "$DIR/../src/main.atm"
+# a fixed time: the random seeds (the time in microseconds) equal in both
+cc -shared -fPIC -o "$TMP/fixtime.so" "$DIR/c/fixtime.c"
 n=0; bad=0
 for f in "$@"; do
     n=$((n+1))
     opts=$(head -n 1 "$f")
     rm -rf "$TMP/uc" "$TMP/ua"; mkdir "$TMP/uc" "$TMP/ua"
-    tail -n +2 "$f" | (cd "$TMP/uc" && $C -data "$DATA" -user . -cro -nolog $opts > "$TMP/c.out" 2> "$TMP/c.err") || true
-    tail -n +2 "$f" | (cd "$TMP/ua" && "$TMP/atm" -data "$DATA" -user . -cro -nolog $opts > "$TMP/a.raw") || true
+    tail -n +2 "$f" | (cd "$TMP/uc" && LD_PRELOAD="$TMP/fixtime.so" $C -data "$DATA" -user . -cro -nolog $opts > "$TMP/c.out" 2> "$TMP/c.err") || true
+    tail -n +2 "$f" | (cd "$TMP/ua" && LD_PRELOAD="$TMP/fixtime.so" "$TMP/atm" -data "$DATA" -user . -cro -nolog $opts > "$TMP/a.raw") || true
     python3 -I - "$TMP/c.err" "$TMP/a.raw" "$TMP/a.out" <<'PY'
 import sys
 err = open(sys.argv[1], encoding='latin-1').read().splitlines(True)

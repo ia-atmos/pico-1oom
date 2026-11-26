@@ -1,0 +1,41 @@
+-skipintro
+n
+2
+3
+1
+4
+2
+Kirk
+Earth2
+?
+c 2
+n 2
+Spock
+h 2
+Vulcan
+r 3
+7
+b 3
+4
+a
+2
+a
+1
+c 1
+s
+c 1
+s
+n
+n
+l
+quit
+c
+n
+quit
+l
+7
+n
+quit
+tutor
+n
+quit !

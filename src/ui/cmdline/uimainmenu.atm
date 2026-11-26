@@ -204,21 +204,23 @@ func cmd_ai (newopts, api, param, num_param, var_) {
     0
 }
 
+;; (C: local to ui_new_game_extra; global here, as the tokens keep it)
+pin cmds_newgame = [
+    input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),
+    input_cmd_s("q", nil, game_str_ng_cancel, 0, 0, 0, cmd_exit, 1),     ;; cancel
+    input_cmd_s("s", nil, game_str_ng_ok, 0, 0, 0, cmd_exit, 2),         ;; start
+    input_cmd_s("a", nil, game_str_ng_ai, 0, 0, 0, cmd_ai, 0),
+    input_cmd_s("c", "[PLAYER]", game_str_ng_computer, 1, 1, 0, cmd_toggle_computer, 0),
+    input_cmd_s("r", "[PLAYER]", "Race", 1, 1, 0, cmd_race, 0),
+    input_cmd_s("b", "[PLAYER]", "Banner", 1, 1, 0, cmd_choose, ui_new_game_choose_banner),
+    input_cmd_s("n", "[PLAYER]", "Emperor name", 1, 1, 0, cmd_choose, ui_new_game_pname),
+    input_cmd_s("h", "[PLAYER]", "Home word name", 1, 1, 0, cmd_choose, ui_new_game_hname),
+    input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+]
+pin cmdsptr_newgame = [ cmds_newgame, nil ]
+set cmds_newgame@(0).var_ = cmdsptr_newgame
+
 func ui_new_game_extra (newopts) {
-    pin cmds_newgame = [
-        input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),
-        input_cmd_s("q", nil, game_str_ng_cancel, 0, 0, 0, cmd_exit, 1),     ;; cancel
-        input_cmd_s("s", nil, game_str_ng_ok, 0, 0, 0, cmd_exit, 2),         ;; start
-        input_cmd_s("a", nil, game_str_ng_ai, 0, 0, 0, cmd_ai, 0),
-        input_cmd_s("c", "[PLAYER]", game_str_ng_computer, 1, 1, 0, cmd_toggle_computer, 0),
-        input_cmd_s("r", "[PLAYER]", "Race", 1, 1, 0, cmd_race, 0),
-        input_cmd_s("b", "[PLAYER]", "Banner", 1, 1, 0, cmd_choose, ui_new_game_choose_banner),
-        input_cmd_s("n", "[PLAYER]", "Emperor name", 1, 1, 0, cmd_choose, ui_new_game_pname),
-        input_cmd_s("h", "[PLAYER]", "Home word name", 1, 1, 0, cmd_choose, ui_new_game_hname),
-        input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
-    ]
-    pin cmdsptr_newgame = [ cmds_newgame, nil ]
-    set cmds_newgame@(0).var_ = cmdsptr_newgame
     ui_new_game_display(newopts)
     loop {
         val input = ui_input_line("> ")
