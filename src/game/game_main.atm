@@ -15,6 +15,7 @@ include "game_misc.atm"
 include "game_new.atm"
 include "game_num.atm"
 include "game_nump.atm"
+include "game_strp.atm"
 include "game_save.atm"
 include "game_tech.atm"
 include "game_turn.atm"
@@ -365,15 +366,13 @@ func game_opt_set_new_ai (argv, var_) {
     0
 }
 
-;; -dumpstr and -dumpnum: game_str_dump and game_num_dump (of game_strp.c
-;; and game_nump.c) are not ported yet (#14, with the PBX files).
 func dump_strings (argv, var_) {
-    log_error("option '%s' is not ported yet\n", argv@(0))
+    game_str_dump()
     return -1
 }
 
 func dump_numbers (argv, var_) {
-    log_error("option '%s' is not ported yet\n", argv@(0))
+    game_num_dump()
     return -1
 }
 

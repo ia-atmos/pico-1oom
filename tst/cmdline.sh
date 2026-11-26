@@ -2,7 +2,9 @@
 # The textual interface of the port (src/main.atm) against 1oom_cmdline of
 # the C: each case is a file in tst/cmdline/, its first line the options
 # (after -data and -user), the rest the input typed; a file NAME.cfg next to
-# the case NAME.txt is the config file in the user directory at the start.
+# the case NAME.txt is the config file in the user directory at the start,
+# and a file NAME.pbxin is made (by 1oom_pbxmake of the C) into patch.pbx
+# there, for an option -file patch.pbx.
 # What both print, their exit codes and the files they write in the user
 # directory (saves, config, log) must be equal.
 #   tst/cmdline.sh DATADIR [CASE...]     (ATMOS: the compiler, default `atmos`;
@@ -30,6 +32,11 @@ for f in "$@"; do
     if [ -e "$cfg" ]; then
         cp "$cfg" "$TMP/uc/1oom_config_game_cmdline_nop.txt"
         cp "$cfg" "$TMP/ua/1oom_config_game_cmdline_nop.txt"
+    fi
+    pbxin=${f%.txt}.pbxin
+    if [ -e "$pbxin" ]; then
+        "$DIR/../c/build-native/src/1oom_pbxmake" "$pbxin" "$TMP/uc/patch.pbx" > /dev/null
+        cp "$TMP/uc/patch.pbx" "$TMP/ua/patch.pbx"
     fi
     rc=0; ra=0
     tail -n +2 "$f" | (cd "$TMP/uc" && LD_PRELOAD="$TMP/fixtime.so" $C -data "$DATA" -user . $opts > "$TMP/c.out" 2> "$TMP/c.err") || rc=$?

@@ -80,8 +80,7 @@ func game_ai_classic_new_game_tech (g) {
                 until tech != 0
             }
             if game_num_ai_first_tech_cost_fix {
-                ;; game_tech_start_next comes with game_tech.c (step 4)
-                throw "game_ai_classic_new_game_tech: game_tech_start_next is not ported yet"
+                game_tech_start_next(g, pli, field, tech)
             } else {
                 val e = g.eto@(pli)
                 set e.tech.project@(field) = tech

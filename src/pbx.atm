@@ -1,19 +1,228 @@
-;; Port of c/src/pbx.c: the patch files (PBX).
+;; Port of c/src/pbx.c (and pbx.h): the patch files (PBX).
 ;;
-;; For now (#14) only the queue: applying a file (`pbx_add_file`, with the
-;; patches of lbx.c, game_strp.c and game_nump.c) is not ported yet, and
-;; gives an error.
+;; C reads the file with `fseek` and `fread`; here the file is read whole
+;; (`cfile_read`), and a read past its end fails as `fread` does. Data are
+;; vectors of bytes.
 
+include "bits.atm"
+include "cfile.atm"
+include "lbx.atm"
 include "log.atm"
+include "game/game_nump.atm"
+include "game/game_strp.atm"
+
+val PBX_HEADER_LEN = 16
+val PBX_MAGIC = "1oomPBX "
+val PBX_OFFS_VERSION = 8
+val PBX_OFFS_ITEMS = 12
+val PBX_VERSION = 1
+
+val PBX_ITEM_HEADER_LEN = 32
+val PBX_OFFS_ITEM_LEN = 0
+val PBX_OFFS_ITEM_TYPE = 4
+val PBX_OFFS_ITEM_INDEX = 6
+val PBX_OFFS_ITEM_ID = 8
+val PBX_OFFS_ITEM_OFFS = PBX_ITEM_HEADER_LEN
+val PBX_ITEM_ID_LEN = PBX_ITEM_HEADER_LEN - PBX_OFFS_ITEM_ID
+
+val PBX_ITEM_TYPE_NAME = 0
+val PBX_ITEM_TYPE_DESC = 1
+val PBX_ITEM_TYPE_LBXP = 2
+val PBX_ITEM_TYPE_STRP = 3
+val PBX_ITEM_TYPE_NUMP = 4
+val PBX_ITEM_TYPE_LBXO = 5
 
 val MAX_PATCHFILES = 20
 var num_patchfiles = 0
 pin patchfiles = []
 
+;; ---------------------------------------------------------------------------
+
+;; `str_from_buf(buf, buf_size)`: the bytes as a string of C (up to a 0).
+func str_from_buf (buf, offs, buf_size) {
+    val cs = []
+    loop k in buf_size {
+        val b = buf@(offs + k)
+        while b != 0
+        set cs@+ = string.char(b)
+    }
+    vector.join(cs, "")
+}
+
+func pbx_cb_name (ctx, filename, pbxi, data, len) {
+    log_message("PBX: name '%s'\n", str_from_buf(data, 0, len))
+    0
+}
+
+func pbx_cb_desc (ctx, filename, pbxi, data, len) {
+    ;; ignore
+    0
+}
+
+func pbx_cb_lbxp (ctx, filename, pbxi, id, itemi, data, len) {
+    val lbxf = lbxfile_id(id)
+    if lbxf < LBXFILE_NUM {
+        lbxfile_add_patch(lbxf, itemi, data, len, filename)
+        return 1
+    } else {
+        log_error("patch file '%s' item %i base filename '%s' not recognized!\n", filename, pbxi, id)
+        return -1
+    }
+}
+
+func pbx_cb_lbxo (ctx, filename, pbxi, id, itemi, data, len, itemoffs) {
+    val lbxf = lbxfile_id(id)
+    if lbxf < LBXFILE_NUM {
+        lbxfile_add_overwrite(lbxf, itemi, itemoffs, data, len, filename)
+        return 1
+    } else {
+        log_error("patch file '%s' item %i base filename '%s' not recognized!\n", filename, pbxi, id)
+        return -1
+    }
+}
+
+func pbx_cb_strp (ctx, filename, pbxi, id, patchstr_data, itemi, len) {
+    val patchstr = str_from_buf(patchstr_data, 0, len)
+    if !game_str_patch(id, patchstr, itemi) {
+        log_error("patch file '%s' item %i strid '%s' (%i) invalid!\n", filename, pbxi, id, itemi)
+        return false
+    }
+    true
+}
+
+func pbx_cb_nump (ctx, filename, pbxi, id, patchnums, first, num) {
+    if !game_num_patch(id, patchnums, first, num) {
+        log_error("patch file '%s' item %i numid '%s' (%i) invalid!\n", filename, pbxi, id, first)
+        return false
+    }
+    true
+}
+
+;; ---------------------------------------------------------------------------
+
+;; `fread` of `n` bytes at `pos`: the bytes, or nil past the end.
+func pbx_fread (fd, pos, n) {
+    if (pos < 0) || ((pos + n) > #fd) {
+        return nil
+    }
+    val bs = []
+    loop k in n {
+        set bs@+ = fd@(pos + k)
+    }
+    bs
+}
+
+;; `cbs_in`: `[name=, desc=, lbxp=, strp=, nump=, lbxo=]` or nil (the tools
+;; pbxdump and pbxmake give theirs; the game, none).
 func pbx_add_file (filename, cbs_in, ctx) {
+    val cbs = [
+        name = if cbs_in && cbs_in.name => cbs_in.name => pbx_cb_name,
+        desc = if cbs_in && cbs_in.desc => cbs_in.desc => pbx_cb_desc,
+        lbxp = if cbs_in && cbs_in.lbxp => cbs_in.lbxp => pbx_cb_lbxp,
+        strp = if cbs_in && cbs_in.strp => cbs_in.strp => pbx_cb_strp,
+        nump = if cbs_in && cbs_in.nump => cbs_in.nump => pbx_cb_nump,
+        lbxo = if cbs_in && cbs_in.lbxo => cbs_in.lbxo => pbx_cb_lbxo,
+    ]
+
     log_message("PBX: applying patch file '%s'\n", filename)
-    log_error("PBX: patch files are not ported yet\n")
-    return -1
+
+    val fd = cfile_read(filename)
+    if !fd {
+        log_error("opening patch file '%s'!\n", filename)
+        return -1
+    }
+    val buf = pbx_fread(fd, 0, PBX_HEADER_LEN)
+    if buf == nil {
+        log_error("reading header of file '%s'!\n", filename)
+        return -1
+    }
+    if str_from_buf(buf, 0, 8) != PBX_MAGIC {
+        log_error("invalid PBX header on file '%s'!\n", filename)
+        return -1
+    }
+    val version = GET_LE_32(buf, PBX_OFFS_VERSION)
+    val items = GET_LE_32(buf, PBX_OFFS_ITEMS)
+    if version != PBX_VERSION {
+        log_error("invalid PBX version %i on file '%s'! (expected %i)\n", version, filename, PBX_VERSION)
+        return -1
+    }
+    loop i in items {
+        val ob = pbx_fread(fd, PBX_HEADER_LEN + (i * 4), 4)
+        if ob == nil {
+            ;; fseek past the end succeeds in C; the fread fails
+            log_error("problem reading file\n")
+            return -1
+        }
+        val offs = GET_LE_32(ob, 0)
+        val hb = pbx_fread(fd, offs, PBX_ITEM_HEADER_LEN)
+        if hb == nil {
+            log_error("reading item %i header of file '%s'!\n", i, filename)
+            return -1
+        }
+        var len = GET_LE_32(hb, PBX_OFFS_ITEM_LEN)
+        val type = GET_LE_16(hb, PBX_OFFS_ITEM_TYPE)
+        val itemi = GET_LE_16(hb, PBX_OFFS_ITEM_INDEX)
+        val id = str_from_buf(hb, PBX_OFFS_ITEM_ID, PBX_ITEM_ID_LEN)
+        var pos = offs + PBX_ITEM_HEADER_LEN
+        var itemoffs = 0
+        if type == PBX_ITEM_TYPE_LBXO {
+            val bo = pbx_fread(fd, pos, 4)
+            if bo == nil {
+                log_error("reading item %i offset (len %i) of file '%s'!\n", i, len, filename)
+                return -1
+            }
+            set itemoffs = GET_LE_32(bo, 0)
+            set len = u32(len - 4)
+            set pos = pos + 4
+        }
+        val data = pbx_fread(fd, pos, len)
+        if data == nil {
+            log_error("reading item %i data (len %i) of file '%s'!\n", i, len, filename)
+            return -1
+        }
+        ifs {
+            type == PBX_ITEM_TYPE_NAME => {
+                if cbs.name(ctx, filename, i, data, len) < 0 {
+                    return -1
+                }
+            }
+            type == PBX_ITEM_TYPE_DESC => {
+                if cbs.desc(ctx, filename, i, data, len) < 0 {
+                    return -1
+                }
+            }
+            type == PBX_ITEM_TYPE_LBXP => {
+                if cbs.lbxp(ctx, filename, i, id, itemi, data, len) < 0 {
+                    return -1
+                }
+            }
+            type == PBX_ITEM_TYPE_LBXO => {
+                if cbs.lbxo(ctx, filename, i, id, itemi, data, len, itemoffs) < 0 {
+                    return -1
+                }
+            }
+            type == PBX_ITEM_TYPE_STRP => {
+                if !cbs.strp(ctx, filename, i, id, data, itemi, len) {
+                    return -1
+                }
+            }
+            type == PBX_ITEM_TYPE_NUMP => {
+                val numnum = len // 4
+                val nums = []
+                loop j in numnum {
+                    set nums@+ = i32(GET_LE_32(data, j * 4))
+                }
+                if !cbs.nump(ctx, filename, i, id, nums, itemi, numnum) {
+                    return -1
+                }
+            }
+            else => {
+                log_error("patch file '%s' item %i type %i not recognized!\n", filename, i, type)
+                return -1
+            }
+        }
+    }
+    0
 }
 
 func pbx_queue_file (filename) {

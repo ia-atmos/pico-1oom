@@ -1154,11 +1154,18 @@ func game_generate_misc (g) {
     }
 }
 
+;; (game_misc.atm and game_tech.atm, which the programs include.)
 func game_generate_load (g) {
-    ;; MOO1 does these when loading a game; moved here to maintain slider
-    ;; state after save/load. Not called while game_num_update_on_load is
-    ;; true (the default): the functions come with game_misc.c and game_tech.c.
-    throw "game_generate_load: game_misc.c and game_tech.c are not ported yet"
+    ;; MOO1 does these when loading a game; moved here to maintain slider state after save/load
+    game_update_production(g)
+    game_update_tech_util(g)
+    loop pli in g.players {
+        game_update_eco_on_waste(g, pli, false)
+        game_update_seen_by_orbit(g, pli)
+    }
+    game_update_within_range(g)
+    game_update_visibility(g)
+    game_update_have_reserve_fuel(g)
 }
 
 func game_generate_emperor_names (g, namedata, offs) {

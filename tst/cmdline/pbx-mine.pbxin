@@ -1,0 +1,13 @@
+# strings, numbers and an overwrite of an LBX item, for tst/cmdline.sh
+0,"Test of the port"
+1,"Strings, numbers,\nand names of stars."
+3,mm_new,0,"Start a \"new\" game"
+3,tbl_race,0,"Earthling"
+3,tbl_race,9,"Shapeshifter"
+4,max_pop,0,250
+4,tbl_hull_w,1,6,30
+4,st_weap_dmgmax,1,5,9
+4,news_orion,0,1
+4,startship_num,0,3,1
+5,names.lbx,0,0x56,"zar"
+5,names.lbx,0,0x7c,"M"
