@@ -46,6 +46,7 @@ Last update: 2026-11-26
 | #25 | Rules: only the corrected game. The wrong rules of MOO1 that 1oom keeps by default, and their options (`rules_*_fix`, `fix_bugs`, the fixes of `game_num_fix_bugs_1_3a`), go: the port has the correct rules only (his decision, 2026-11-26) | decision | settled 2026-11-26 |
 | #26 | The bugs of the C of 1oom (#11, #12, #13, `st_shld_absorb`, the size of `realloc` in `game_str_patch`, the uninitialized `target_i` of the AI) are not reproduced: the port does the correct thing; the C of the checks gets the same fix in a local copy, for the checks only (never committed to 1oom, nothing upstream) | decision | settled 2026-11-26 |
 | #27 | The integers: the conversions to the widths of C (~1026) go, except at the borders (the save formats) and where the correct game needs a width; module by module with #23 | work | known, not done |
+| #28 | "The corrected game" of #25 is what 1oom's own `doc/pbxin_fixbugs.txt` sets; the flags it does not name keep their default (variants, not fixes) (his decision, 2026-11-26) | decision | settled 2026-11-26 |
 
 ## A. Decisions waiting for an answer
 
@@ -65,10 +66,13 @@ Each has the option recommended by this session. Asked one at a time.
   calls functions of the port by name, so a function that is merged or
   split takes its op of `state.atm` along.
 - #25, #26 (settled 2026-11-26): fidelity to the C in the correct cases
-  only. To do first: the list of the flags of `game_num` and their class
-  (a fix of a wrong rule of MOO1, kept on; or a variant of the rules that
-  is not a fix), then the C of the checks run with all the fixes on (and
-  with the local fixes of #26), then the port without the old rules.
+  only, the corrected game being `doc/pbxin_fixbugs.txt` (#28). Order:
+  (1) the C of every check runs the corrected game (the values of
+  `pbxin_fixbugs.txt` applied, and the local fixes of #26), and the
+  checks pass with the port applying the same values; (2) the port takes
+  those values as its own and loses the flags and the branches of the old
+  rules (with their config items, `-file` numbers and `fix_bugs`); (3) the
+  style and integers module by module (#23, #24, #27).
 
 The port goes in the order of decision 5 (see "Settled"). The checks are
 in `tst/` (`tst/all.sh DATADIR SAVE...` runs them all).
