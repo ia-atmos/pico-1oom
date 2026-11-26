@@ -28,7 +28,7 @@ func cfile_write (path, ...) {
         loop _,b in bs {
             set cs@+ = string.char(b)
         }
-        io.write(f, vector.join(cs, ""))
+        io.write(f, string.join(cs, ""))
     }
     io.close(f)
     true

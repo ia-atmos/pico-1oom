@@ -21,7 +21,7 @@ func cstr (src, offs) {
         set cs@+ = string.char(b)
         set i = i + 1
     }
-    vector.join(cs, "")
+    string.join(cs, "")
 }
 
 ;; `strcpy` into a vector of bytes, with the check of 1oom: the string and

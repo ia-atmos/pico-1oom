@@ -404,7 +404,7 @@ func lbxfile_item_name (file_id, entry_id) {
         }
         set cs@+ = string.char(b)
     }
-    vector.join(cs, "")
+    string.join(cs, "")
 }
 
 func lbxfile_item_len (file_id, entry_id) {

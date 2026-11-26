@@ -653,7 +653,7 @@ loop {
     do_op(args@(k))
     set k = k + 1
 }
-io.write(vector.join(outs, ""))
+io.write(string.join(outs, ""))
 pin f = io.open(args@1, "w")
 io.write(f, gamedump(g))
 io.close(f)

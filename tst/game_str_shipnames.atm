@@ -9,4 +9,4 @@ func p (n, i, s) {
 }
 
 loop i in #game_str_tbl_ship_names { p("game_str_tbl_ship_names", i, game_str_tbl_ship_names@(i)) }
-io.write(vector.join(out, ""))
+io.write(string.join(out, ""))

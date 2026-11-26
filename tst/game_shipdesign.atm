@@ -11,7 +11,7 @@ loop i in NUM_SHIPDESIGNS {
         set cs@+ = string.format(" %i", sd.name@(k))
     }
     print(string.format("tbl_startship[%i] = name%s cost %i space %i hull %i look %i wpnt %i %i %i %i wpnn %i %i %i %i engine %i engines %i special %i %i %i shield %i jammer %i comp %i armor %i man %i hp %i",
-        i, vector.join(cs, ""), sd.cost, sd.space, sd.hull, sd.look, sd.wpnt@0, sd.wpnt@1, sd.wpnt@2, sd.wpnt@3,
+        i, string.join(cs, ""), sd.cost, sd.space, sd.hull, sd.look, sd.wpnt@0, sd.wpnt@1, sd.wpnt@2, sd.wpnt@3,
         sd.wpnn@0, sd.wpnn@1, sd.wpnn@2, sd.wpnn@3, sd.engine, sd.engines,
         sd.special@0, sd.special@1, sd.special@2, sd.shield, sd.jammer, sd.comp, sd.armor, sd.man, sd.hp))
     print(string.format("startfleet_ships[%i] = %i", i, startfleet_ships@(i)))

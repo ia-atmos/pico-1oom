@@ -28,4 +28,4 @@ loop k in 3000 {
     }
     set out@+ = "\n"
 }
-io.write(vector.join(out, ""))
+io.write(string.join(out, ""))

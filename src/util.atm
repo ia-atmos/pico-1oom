@@ -7,7 +7,7 @@ include "os/unix/osdefs.atm"
 
 ;; `util_concat(s, ..., NULL)`: the strings joined.
 func util_concat (...) {
-    vector.join([...], "")
+    string.join([...], "")
 }
 
 ;; The directory and the name of a path; `nil` for a part that is absent,

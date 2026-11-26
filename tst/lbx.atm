@@ -21,4 +21,4 @@ loop f in LBXFILE_NUM {
     lbxfile_item_release_file(f)
 }
 lbxfile_shutdown()
-io.write(vector.join(out, ""))
+io.write(string.join(out, ""))

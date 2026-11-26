@@ -40,7 +40,7 @@ for name, arr, init in decls:
         cdump.append('    p("%s", 0, %s);' % (name, name))
         adump.append('p("%s", 0, %s)' % (name, name))
 cdump += ['    return 0;', '}']
-adump += ['io.write(vector.join(out, ""))']
+adump += ['io.write(string.join(out, ""))']
 open(sys.argv[2], 'w').write('\n'.join(atm) + '\n')
 open(sys.argv[3], 'w').write('\n'.join(cdump) + '\n')
 open(sys.argv[4], 'w').write('\n'.join(adump) + '\n')

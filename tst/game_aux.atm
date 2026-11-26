@@ -59,4 +59,4 @@ loop k in (1, #args - 1) {
         set out@+ = "\n"
     }
 }
-io.write(vector.join(out, ""))
+io.write(string.join(out, ""))

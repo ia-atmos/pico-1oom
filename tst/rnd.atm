@@ -18,4 +18,4 @@ loop {
     set out@+ = string.format("bitfiddle %i = %d\n", i, rnd_bitfiddle(u16(i)))
     set i = i + 7
 }
-io.write(vector.join(out, ""))
+io.write(string.join(out, ""))

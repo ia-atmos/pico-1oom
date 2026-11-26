@@ -106,7 +106,7 @@ for sname, tname, size, init in re.findall(r'struct (shiptech_\w+_s) (\w+)\[(\w+
     cd.append('    }')
     ad.append('}')
 cd += ['    return 0;', '}']
-ad += ['io.write(vector.join(out, ""))']
+ad += ['io.write(string.join(out, ""))']
 open(sys.argv[2], 'w').write('\n'.join(atm) + '\n')
 open(sys.argv[3], 'w').write('\n'.join(cd) + '\n')
 open(sys.argv[4], 'w').write('\n'.join(ad) + '\n')

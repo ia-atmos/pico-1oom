@@ -30,7 +30,7 @@ func OUTADD (s) {
 }
 
 func OUTPRE () {
-    OUTADD(vector.join(tp, ""))
+    OUTADD(string.join(tp, ""))
 }
 
 ;; `%i` of C: the value as an `int`, and a `bool` as `0` or `1`.
@@ -47,7 +47,7 @@ func cs (bs) {
         }
         set cs@+ = string.char(b)
     }
-    vector.join(cs, "")
+    string.join(cs, "")
 }
 
 func OUTLINEI (name, v) {
@@ -70,7 +70,7 @@ func savetype_en_bv (bv, len) {
     loop i in len {
         vector.insert(cs, 0, if BOOLVEC_IS1(bv, i) => "1" => "0")
     }
-    "0b" ++ vector.join(cs, "")
+    "0b" ++ string.join(cs, "")
 }
 
 func OUTLINEBV (name, v, num) {
@@ -441,5 +441,5 @@ if game_save_do_load_do(fin, g, -1, savename) != 0 {
 }
 savetype_en_text(g, savename)
 pin f = io.open(fout, "w")
-io.write(f, vector.join(out, ""))
+io.write(f, string.join(out, ""))
 io.close(f)

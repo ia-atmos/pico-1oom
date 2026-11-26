@@ -20,6 +20,6 @@ loop _,b in savename {
     }
     set cs@+ = string.char(b)
 }
-if game_save_do_save_do(fout, vector.join(cs, ""), g, -1, GAME_SAVE_VERSION) != 0 {
+if game_save_do_save_do(fout, string.join(cs, ""), g, -1, GAME_SAVE_VERSION) != 0 {
     os.exit(1)
 }

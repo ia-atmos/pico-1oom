@@ -647,5 +647,5 @@ func gamedump (g) {
         set out@+ = string.format("g.current_design[%i].man = %d\n", i148, g.current_design@(i148).man)
         set out@+ = string.format("g.current_design[%i].hp = %d\n", i148, g.current_design@(i148).hp)
     }
-    vector.join(out, "")
+    string.join(out, "")
 }

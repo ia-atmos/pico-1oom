@@ -131,4 +131,4 @@ loop i in #tbl_shiptech_hull {
     set out@+ = string.format("tbl_shiptech_hull[%i].power = %i\n", i, if e.power == true => 1 => (if e.power == false => 0 => e.power))
     set out@+ = string.format("tbl_shiptech_hull[%i].defense = %i\n", i, if e.defense == true => 1 => (if e.defense == false => 0 => e.defense))
 }
-io.write(vector.join(out, ""))
+io.write(string.join(out, ""))

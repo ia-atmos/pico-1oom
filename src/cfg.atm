@@ -191,7 +191,7 @@ func cfg_str_out (s) {
         }
     }
     set cs@+ = "\""
-    vector.join(cs, "")
+    string.join(cs, "")
 }
 
 func cfg_save (filename) {
