@@ -39,19 +39,13 @@ Last update: 2026-11-26
 | #18 | Excerpt, bad: `src/options.atm:220`, two tables built per call for the chained `||` of C | excerpt | reported 2026-11-26 |
 | #19 | Excerpt, good: `src/game/game_save_moo13.atm:19`, a macro of C as a one-line `if` | excerpt | reported 2026-11-26 |
 | #20 | Excerpt, bad: `src/game/game_save_moo13.atm:94`, a `do` block per range check (generated) | excerpt | reported 2026-11-26 |
-| #21 | `%u` back in the port (its ~6 `%d`): needs a compiler of `ia-atmos/lang` main; read access to it was denied here | decision | waiting: allow the access, or leave `%d` (recommended) |
+| #21 | `%u` back in the port (its ~6 `%d`): needs a compiler of `ia-atmos/lang` main; read access to it was denied here | decision | done 2026-11-26: %u back, with a compiler of main built from the local clone |
 | #22 | The config file is a table of Atmos (`X.load`), not the lines of C: his decision, on #15 (external, the logic unchanged) | work | done 2026-11-26 |
 
 ## A. Decisions waiting for an answer
 
 Each has the option recommended by this session. Asked one at a time.
 
-- #21 `string.format` takes `%u` on `ia-atmos/lang` main (atmos-lang#126);
-  the compiler here (`/home/user/lang`, branch `blocks`) does not. To build
-  main, this session needs read access to `ia-atmos/lang` (denied by the
-  permission check, 2026-11-26). Recommended: leave `%d`, which prints the
-  same text (the values are u32 already); switch when the compiler here
-  is updated.
 - #2 Three commits of 2026-11-17 (`0d492fe`, `90e0bd7`, `7c8e0d7`) have
   the trailer in the title line (a missing blank line). Recommended:
   leave them; rewriting needs a forced push to `master` (and the rule of

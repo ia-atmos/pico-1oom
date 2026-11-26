@@ -66,6 +66,16 @@ PY
     ok=1
     cmp -s "$TMP/c.cmp" "$TMP/a.cmp" || ok=0
     [ "$rc" = "$ra" ] || { ok=0; echo "exit codes: C $rc, port $ra"; }
+    # a log file (-log) holds the messages too: those about the config differ
+    for s in "$TMP"/uc/*.txt; do
+        [ -e "$s" ] || continue
+        b=$(basename "$s")
+        [ -e "$TMP/ua/$b" ] || continue
+        for x in uc ua; do
+            grep -v 'Cfg: ' "$TMP/$x/$b" | sed 's/1oom_config_game_cmdline_nop\.\(txt\|atm\)/1oom_config_game_cmdline_nop/' > "$TMP/$x.log" || true
+            mv "$TMP/$x.log" "$TMP/$x/$b"
+        done
+    done
     for s in "$TMP"/uc/*; do
         [ -e "$s" ] || continue
         cmp -s "$s" "$TMP/ua/$(basename "$s")" || { ok=0; echo "differs: $(basename "$s")"; }
