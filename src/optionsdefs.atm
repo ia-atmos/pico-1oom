@@ -1,0 +1,101 @@
+;; The part of c/src/options.c (and options.h) that the other modules use:
+;; the global options, the handlers of options (`options_*_var`) and the
+;; constructor of an option (struct cmdline_options_s: `str`, `num_param`,
+;; `handle`, `var`, `str_param`, `str_help`). In C `var` points to the
+;; variable; here it is `[get=..., put=...]` (`opt_var`), or `nil`.
+
+include "log.atm"
+
+;; ---------------------------------------------------------------------------
+;; global options (FEATURE_MODEBUG and HAVE_SAMPLERATE are off in the build)
+
+var opt_audio_enabled = true
+var opt_music_enabled = true
+var opt_sfx_enabled = true
+var opt_sfx_init_parallel = true
+var opt_music_volume = 64
+var opt_sfx_volume = 100
+var opt_audiorate = 48000
+var opt_audioslice_ms = 50
+var opt_cfg_reset = false
+
+;; The variable `&v` of C, as its two accessors.
+func opt_var (get, put) {
+    [ get = get, put = put ]
+}
+
+;; `atoi` of C: blanks, a sign, the digits, up to the first other char.
+func opt_atoi (s) {
+    var i = 0
+    loop {
+        while (i < #s) && ((string.byte(s, i) == 32) || ((string.byte(s, i) >= 9) && (string.byte(s, i) <= 13)))
+        set i = i + 1
+    }
+    var neg = false
+    if (i < #s) && ((string.byte(s, i) == 43) || (string.byte(s, i) == 45)) {
+        set neg = string.byte(s, i) == 45
+        set i = i + 1
+    }
+    var v = 0
+    loop {
+        while (i < #s) && (string.byte(s, i) >= 48) && (string.byte(s, i) <= 57)
+        set v = (v * 10) + (string.byte(s, i) - 48)
+        set i = i + 1
+    }
+    i32(if neg => -v => v)
+}
+
+func options_enable_int_var (argv, var_) {
+    var_.put(1)
+    0
+}
+
+func options_disable_int_var (argv, var_) {
+    var_.put(0)
+    0
+}
+
+func options_set_int_var (argv, var_) {
+    var_.put(opt_atoi(argv@(1)))
+    0
+}
+
+func options_set_str_var (argv, var_) {
+    var_.put(argv@(1))
+    0
+}
+
+func options_unset_str_var (argv, var_) {
+    var_.put(nil)
+    0
+}
+
+func options_empty_str_var (argv, var_) {
+    var_.put("")
+    0
+}
+
+func options_enable_bool_var (argv, var_) {
+    var_.put(true)
+    0
+}
+
+func options_disable_bool_var (argv, var_) {
+    var_.put(false)
+    0
+}
+
+func options_notimpl (argv, var_) {
+    log_error("option '%s' is not implemented (yet)", argv@(0))
+    return -1
+}
+
+func options_nop (argv, var_) {
+    0
+}
+
+func OPT (str, num_param, handle, var_, str_param, str_help) {
+    [ str = str, num_param = num_param, handle = handle, var = var_,
+      str_param = str_param, str_help = str_help ]
+}
+

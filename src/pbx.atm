@@ -1,0 +1,35 @@
+;; Port of c/src/pbx.c: the patch files (PBX).
+;;
+;; For now (#14) only the queue: applying a file (`pbx_add_file`, with the
+;; patches of lbx.c, game_strp.c and game_nump.c) is not ported yet, and
+;; gives an error.
+
+include "log.atm"
+
+val MAX_PATCHFILES = 20
+var num_patchfiles = 0
+pin patchfiles = []
+
+func pbx_add_file (filename, cbs_in, ctx) {
+    log_message("PBX: applying patch file '%s'\n", filename)
+    log_error("PBX: patch files are not ported yet\n")
+    return -1
+}
+
+func pbx_queue_file (filename) {
+    if num_patchfiles < MAX_PATCHFILES {
+        set patchfiles@(num_patchfiles) = filename
+        set num_patchfiles = num_patchfiles + 1
+        return 0
+    }
+    return -1
+}
+
+func pbx_apply_queued_files () {
+    loop i in num_patchfiles {
+        if pbx_add_file(patchfiles@(i), nil, nil) < 0 {
+            return -1
+        }
+    }
+    0
+}

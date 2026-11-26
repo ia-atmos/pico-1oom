@@ -22,6 +22,9 @@ include "uinewtech.atm"
 include "uispy_esp.atm"
 include "uispy_sab.atm"
 
+pin ui_cfg_items = []
+pin ui_cmdline_options = []
+
 val idstr_ui = "cmdline"
 var ui_use_audio = false
 

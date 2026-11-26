@@ -1,0 +1,25 @@
+;; The part of c/src/cfg.h that the modules use to define their items:
+;; the types and the constructors of the items (the macros CFG_ITEM_*).
+;; An item: `name`, `get` and `put` (the accessors of the variable, which C
+;; points to), `check`, `type`.
+
+val CFG_TYPE_INT = 0
+val CFG_TYPE_STR = 1
+val CFG_TYPE_BOOL = 2
+val CFG_TYPE_COMMENT = 3
+
+func CFG_ITEM_STR (n, get, put, check) {
+    [ name = n, get = get, put = put, check = check, type = CFG_TYPE_STR ]
+}
+
+func CFG_ITEM_INT (n, get, put, check) {
+    [ name = n, get = get, put = put, check = check, type = CFG_TYPE_INT ]
+}
+
+func CFG_ITEM_BOOL (n, get, put) {
+    [ name = n, get = get, put = put, check = nil, type = CFG_TYPE_BOOL ]
+}
+
+func CFG_ITEM_COMMENT (s) {
+    [ name = s, get = nil, put = nil, check = nil, type = CFG_TYPE_COMMENT ]
+}

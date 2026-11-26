@@ -1,4 +1,4 @@
--skipintro
+-cro -nolog -skipintro
 n
 2
 3

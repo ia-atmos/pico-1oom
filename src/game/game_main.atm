@@ -5,6 +5,8 @@ include "../log.atm"
 include "../rnd.atm"
 include "../ui.atm"
 include "../util.atm"
+include "../cfgdefs.atm"
+include "../optionsdefs.atm"
 include "game.atm"
 include "game_ai.atm"
 include "game_aux.atm"
@@ -309,7 +311,377 @@ func game_opt_do_continue (argv, var_) {
     0
 }
 
+func game_opt_set_new_name (argv, var_) {
+    val ok, v = util_parse_number(argv@(1))
+    ifs {
+        !ok => {
+            log_error("invalid value '%s'\n", argv@(1))
+            return -1
+        }
+        (v < 1) || (v > PLAYER_NUM) => {
+            log_error("invalid player num %i\n", v)
+            return -1
+        }
+    }
+    ;; strncpy, then buf[EMPEROR_NAME_LEN - 1] = '\0'
+    val buf = string.sub(argv@(2), 0, SETMIN(#argv@(2), EMPEROR_NAME_LEN - 1) - 1)
+    set game_opt_new.pdata@(v - 1).playername = buf
+    log_message("Game: player %i name '%s'\n", v, buf)
+    0
+}
+
+func game_opt_set_new_home (argv, var_) {
+    val ok, v = util_parse_number(argv@(1))
+    ifs {
+        !ok => {
+            log_error("invalid value '%s'\n", argv@(1))
+            return -1
+        }
+        (v < 1) || (v > PLAYER_NUM) => {
+            log_error("invalid player num %i\n", v)
+            return -1
+        }
+    }
+    val buf = string.sub(argv@(2), 0, SETMIN(#argv@(2), PLANET_NAME_LEN - 1) - 1)
+    set game_opt_new.pdata@(v - 1).homename = buf
+    log_message("Game: player %i home '%s'\n", v, buf)
+    0
+}
+
+func game_opt_set_new_ai (argv, var_) {
+    val ok, v = util_parse_number(argv@(1))
+    ifs {
+        !ok => {
+            log_error("invalid value '%s'\n", argv@(1))
+            return -1
+        }
+        v > GAME_AI_NUM => {
+            log_error("invalid AI num %i\n", v)
+            return -1
+        }
+    }
+    set game_opt_new.ai_id = v
+    log_message("Game: AI type %i '%s'\n", v, game_ais@(v).name)
+    0
+}
+
+;; -dumpstr and -dumpnum: game_str_dump and game_num_dump (of game_strp.c
+;; and game_nump.c) are not ported yet (#14, with the PBX files).
+func dump_strings (argv, var_) {
+    log_error("option '%s' is not ported yet\n", argv@(0))
+    return -1
+}
+
+func dump_numbers (argv, var_) {
+    log_error("option '%s' is not ported yet\n", argv@(0))
+    return -1
+}
+
 val idstr_main = "game"
+
+val main_use_lbx = true
+val main_use_cfg = true
+
+val main_usage = nil
+
+pin main_cmdline_options_early = [
+    OPT("-dumpstr", 0, dump_strings, nil, nil, "Dump strings in PBXIN format"),
+    OPT("-dumpnum", 0, dump_numbers, nil, nil, "Dump numbers in PBXIN format"),
+]
+
+pin main_cmdline_options = [
+    OPT("-new", 1, game_opt_do_new_seed, nil,
+        "GAMESEED", "Start new game using given game seed\n"
+                    ++ "GAMESEED is OPT[:RACES[:BANNERS[:GSEED[:HUMANS]]]]\n"
+                    ++ "OPT is PLAYERS*100+GALAXYSIZE*10+DIFFICULTY\n  2..6, 0..3 = small..huge, 0..4 = simple..impossible\n  default same as last new game\n"
+                    ++ "RACES is PLAYERnRACE*(0x10^n), n=0..5\n  0 = random, 1..0xA = human..darlok\n  default 0 (all random)\n"
+                    ++ "BANNERS is PLAYERnBANNER*(10^n), n=0..5\n  0 = random, 1..6 = blue..yellow\n  default 0 (all random)\n"
+                    ++ "GSEED is a 32 bit galaxy seed or 0 for random\n  default 0\n"
+                    ++ "HUMANS is PLAYERnISHUMAN*(10^n), n=0..5\n  default 1 (player 1 is human, others AI)"),
+    OPT("-ngn", 2, game_opt_set_new_name, nil,
+        "PLAYER NAME", "Set new game emperor name for player 1..6"),
+    OPT("-ngh", 2, game_opt_set_new_home, nil,
+        "PLAYER NAME", "Set new game home world name for player 1..6"),
+    OPT("-nga", 1, game_opt_set_new_ai, nil,
+        "AITYPE", "Set new game AI type (0..1)"),
+    OPT("-load", 1, game_opt_do_load, nil,
+        "SAVE", "Load game (1..8, 2300.. or filename)\n1..6 are regular save slots\n7 is continue game\n8 is undo\n2300 and over are yearly saves"),
+    OPT("-continue", 0, game_opt_do_continue, nil, nil, "Continue game"),
+    OPT("-undo", 0, options_enable_bool_var,
+        opt_var(func () { game_opt_undo_enabled }, func (v) { set game_opt_undo_enabled = v }),
+        nil, "Enable undo saves"),
+    OPT("-noundo", 0, options_disable_bool_var,
+        opt_var(func () { game_opt_undo_enabled }, func (v) { set game_opt_undo_enabled = v }),
+        nil, "Disable undo saves"),
+    OPT("-yearsave", 0, options_enable_bool_var,
+        opt_var(func () { game_opt_year_save_enabled }, func (v) { set game_opt_year_save_enabled = v }),
+        nil, "Enable yearly saves"),
+    OPT("-noyearsave", 0, options_disable_bool_var,
+        opt_var(func () { game_opt_year_save_enabled }, func (v) { set game_opt_year_save_enabled = v }),
+        nil, "Disable yearly saves"),
+    OPT("-skipintro", 0, options_enable_bool_var,
+        opt_var(func () { game_opt_skip_intro_always }, func (v) { set game_opt_skip_intro_always = v }),
+        nil, "Skip intro"),
+    OPT("-noskipintro", 0, options_disable_bool_var,
+        opt_var(func () { game_opt_skip_intro_always }, func (v) { set game_opt_skip_intro_always = v }),
+        nil, "Do not skip intro"),
+    OPT("-nextturn", 0, options_enable_bool_var,
+        opt_var(func () { game_opt_next_turn }, func (v) { set game_opt_next_turn = v }),
+        nil, "Go directly to next turn (for reproducing bugs)"),
+    OPT("-savequit", 0, options_enable_bool_var,
+        opt_var(func () { game_opt_save_quit }, func (v) { set game_opt_save_quit = v }),
+        nil, "Save and quit (for debugging)"),
+]
+
+;; ---------------------------------------------------------------------------
+
+func game_cfg_check_difficulty_value (v) {
+    if v >= DIFFICULTY_NUM {
+        log_error("invalid difficulty num %i\n", v)
+        return false
+    }
+    true
+}
+
+func game_cfg_check_galaxy_size_value (v) {
+    if v > GALAXY_SIZE_HUGE {
+        log_error("invalid galaxy size num %i\n", v)
+        return false
+    }
+    true
+}
+
+func game_cfg_check_players_value (v) {
+    if (v < 2) || (v > PLAYER_NUM) {
+        log_error("invalid players num %i\n", v)
+        return false
+    }
+    true
+}
+
+func game_cfg_check_custom_game_ai_id (v) {
+    if (v >= GAME_AI_NUM) || (v < 0) {
+        log_error("invalid ai id %i\n", v)
+        return false
+    }
+    true
+}
+
+;; `%` and `/` of C on an int: truncated towards zero.
+func game_cfg_cmod (a, b) {
+    i32(a - (b * game_cfg_cdiv(a, b)))
+}
+
+func game_cfg_cdiv (a, b) {
+    if a < 0 => -((-a) // b) => a // b
+}
+
+func game_cfg_check_new_game_opts (val_) {
+    var v = val_
+    var v2 = game_cfg_cmod(v, 10)
+    set v = game_cfg_cdiv(v, 10)
+    if v2 >= DIFFICULTY_NUM {
+        log_error("invalid difficulty num %i\n", v2)
+        return false
+    }
+    set v2 = game_cfg_cmod(v, 10)
+    set v = game_cfg_cdiv(v, 10)
+    if v2 > GALAXY_SIZE_HUGE {
+        log_error("invalid galaxy size num %i\n", v2)
+        return false
+    }
+    set v2 = game_cfg_cmod(v, 10)
+    if (v2 < 2) || (v2 > PLAYER_NUM) {
+        log_error("invalid players num %i\n", v2)
+        return false
+    }
+    true
+}
+
+func game_cfg_check_race_value (val_) {
+    var v = val_
+    loop i in PLAYER_NUM {
+        val v2 = game_cfg_cmod(v, 0x10)
+        set v = game_cfg_cdiv(v, 0x10)
+        if v2 > RACE_RANDOM {
+            log_error("invalid race num %i\n", v2)
+            return false
+        }
+    }
+    true
+}
+
+func game_cfg_check_banner_value (val_) {
+    var v = val_
+    loop i in PLAYER_NUM {
+        val v2 = game_cfg_cmod(v, 10)
+        set v = game_cfg_cdiv(v, 10)
+        if v2 > BANNER_RANDOM {
+            log_error("invalid banner num %i\n", v2)
+            return false
+        }
+    }
+    true
+}
+
+func game_cfg_check_isai_value (val_) {
+    var v = val_
+    loop i in PLAYER_NUM {
+        val v2 = game_cfg_cmod(v, 10)
+        set v = game_cfg_cdiv(v, 10)
+        if v2 > 1 {
+            log_error("invalid isai num %i\n", v2)
+            return false
+        }
+    }
+    true
+}
+
+;; An int item on a field of a struct (`&t.k` in C): the fields of
+;; game_opt_custom are unsigned (uint32_t or enums of gcc, #12), which the
+;; config writes and reads as int.
+func game_cfg_item_field (n, t, k, check) {
+    CFG_ITEM_INT(n, func () { i32(t@(k)) }, func (v) { set t@(k) = u32(v) }, check)
+}
+
+func game_cfg_item_bool_field (n, t, k) {
+    CFG_ITEM_BOOL(n, func () { t@(k) }, func (v) { set t@(k) = v })
+}
+
+pin game_cfg_items = [
+    CFG_ITEM_BOOL("undo", func () { game_opt_undo_enabled }, func (v) { set game_opt_undo_enabled = v }),
+    CFG_ITEM_BOOL("yearsave", func () { game_opt_year_save_enabled }, func (v) { set game_opt_year_save_enabled = v }),
+    CFG_ITEM_BOOL("initsave", func () { game_opt_init_save_enabled }, func (v) { set game_opt_init_save_enabled = v }),
+    CFG_ITEM_BOOL("skipintro", func () { game_opt_skip_intro_always }, func (v) { set game_opt_skip_intro_always = v }),
+    CFG_ITEM_BOOL("skiprandomnews", func () { game_opt_skip_random_news }, func (v) { set game_opt_skip_random_news = v }),
+    CFG_ITEM_BOOL("news_orion_colonized", func () { game_num_news_orion }, func (v) { set game_num_news_orion = v }),
+    CFG_ITEM_COMMENT("PLAYERS*100+GALAXYSIZE*10+DIFFICULTY"),
+    CFG_ITEM_COMMENT(" 2..6, 0..3 = small..huge, 0..4 = simple..impossible"),
+    CFG_ITEM_INT("new_game_opts", func () { game_opt_new_value }, func (v) { set game_opt_new_value = v }, game_cfg_check_new_game_opts),
+    game_cfg_item_field("custom_game_ai_id", game_opt_custom, "ai_id", game_cfg_check_custom_game_ai_id),
+    game_cfg_item_field("custom_game_difficulty", game_opt_custom, "difficulty", game_cfg_check_difficulty_value),
+    game_cfg_item_field("custom_game_galaxy_size", game_opt_custom, "galaxy_size", game_cfg_check_galaxy_size_value),
+    game_cfg_item_field("custom_game_players", game_opt_custom, "players", game_cfg_check_players_value),
+    CFG_ITEM_INT("custom_game_races", func () { game_opt_custom_race_value }, func (v) { set game_opt_custom_race_value = v }, game_cfg_check_race_value),
+    CFG_ITEM_INT("custom_game_banners", func () { game_opt_custom_banner_value }, func (v) { set game_opt_custom_banner_value = v }, game_cfg_check_banner_value),
+    CFG_ITEM_INT("custom_game_isai", func () { game_opt_custom_isai_value }, func (v) { set game_opt_custom_isai_value = v }, game_cfg_check_isai_value),
+    game_cfg_item_field("custom_game_galaxy_seed", game_opt_custom, "galaxy_seed", nil),
+    game_cfg_item_bool_field("custom_game_improved_galaxy_generator", game_opt_custom, "improved_galaxy_generator"),
+    game_cfg_item_bool_field("custom_game_nebulae", game_opt_custom, "nebulae"),
+    game_cfg_item_field("custom_game_home_max_pop", game_opt_custom.homeworlds, "max_pop", nil),
+    game_cfg_item_field("custom_game_home_special", game_opt_custom.homeworlds, "special", nil),
+    game_cfg_item_field("custom_game_home_num_dist_checks", game_opt_custom.homeworlds, "num_dist_checks", nil),
+    game_cfg_item_field("custom_game_home_num_ok_planet_checks", game_opt_custom.homeworlds, "num_ok_planet_checks", nil),
+    game_cfg_item_field("custom_game_home_num_scouts", game_opt_custom.homeworlds, "num_scouts", nil),
+    game_cfg_item_field("custom_game_home_num_fighters", game_opt_custom.homeworlds, "num_fighters", nil),
+    game_cfg_item_field("custom_game_home_num_colony_ships", game_opt_custom.homeworlds, "num_colony_ships", nil),
+    game_cfg_item_bool_field("custom_game_home_armed_colony_ships", game_opt_custom.homeworlds, "armed_colony_ships"),
+    game_cfg_item_bool_field("msg_filter_fact", game_opt_message_filter, FINISHED_FACT),
+    game_cfg_item_bool_field("msg_filter_popmax", game_opt_message_filter, FINISHED_POPMAX),
+    game_cfg_item_bool_field("msg_filter_soilatmos", game_opt_message_filter, FINISHED_SOILATMOS),
+    game_cfg_item_bool_field("msg_filter_stargate", game_opt_message_filter, FINISHED_STARGATE),
+    game_cfg_item_bool_field("msg_filter_shield", game_opt_message_filter, FINISHED_SHIELD),
+    CFG_ITEM_INT("rules_tech_cost_mul", func () { game_num_tech_costmul }, func (v) { set game_num_tech_costmul = v }, nil),
+    CFG_ITEM_INT("rules_tech_cost_mul_human", func () { game_num_tech_costmuld2 }, func (v) { set game_num_tech_costmuld2 = v }, nil),
+    CFG_ITEM_INT("rules_tech_cost_mul_ai", func () { game_num_tech_costmula2 }, func (v) { set game_num_tech_costmula2 = v }, nil),
+    CFG_ITEM_BOOL("rules_ai_transport_range_fix", func () { game_num_ai_trans_range_fix }, func (v) { set game_num_ai_trans_range_fix = v }),
+    CFG_ITEM_BOOL("rules_ai_first_tech_cost_fix", func () { game_num_ai_first_tech_cost_fix }, func (v) { set game_num_ai_first_tech_cost_fix = v }),
+    CFG_ITEM_BOOL("rules_doom_stack_fix", func () { game_num_doom_stack_fix }, func (v) { set game_num_doom_stack_fix = v }),
+    CFG_ITEM_BOOL("rules_bt_no_tohit_acc", func () { game_num_bt_no_tohit_acc }, func (v) { set game_num_bt_no_tohit_acc = v }),
+    CFG_ITEM_BOOL("rules_bt_precap_tohit", func () { game_num_bt_precap_tohit }, func (v) { set game_num_bt_precap_tohit = v }),
+    CFG_ITEM_BOOL("rules_bt_wait_no_reload", func () { game_num_bt_wait_no_reload }, func (v) { set game_num_bt_wait_no_reload = v }),
+    CFG_ITEM_BOOL("rules_deterministic_rng", func () { game_num_deterministic }, func (v) { set game_num_deterministic = v }),
+    CFG_ITEM_BOOL("rules_hidden_child_labor_fix", func () { game_num_hidden_child_labor_fix }, func (v) { set game_num_hidden_child_labor_fix = v }),
+    CFG_ITEM_BOOL("rules_leaving_trans_fix", func () { game_num_leaving_trans_fix }, func (v) { set game_num_leaving_trans_fix = v }),
+    CFG_ITEM_BOOL("rules_monster_rest_attack", func () { game_num_monster_rest_att }, func (v) { set game_num_monster_rest_att = v }),
+    CFG_ITEM_BOOL("rules_factory_cost_fix", func () { game_num_factory_cost_fix }, func (v) { set game_num_factory_cost_fix = v }),
+    CFG_ITEM_BOOL("rules_colonized_factories_fix", func () { game_num_colonized_factories_fix }, func (v) { set game_num_colonized_factories_fix = v }),
+    CFG_ITEM_BOOL("rules_newtech_adjust_fix", func () { game_num_newtech_adjust_fix }, func (v) { set game_num_newtech_adjust_fix = v }),
+    CFG_ITEM_BOOL("rules_slider_eco_done_fix", func () { game_num_slider_eco_done_fix }, func (v) { set game_num_slider_eco_done_fix = v }),
+    CFG_ITEM_BOOL("rules_cond_switch_to_ind_fix", func () { game_num_cond_switch_to_ind_fix }, func (v) { set game_num_cond_switch_to_ind_fix = v }),
+    CFG_ITEM_BOOL("rules_waste_adjust_fix", func () { game_num_waste_adjust_fix }, func (v) { set game_num_waste_adjust_fix = v }),
+    CFG_ITEM_BOOL("rules_orbital_bio_fix", func () { game_num_orbital_bio_fix }, func (v) { set game_num_orbital_bio_fix = v }),
+    CFG_ITEM_BOOL("rules_orbital_weap_4", func () { game_num_orbital_weap_4 }, func (v) { set game_num_orbital_weap_4 = v }),
+    CFG_ITEM_BOOL("rules_orbital_comp_fix", func () { game_num_orbital_comp_fix }, func (v) { set game_num_orbital_comp_fix = v }),
+    CFG_ITEM_BOOL("rules_retreat_redir_fix", func () { game_num_retreat_redir_fix }, func (v) { set game_num_retreat_redir_fix = v }),
+    CFG_ITEM_BOOL("rules_ship_stargate_redir_fix", func () { game_num_stargate_redir_fix }, func (v) { set game_num_stargate_redir_fix = v }),
+    CFG_ITEM_BOOL("rules_ship_trans_redir_fix", func () { game_num_trans_redir_fix }, func (v) { set game_num_trans_redir_fix = v }),
+    CFG_ITEM_BOOL("rules_soil_rounding_fix", func () { game_num_soil_rounding_fix }, func (v) { set game_num_soil_rounding_fix = v }),
+    CFG_ITEM_BOOL("rules_waste_calc_fix", func () { game_num_waste_calc_fix }, func (v) { set game_num_waste_calc_fix = v }),
+    CFG_ITEM_BOOL("rules_ai_fleet_cheating_fix", func () { game_num_ai_fleet_cheating_fix }, func (v) { set game_num_ai_fleet_cheating_fix = v }),
+    CFG_ITEM_BOOL("rules_fix_bugs", func () { game_opt_fix_bugs }, func (v) { set game_opt_fix_bugs = v }),
+    CFG_ITEM_BOOL("rules_fix_starting_ships", func () { game_opt_fix_starting_ships }, func (v) { set game_opt_fix_starting_ships = v }),
+]
+
+;; ---------------------------------------------------------------------------
+
+func main_handle_option (argv) {
+    if game_opt_end.type == GAME_END_NONE {
+        val c = if #argv > 0 => string.byte(argv, 0) => 0
+        ifs {
+            (#argv == 1) && (c >= 48) && (c <= 51) => {    ;; '0'..'3'
+                match c {
+                    48 => { set game_opt_end.type = GAME_END_WON_GOOD }
+                    49 => { set game_opt_end.type = GAME_END_LOST_FUNERAL }
+                    50 => { set game_opt_end.type = GAME_END_LOST_EXILE }
+                    51 => { set game_opt_end.type = GAME_END_WON_TYRANT }
+                }
+                set game_opt_load_game = 0
+                set game_opt_load_fname = nil
+                set game_opt_new_game = false
+                set game_opt_skip_intro = true
+                set game_opt_continue = false
+                return 0
+            }
+            argv == "YOMAMA" => {
+                log_message("Game: skip intro for YOMAMA\n")
+                set game_opt_skip_intro = true
+                return 0
+            }
+            argv == "s" => {
+                log_message("Game: direct continue\n")
+                set game_opt_load_game = 0
+                set game_opt_load_fname = nil
+                set game_opt_new_game = false
+                set game_opt_skip_intro = true
+                set game_opt_continue = true
+                return 0
+            }
+        }
+    } else {
+        val t = game_opt_end.type
+        ifs {
+            game_opt_end.varnum == 0 => {
+                if t == GAME_END_LOST_EXILE {
+                    set game_opt_end.name = argv
+                } else {
+                    set game_opt_end.race = opt_atoi(argv)
+                }
+            }
+            game_opt_end.varnum == 1 => {
+                ifs {
+                    (t == GAME_END_WON_GOOD) || (t == GAME_END_WON_TYRANT) => {
+                        set game_opt_end.name = argv
+                        log_message("Game: ending %s %i '%s'\n", if t == GAME_END_WON_GOOD => "good" => "tyrant", game_opt_end.race, game_opt_end.name)
+                    }
+                    t == GAME_END_LOST_FUNERAL => {
+                        set game_opt_end.banner_dead = opt_atoi(argv)
+                        log_message("Game: ending funeral %i %i\n", game_opt_end.race, game_opt_end.banner_dead)
+                    }
+                    t == GAME_END_LOST_EXILE => {
+                        log_message("Game: ending exile '%s'\n", game_opt_end.name)
+                    }
+                }
+            }
+            else => {
+                return -1
+            }
+        }
+        set game_opt_end.varnum = game_opt_end.varnum + 1
+        return 0
+    }
+    return -1
+}
 
 ;; ---------------------------------------------------------------------------
 

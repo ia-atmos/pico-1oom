@@ -1,0 +1,400 @@
+;; Port of c/src/options.c (and options.h): the command line options and the
+;; options of the config file that options.c owns.
+;;
+;; struct cmdline_options_s: `str`, `num_param`, `handle`, `var`,
+;; `str_param`, `str_help`. In C `var` points to the variable; here it is
+;; `[get=..., put=...]` (see `opt_var`), or `nil`. An array of options ends
+;; with `{ NULL }` in C; here it is a vector. The tables of the other
+;; modules (`os_`, `hw_`, `ui_`, `main_cmdline_options`) are defined by the
+;; files that the program includes before this one.
+
+include "lib.atm"
+include "log.atm"
+include "util.atm"
+include "os/unix/os.atm"
+include "os/unix/osdefs.atm"
+include "pbx.atm"
+include "cfgdefs.atm"
+include "optionsdefs.atm"
+
+;; ---------------------------------------------------------------------------
+;; local options
+
+var opt_logfilename_in = nil
+var opt_configfilename_in = nil     ;; used only for the -c option
+var opt_configfilename = nil
+var opt_config_ro = false
+var opt_datapath = nil
+var opt_default = false
+
+;; ---------------------------------------------------------------------------
+
+func opt_cfg_set_datapath (var_) {
+    os_set_path_data(var_)
+    true
+}
+
+pin opt_cfg_items = [
+    CFG_ITEM_STR("data_path", func () { opt_datapath }, func (v) { set opt_datapath = v }, opt_cfg_set_datapath),
+]
+
+pin opt_cfg_items_audio = [
+    CFG_ITEM_BOOL("audio", func () { opt_audio_enabled }, func (v) { set opt_audio_enabled = v }),
+    CFG_ITEM_BOOL("music", func () { opt_music_enabled }, func (v) { set opt_music_enabled = v }),
+    CFG_ITEM_BOOL("sfx", func () { opt_sfx_enabled }, func (v) { set opt_sfx_enabled = v }),
+    CFG_ITEM_BOOL("sfxinitpar", func () { opt_sfx_init_parallel }, func (v) { set opt_sfx_init_parallel = v }),
+    CFG_ITEM_INT("music_volume", func () { opt_music_volume }, func (v) { set opt_music_volume = v }, nil),
+    CFG_ITEM_INT("sfx_volume", func () { opt_sfx_volume }, func (v) { set opt_sfx_volume = v }, nil),
+    CFG_ITEM_INT("audiorate", func () { opt_audiorate }, func (v) { set opt_audiorate = v }, nil),
+    CFG_ITEM_INT("audioslice_ms", func () { opt_audioslice_ms }, func (v) { set opt_audioslice_ms = v }, nil),
+]
+
+;; ---------------------------------------------------------------------------
+
+;; ---------------------------------------------------------------------------
+
+func options_set_userdir (argv, var_) {
+    log_message("Setting user directory to '%s'\n", argv@(1))
+    os_set_path_user(argv@(1))
+    0
+}
+
+func options_set_datadir (argv, var_) {
+    log_message("Setting data directory to '%s'\n", argv@(1))
+    os_set_path_data(argv@(1))
+    0
+}
+
+func options_add_patchfile (argv, var_) {
+    if pbx_queue_file(argv@(1)) < 0 {
+        log_error("too many patchfiles")
+        return -1
+    }
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
+func show_usage (argv, var_) {
+    options_show_usage()
+    return -1
+}
+
+func load_default (argv, var_) {
+    set opt_default = true
+    0
+}
+
+pin cmdline_options_early = [
+    OPT("-?", 0, show_usage, nil, nil, "Show command line options"),
+    OPT("-default", 0, load_default, nil, nil, "Use default configuration"),
+]
+
+pin cmdline_options_cfg_early = [
+    OPT("-c", 1, options_set_str_var,
+        opt_var(func () { opt_configfilename_in }, func (v) { set opt_configfilename_in = v }),
+        "FILE.TXT", "Set config filename"),
+    OPT("-cro", 0, options_enable_bool_var,
+        opt_var(func () { opt_config_ro }, func (v) { set opt_config_ro = v }),
+        nil, "Do not write a config file"),
+    OPT("-user", 1, options_set_userdir, nil, "PATH", "Set user directory"),
+    OPT("-log", 1, options_set_str_var,
+        opt_var(func () { opt_logfilename_in }, func (v) { set opt_logfilename_in = v }),
+        "FILE.TXT", "Set log filename"),
+    OPT("-nolog", 0, options_empty_str_var,
+        opt_var(func () { opt_logfilename_in }, func (v) { set opt_logfilename_in = v }),
+        nil, "Do not create a log file"),
+]
+
+pin cmdline_options_lbx = [
+    OPT("-data", 1, options_set_datadir, nil, "PATH", "Set data directory"),
+]
+
+pin cmdline_options_pbxfile = [
+    OPT("-file", 1, options_add_patchfile, nil, "FILE.PBX", "Add PBX file"),
+]
+
+pin cmdline_options_audio_early = [
+    OPT("-audio", 0, options_enable_bool_var,
+        opt_var(func () { opt_audio_enabled }, func (v) { set opt_audio_enabled = v }),
+        nil, "Enable audio"),
+    OPT("-noaudio", 0, options_disable_bool_var,
+        opt_var(func () { opt_audio_enabled }, func (v) { set opt_audio_enabled = v }),
+        nil, "Disable audio"),
+]
+
+pin cmdline_options_audio = [
+    OPT("-music", 0, options_enable_bool_var,
+        opt_var(func () { opt_music_enabled }, func (v) { set opt_music_enabled = v }),
+        nil, "Enable music"),
+    OPT("-nomusic", 0, options_disable_bool_var,
+        opt_var(func () { opt_music_enabled }, func (v) { set opt_music_enabled = v }),
+        nil, "Disable music"),
+    OPT("-sfx", 0, options_enable_bool_var,
+        opt_var(func () { opt_sfx_enabled }, func (v) { set opt_sfx_enabled = v }),
+        nil, "Enable SFX"),
+    OPT("-nosfx", 0, options_disable_bool_var,
+        opt_var(func () { opt_sfx_enabled }, func (v) { set opt_sfx_enabled = v }),
+        nil, "Disable SFX"),
+    OPT("-sfxinitpar", 0, options_enable_bool_var,
+        opt_var(func () { opt_sfx_init_parallel }, func (v) { set opt_sfx_init_parallel = v }),
+        nil, "Init SFX in parallel (if possible)"),
+    OPT("-nosfxinitpar", 0, options_disable_bool_var,
+        opt_var(func () { opt_sfx_init_parallel }, func (v) { set opt_sfx_init_parallel = v }),
+        nil, "Do not init SFX in parallel"),
+    OPT("-musicvol", 1, options_set_int_var,
+        opt_var(func () { opt_music_volume }, func (v) { set opt_music_volume = v }),
+        "VOLUME", "Set music volume (0..128)"),
+    OPT("-sfxvol", 1, options_set_int_var,
+        opt_var(func () { opt_sfx_volume }, func (v) { set opt_sfx_volume = v }),
+        "VOLUME", "Set SFX volume (0..128)"),
+    OPT("-audiohz", 1, options_set_int_var,
+        opt_var(func () { opt_audiorate }, func (v) { set opt_audiorate = v }),
+        "HZ", "Set audio sample rate (Hz)"),
+    OPT("-audioms", 1, options_set_int_var,
+        opt_var(func () { opt_audioslice_ms }, func (v) { set opt_audioslice_ms = v }),
+        "MS", "Set max audio slice size (ms)"),
+]
+
+;; ---------------------------------------------------------------------------
+
+func get_options_w (opts, lmax) {
+    var m = lmax
+    loop i, o in opts {
+        var l = #o.str + 1
+        if o.str_param != nil {
+            set l = l + #o.str_param
+        }
+        if l > m {
+            set m = l
+        }
+    }
+    m
+}
+
+;; `strchr(p, '\n')` from `from`.
+func opt_find_nl (s, from) {
+    var i = from
+    loop {
+        while i < #s
+        if string.byte(s, i) == 10 {
+            return i
+        }
+        set i = i + 1
+    }
+    nil
+}
+
+func show_options (opts, lmax) {
+    val fmt1 = string.format("    %%-%is ", lmax)
+    val fmt2 = string.format("%%s\n%%-%is", lmax + 5)
+    loop i, o in opts {
+        if o.str_help != nil {
+            ;; buf[128]: the lines are shorter
+            val buf = string.format("%s %s", o.str, if o.str_param != nil => o.str_param => "")
+            log_message(fmt1, buf)
+            var p = 0
+            loop {
+                val q = opt_find_nl(o.str_help, p)
+                while q != nil
+                log_message(fmt2, string.sub(o.str_help, p, q - 1), "")
+                set p = q + 1
+            }
+            log_message("%s\n", string.sub(o.str_help, p))
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func find_option_do (name, cmds) {
+    loop i, o in cmds {
+        if name == o.str {
+            return o
+        }
+    }
+    nil
+}
+
+;; `find_option(name, early, &was_early)`: gives (o, was_early).
+func find_option (name, early) {
+    pin early_tbls = [
+        [ cond = true, tbl = cmdline_options_early ],
+        [ cond = main_use_cfg, tbl = cmdline_options_cfg_early ],
+        [ cond = ui_use_audio, tbl = cmdline_options_audio_early ],
+        [ cond = true, tbl = main_cmdline_options_early ],
+    ]
+    pin late_tbls = [
+        [ cond = main_use_lbx, tbl = cmdline_options_lbx ],
+        [ cond = main_use_lbx, tbl = cmdline_options_pbxfile ],
+        [ cond = ui_use_audio, tbl = cmdline_options_audio ],
+        [ cond = true, tbl = os_cmdline_options ],
+        [ cond = true, tbl = hw_cmdline_options ],
+        [ cond = true, tbl = hw_cmdline_options_extra ],
+        [ cond = true, tbl = ui_cmdline_options ],
+        [ cond = true, tbl = main_cmdline_options ],
+    ]
+    loop i, t in early_tbls {
+        if t.cond {
+            val o = find_option_do(name, t.tbl)
+            if o != nil {
+                return (o, true)
+            }
+        }
+    }
+    loop i, t in late_tbls {
+        if t.cond {
+            val o = find_option_do(name, t.tbl)
+            if o != nil {
+                return (o, false)
+            }
+        }
+    }
+    (nil, false)
+}
+
+;; ---------------------------------------------------------------------------
+
+;; `argv` is the vector of the arguments, without the program name: C
+;; starts at `argv[1]`, the port at `argv@(0)`.
+func options_parse_do (argv, early) {
+    val argc = #argv
+    var i = 0
+    loop {
+        while i < argc
+        val a = argv@(i)
+        val c = string.sub(a, 0, 0)
+        if (c == "+") || (c == "-") {
+            val o, was_early = find_option(a, early)
+            if o == nil {
+                log_error("unknown option '%s'\n", a)
+                show_usage(nil, nil)
+                return -1
+            }
+            val num = o.num_param
+            if num >= (argc - i) {
+                log_error("option '%s' is missing the parameter\n", a)
+                return -1
+            }
+            if early == was_early {
+                val oargv = [a]
+                loop j in num {
+                    set oargv@(j + 1) = argv@(i + 1 + j)
+                }
+                if o.handle(oargv, o.var) < 0 {
+                    return -1
+                }
+            }
+            set i = i + num
+        } else {
+            if !early {
+                if main_handle_option(a) < 0 {
+                    log_warning("ignoring unhandled parameter '%s'\n", a)
+                }
+            }
+        }
+        set i = i + 1
+    }
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
+func options_parse_early (argv) {
+    ;; parse options first to exit early on "-?" and open the log file
+    var res = options_parse_do(argv, true)
+    if res == 0 {
+        var filename = nil
+        if opt_logfilename_in != nil {
+            set filename = opt_logfilename_in
+        } else {
+            val namebuf = os_get_fname_log()
+            if namebuf != nil {
+                set filename = util_concat(os_get_path_user(), FSDEV_DIR_SEP_STR, namebuf)
+            }
+        }
+        if filename != nil {
+            log_file_open(filename)
+        }
+    }
+    if (res == 0) && main_use_cfg {
+        if opt_configfilename_in != nil {
+            set opt_configfilename = opt_configfilename_in
+        } else {
+            set opt_configfilename = cfg_cfgname()
+        }
+        if !opt_default && (cfg_load(opt_configfilename) != 0) {
+            log_warning("Opt: problems loading config file '%s'\n", opt_configfilename)
+        }
+        ;; parse options again to override configuration
+        set res = options_parse_do(argv, true)
+    }
+    res
+}
+
+func options_parse (argv) {
+    options_parse_do(argv, false)
+}
+
+func options_show_usage () {
+    var lmax = 0
+    log_message_direct("1oom v1.11.9\n")
+    if main_usage != nil {
+        main_usage()
+    }
+    log_message_direct("Options:\n")
+
+    set lmax = get_options_w(cmdline_options_early, lmax)
+    if main_use_cfg {
+        set lmax = get_options_w(cmdline_options_cfg_early, lmax)
+    }
+    if main_use_lbx {
+        set lmax = get_options_w(cmdline_options_lbx, lmax)
+        set lmax = get_options_w(cmdline_options_pbxfile, lmax)
+    }
+    if ui_use_audio {
+        set lmax = get_options_w(cmdline_options_audio_early, lmax)
+        set lmax = get_options_w(cmdline_options_audio, lmax)
+    }
+    set lmax = get_options_w(os_cmdline_options, lmax)
+    set lmax = get_options_w(hw_cmdline_options, lmax)
+    set lmax = get_options_w(hw_cmdline_options_extra, lmax)
+    set lmax = get_options_w(ui_cmdline_options, lmax)
+    set lmax = get_options_w(main_cmdline_options_early, lmax)
+    set lmax = get_options_w(main_cmdline_options, lmax)
+
+    show_options(cmdline_options_early, lmax)
+    if main_use_cfg {
+        show_options(cmdline_options_cfg_early, lmax)
+    }
+    if main_use_lbx {
+        show_options(cmdline_options_lbx, lmax)
+        show_options(cmdline_options_pbxfile, lmax)
+    }
+    if ui_use_audio {
+        show_options(cmdline_options_audio_early, lmax)
+        show_options(cmdline_options_audio, lmax)
+    }
+    show_options(os_cmdline_options, lmax)
+    show_options(hw_cmdline_options, lmax)
+    show_options(hw_cmdline_options_extra, lmax)
+    show_options(ui_cmdline_options, lmax)
+    show_options(main_cmdline_options_early, lmax)
+    show_options(main_cmdline_options, lmax)
+}
+
+func options_finish () {
+    set opt_datapath = os_get_path_data()
+}
+
+func options_shutdown (save_config) {
+    if main_use_cfg && save_config && (opt_configfilename != nil) && !opt_config_ro {
+        if cfg_save(opt_configfilename) != 0 {
+            log_error("Opt: problems saving config file '%s'\n", opt_configfilename)
+        }
+    }
+    set opt_configfilename = nil
+    set opt_datapath = nil
+}
+
+include "cfg.atm"

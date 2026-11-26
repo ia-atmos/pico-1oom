@@ -1,0 +1,21 @@
+;; Port of the tables of c/src/hw/nop/hwnop.c: the hardware "nop" has no
+;; options and no config items. (Its `hw_log_*` are in log.atm.)
+
+val idstr_hw = "nop"
+
+pin hw_cmdline_options = []
+pin hw_cmdline_options_extra = []
+pin hw_cfg_items = []
+pin hw_cfg_items_extra = []
+
+func hw_early_init () {
+    0
+}
+
+func hw_init () {
+    0
+}
+
+func hw_shutdown () {
+    nil
+}

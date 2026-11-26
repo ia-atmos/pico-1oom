@@ -179,3 +179,30 @@ func util_digit (c, base) {
     }
     if d < base => d => -1
 }
+
+;; `util_get_line(buf, bufsize, f)`: the next line of the file `f`, without
+;; the line breaks (0x0a, 0x0d) and the spaces at its ends; `nil` at the end
+;; of the file (-1 in C, which gives the length). C reads with `fgets` into
+;; `bufsize` bytes, so it cuts a longer line in pieces; the lines read here
+;; (of the config file) are not so long.
+func util_get_line (f) {
+    val r = io.read(f)
+    if r == nil {
+        return nil
+    }
+    var b = 0
+    var e = #r
+    loop {
+        while (e > 0) && ((string.byte(r, e - 1) == 0x0d) || (string.byte(r, e - 1) == 0x0a))
+        set e = e - 1
+    }
+    loop {
+        while (e > 0) && (string.byte(r, e - 1) == 32)
+        set e = e - 1
+    }
+    loop {
+        while (b < e) && (string.byte(r, b) == 32)
+        set b = b + 1
+    }
+    if b < e => string.sub(r, b, e - 1) => ""
+}

@@ -1,129 +1,89 @@
-;; Port of c/src/main.c (with ui/cmdline): the program `1oom_cmdline`.
+;; Port of c/src/main.c (with ui/cmdline and hw/nop): the program
+;; `1oom_cmdline`.
 ;;   atmos -o 1oom_cmdline src/main.atm
-;; For now (#14) the options are parsed here, in part: those of game.c,
-;; -data and -user; -cro and -nolog are accepted. options.c and cfg.c (the
-;; config file, the log file, -file of PBX) are still to port.
 
 include "lbx.atm"
 include "log.atm"
 include "os/unix/os.atm"
+include "hw/nop/hwnop.atm"
 include "game/game_main.atm"
 include "ui/cmdline/uicmdline.atm"
 include "game/game_ai_classic.atm"
+include "options.atm"
+include "pbx.atm"
+
+var main_startup_ok = false
+
+;; ---------------------------------------------------------------------------
+
+func main_early_init () {
+    if (os_early_init() != 0)
+        || (hw_early_init() != 0)
+        || (ui_early_init() != 0)
+        || (lbxfile_init() != 0)
+    {
+        return 1
+    }
+    0
+}
+
+func main_init () {
+    if (os_init() != 0)
+        || (hw_init() != 0)
+        || (ui_init() != 0)
+    {
+        return 1
+    }
+    0
+}
 
 func main_shutdown () {
+    options_shutdown(main_startup_ok)
     main_do_shutdown()
+    lbxfile_shutdown()
     ui_shutdown()
+    hw_shutdown()
+    os_shutdown()
+    log_file_close()
     log_message("Thanks for playing 1oom.\n")
 }
 
-;; The options of game.c (main_cmdline_options): name, number of arguments,
-;; handler.
-func opt_undo (argv, v) {
-    set game_opt_undo_enabled = true
-    0
-}
+;; ---------------------------------------------------------------------------
 
-func opt_noundo (argv, v) {
-    set game_opt_undo_enabled = false
-    0
-}
-
-func opt_yearsave (argv, v) {
-    set game_opt_year_save_enabled = true
-    0
-}
-
-func opt_noyearsave (argv, v) {
-    set game_opt_year_save_enabled = false
-    0
-}
-
-func opt_skipintro (argv, v) {
-    set game_opt_skip_intro_always = true
-    0
-}
-
-func opt_noskipintro (argv, v) {
-    set game_opt_skip_intro_always = false
-    0
-}
-
-func opt_nextturn (argv, v) {
-    set game_opt_next_turn = true
-    0
-}
-
-func opt_savequit (argv, v) {
-    set game_opt_save_quit = true
-    0
-}
-
-pin main_cmdline_options = [
-    [ name = "-new", nargs = 1, handle = game_opt_do_new_seed ],
-    [ name = "-load", nargs = 1, handle = game_opt_do_load ],
-    [ name = "-continue", nargs = 0, handle = game_opt_do_continue ],
-    [ name = "-undo", nargs = 0, handle = opt_undo ],
-    [ name = "-noundo", nargs = 0, handle = opt_noundo ],
-    [ name = "-yearsave", nargs = 0, handle = opt_yearsave ],
-    [ name = "-noyearsave", nargs = 0, handle = opt_noyearsave ],
-    [ name = "-skipintro", nargs = 0, handle = opt_skipintro ],
-    [ name = "-noskipintro", nargs = 0, handle = opt_noskipintro ],
-    [ name = "-nextturn", nargs = 0, handle = opt_nextturn ],
-    [ name = "-savequit", nargs = 0, handle = opt_savequit ],
-]
-
+;; `argv`: the arguments, without the program name.
 func main_1oom (argv) {
-    if lbxfile_init() != 0 {
+    if main_early_init() != 0 {
         return 1
     }
-    log_message("1oom v1.11.9: main:%s ui:%s hw:%s os:%s\n", idstr_main, idstr_ui, "nop", "unix")
+    if options_parse_early(argv) != 0 {
+        return 1
+    }
+    log_message("1oom v1.11.9: main:%s ui:%s hw:%s os:%s\n", idstr_main, idstr_ui, idstr_hw, idstr_os)
     os_atexit(main_shutdown)
-    var i = 0
-    loop {
-        while i < #argv
-        val a = argv@(i)
-        ifs {
-            a == "-data" => {
-                set i = i + 1
-                os_set_path_data(argv@(i))
-            }
-            a == "-user" => {
-                set i = i + 1
-                os_set_path_user(argv@(i))
-            }
-            (a == "-cro") || (a == "-nolog") => nil
-            else => {
-                var found = false
-                loop k in #main_cmdline_options {
-                    val o = main_cmdline_options@(k)
-                    if o.name == a {
-                        val oargv = [a]
-                        loop j in o.nargs {
-                            set oargv@(j + 1) = argv@(i + 1 + j)
-                        }
-                        if o.handle(oargv, nil) != 0 {
-                            return 3
-                        }
-                        set i = i + o.nargs
-                        set found = true
-                    }
-                }
-                if !found {
-                    log_error("unknown option '%s'\n", a)
-                    return 3
-                }
-            }
-        }
-        set i = i + 1
+    if main_init() != 0 {
+        return 2
+    }
+    if options_parse(argv) != 0 {
+        return 3
     }
     if lbxfile_find_dir() != 0 {
+        ui_early_show_message_box("Error: could not find\nthe LBX files!\n"
+                            ++ "1oom requires a copy\nof the Master of Orion\n(v1.3) LBX files.\n"
+                            ++ "Simply copy the EXE and\nDLLs to your MOO1\ndirectory.\n"
+                            ++ "Alternatively copy your\nMOO1 LBX files to your\n1oom directory.")
         return 4
     }
     game_apply_rules()
+    if pbx_apply_queued_files() != 0 {
+        return 5
+    }
+
     log_message("USER: '%s'\n", os_get_path_user())
+    set main_startup_ok = true
+    options_finish()
     main_do()
 }
 
+;; `main` of hwnop.c: `return main_1oom(argc, argv)`, through `exit`.
 val r = main_1oom([...])
 os_exit(r)

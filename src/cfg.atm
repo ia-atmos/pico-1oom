@@ -1,0 +1,303 @@
+;; Port of c/src/cfg.c (and cfg.h): the configuration file.
+;;
+;; In C an item points to its variable (`void *var`); here an item has
+;; `get` and `put`, the functions that read and write the variable. An array
+;; of items ends with `CFG_ITEM_END` in C; here it is a vector, and the end
+;; is its length. `cfg_items_tbl` lists the modules: its tables are
+;; defined by options.atm, game_main.atm, hwnop.atm and uicmdline.atm, which
+;; the program includes before this file.
+
+include "lib.atm"
+include "log.atm"
+include "util.atm"
+include "util_cstr.atm"
+include "os/unix/os.atm"
+include "os/unix/osdefs.atm"
+include "cfgdefs.atm"
+
+;; The modules: `cond` is the flag that enables the module (`bool const *`
+;; in C), as a function; `nil` if always.
+pin cfg_items_tbl = [
+    [ str = "opt", items = opt_cfg_items, cond = nil ],
+    [ str = "opta", items = opt_cfg_items_audio, cond = func () { ui_use_audio } ],
+    [ str = "game", items = game_cfg_items, cond = nil ],
+    [ str = "hw", items = hw_cfg_items, cond = nil ],
+    [ str = "hwx", items = hw_cfg_items_extra, cond = nil ],
+    [ str = "ui", items = ui_cfg_items, cond = nil ],
+]
+
+;; struct cfg_parse_s: the module and the item expected on the next line,
+;; as indexes; `module == #cfg_items_tbl` is the end of the table (`{ 0 }` in
+;; C), and `item == #items` the end of the items of the module.
+func cfg_parse_s () {
+    [ module = nil, item = nil ]
+}
+
+func cfg_parse_init (ctx) {
+    set ctx.module = nil
+    set ctx.item = nil
+}
+
+func cfg_ctx_module_str (ctx) {
+    if (ctx.module == nil) || (ctx.module >= #cfg_items_tbl) {
+        return nil
+    }
+    cfg_items_tbl@(ctx.module).str
+}
+
+func cfg_ctx_item_name (ctx) {
+    if (ctx.item == nil) || (ctx.module == nil) || (ctx.module >= #cfg_items_tbl) {
+        return nil
+    }
+    val items = cfg_items_tbl@(ctx.module).items
+    if ctx.item >= #items {
+        return nil
+    }
+    items@(ctx.item).name
+}
+
+func cfg_find_char (s, c, from) {
+    var i = from
+    loop {
+        while i < #s
+        if string.sub(s, i, i) == c {
+            return i
+        }
+        set i = i + 1
+    }
+    nil
+}
+
+;; `strstr(s, " =")` from `from`.
+func cfg_find_eq (s, from) {
+    var i = from
+    loop {
+        while (i + 1) < #s
+        if string.sub(s, i, i + 1) == " =" {
+            return i
+        }
+        set i = i + 1
+    }
+    nil
+}
+
+func cfg_parse_line (line, lnum, ctx) {
+    val pdot = cfg_find_char(line, ".", 0)
+    if pdot == nil {
+        log_error("Cfg: . missing on line %i\n", lnum)
+        return -1
+    }
+    val mname = string.sub(line, 0, pdot - 1)
+    val inamei = pdot + 1
+    val p = cfg_find_eq(line, inamei)
+    if p == nil {
+        log_error("Cfg: = missing on line %i\n", lnum)
+        return -1
+    }
+    if p < (inamei + 2) {
+        log_error("Cfg: item name missing on line %i\n", lnum)
+        return -1
+    }
+    val iname = string.sub(line, inamei, p - 1)
+    ;; `ival = *p ? (p + 1) : p` after the " =": the space after '=' is skipped
+    val ivali = if (p + 2) < #line => p + 3 => p + 2
+    val ival = if ivali < #line => string.sub(line, ivali) => ""
+    var module = nil
+    var item = nil
+    if (cfg_ctx_module_str(ctx) != nil)
+        && (cfg_ctx_item_name(ctx) != nil)
+        && (cfg_ctx_module_str(ctx) == mname)
+        && (cfg_ctx_item_name(ctx) == iname)
+    {
+        set module = ctx.module
+        set item = ctx.item
+    } else {
+        loop m in #cfg_items_tbl {
+            val mm = cfg_items_tbl@(m)
+            if (mm.str == mname) && ((mm.cond == nil) || mm.cond()) {
+                set module = m
+                break
+            }
+        }
+        if module == nil {
+            log_error("Cfg: unknown module on line %i\n", lnum)
+            return -1
+        }
+        loop {
+            ;; again:
+            set item = nil
+            val items = cfg_items_tbl@(module).items
+            loop i in #items {
+                if items@(i).name == iname {
+                    set item = i
+                    break
+                }
+            }
+            until item != nil
+            if items == opt_cfg_items {  ;; HACK handle audio option opt -> opta move
+                set module = module + 1
+            } else {
+                log_warning("Cfg: ignoring unknown item '%s.%s' on line %i\n", mname, iname, lnum)
+                return 0
+            }
+        }
+    }
+    set ctx.module = module
+    do {
+        var items = cfg_items_tbl@(ctx.module).items
+        var i = item + 1
+        loop {
+            while (i < #items) && (items@(i).type == CFG_TYPE_COMMENT)
+            set i = i + 1
+        }
+        if i >= #items {
+            set ctx.module = ctx.module + 1
+            set i = 0
+        }
+        set ctx.item = i
+    }
+    val it = cfg_items_tbl@(module).items@(item)
+    match it.type {
+        CFG_TYPE_INT => {
+            val ok, v = util_parse_number(ival)
+            if !ok {
+                log_error("Cfg: invalid value on line %i\n", lnum)
+                return -1
+            }
+            if (it.check != nil) && !it.check(i32(v)) {
+                log_warning("Cfg: item failed check on line %i\n", lnum)
+                return -1
+            }
+            it.put(i32(v))
+        }
+        CFG_TYPE_STR => {
+            ifs {
+                ival == "" => it.put(nil)
+                string.sub(ival, 0, 0) == "\"" => {
+                    val r, s = util_cstr_parse_in_place(string.sub(ival, 1))
+                    if r < 0 {
+                        log_warning("Cfg: invalid value on line %i\n", lnum)
+                        return -1
+                    }
+                    if (it.check != nil) && !it.check(s) {
+                        log_warning("Cfg: item failed check on line %i\n", lnum)
+                        return -1
+                    }
+                    it.put(s)
+                }
+                else => {
+                    log_error("Cfg: invalid value on line %i\n", lnum)
+                    return -1
+                }
+            }
+        }
+        CFG_TYPE_BOOL => {
+            ifs {
+                ival == "true" => it.put(true)
+                ival == "false" => it.put(false)
+                else => {
+                    log_error("Cfg: invalid value on line %i\n", lnum)
+                    return -1
+                }
+            }
+        }
+        else => nil     ;; CFG_TYPE_COMMENT: should never happen
+    }
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
+func cfg_cfgname () {
+    val path = os_get_path_user()
+    var name = os_get_fname_cfg(idstr_main, idstr_ui, idstr_hw)
+    if name == nil {
+        set name = string.format("1oom_config_%s_%s_%s.txt", idstr_main, idstr_ui, idstr_hw)
+    }
+    util_concat(path, FSDEV_DIR_SEP_STR, name)
+}
+
+func cfg_load (filename) {
+    var lnum = 0
+    val ctx = cfg_parse_s()
+    log_message("Cfg: loading configuration from '%s'\n", filename)
+    pin fd = io.open(filename, "r")
+    if !fd {
+        log_error("Cfg: failed to open file '%s'\n", filename)
+        return -1
+    }
+    cfg_parse_init(ctx)
+    loop {
+        val buf = util_get_line(fd)
+        while buf != nil
+        set lnum = lnum + 1
+        if (buf != "") && (string.sub(buf, 0, 0) != "#") {
+            if cfg_parse_line(buf, lnum, ctx) < 0 {
+                io.close(fd)
+                return -1
+            }
+        }
+    }
+    io.close(fd)
+    0
+}
+
+func cfg_clear (filename) {
+    if os_make_path_for(filename) != 0 {
+        log_error("Cfg: failed to create path for '%s'\n", filename)
+        return -1
+    }
+    pin fd = io.open(filename, "w")
+    if !fd {
+        log_error("Cfg: failed to create file '%s'\n", filename)
+        return -1
+    }
+    io.close(fd)
+    0
+}
+
+func cfg_save (filename) {
+    if opt_cfg_reset {
+        return cfg_clear(filename)
+    }
+    log_message("Cfg: saving configuration to '%s'\n", filename)
+    if os_make_path_for(filename) != 0 {
+        log_error("Cfg: failed to create path for '%s'\n", filename)
+        return -1
+    }
+    pin fd = io.open(filename, "w+")
+    if !fd {
+        log_error("Cfg: failed to create file '%s'\n", filename)
+        return -1
+    }
+    io.write(fd, "# 1oom configuration file\n")
+    loop mi, module in cfg_items_tbl {
+        if (module.cond == nil) || module.cond() {
+            loop ii, item in module.items {
+                match item.type {
+                    CFG_TYPE_INT => {
+                        io.write(fd, string.format("%s.%s = %i\n", module.str, item.name, item.get()))
+                    }
+                    CFG_TYPE_STR => {
+                        io.write(fd, string.format("%s.%s = ", module.str, item.name))
+                        val s = item.get()
+                        if s != nil {
+                            io.write(fd, "\"")
+                            util_cstr_out(fd, s)
+                            io.write(fd, "\"")
+                        }
+                        io.write(fd, "\n")
+                    }
+                    CFG_TYPE_BOOL => {
+                        io.write(fd, string.format("%s.%s = %s\n", module.str, item.name, if item.get() => "true" => "false"))
+                    }
+                    CFG_TYPE_COMMENT => {
+                        io.write(fd, string.format("# %s\n", item.name))
+                    }
+                }
+            }
+        }
+    }
+    io.close(fd)
+    0
+}

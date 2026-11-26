@@ -1,0 +1,3 @@
+-cro -nolog YOMAMA s extra -ngn 1 Abcdefghijklmnopq -ngh 2 Homeworldwithalongname -nga 1 -noundo -yearsave -new 312:0:0:99
+n
+quit !

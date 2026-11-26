@@ -23,6 +23,8 @@ var num_data_paths = 0
 
 val idstr_os = "unix"
 
+pin os_cmdline_options = []
+
 func os_early_init () {
     0
 }
