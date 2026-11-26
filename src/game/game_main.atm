@@ -17,6 +17,7 @@ include "game_num.atm"
 include "game_nump.atm"
 include "game_strp.atm"
 include "game_save.atm"
+include "game_save_moo13.atm"
 include "game_tech.atm"
 include "game_turn.atm"
 
@@ -761,6 +762,7 @@ func main_do () {
             }
             ;; the main loop of a game, again from "load" when a game is loaded in game
             var restart = true
+            var back_to_menu = false    ;; `continue` of C, out of this loop
             loop {
                 while restart
                 set restart = false
@@ -796,7 +798,12 @@ func main_do () {
                         }
                     }
                     "moo13" => {
-                        throw "game_main: the saves of MOO 1.3 are not ported yet (#14)"
+                        ;; fname[12] = "SAVEX.GAM"; fname[4] = load_game_i + '0' + 1 (FIXME of C)
+                        val fname = "SAVE" ++ string.char(u8(load_game_i + 48 + 1)) ++ ".GAM"
+                        if game_save_de_moo13(game, fname) < 0 {
+                            set back_to_menu = true
+                            break
+                        }
                     }
                     "continue" => {
                         if game_save_do_load_i(GAME_SAVE_I_CONTINUE, game) != 0 {
@@ -864,6 +871,9 @@ func main_do () {
                     }
                     set game.active_player = PLAYER_0
                 }
+            }
+            if back_to_menu {
+                skip
             }
             ui_game_end(game)
         }

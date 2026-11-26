@@ -6,6 +6,7 @@ include "../src/game/game_aux.atm"
 include "../src/game/game_misc.atm"
 include "../src/game/game_new.atm"
 include "../src/game/game_save.atm"
+include "../src/game/game_save_moo13.atm"
 include "../src/game/game_audience.atm"
 include "../src/game/game_battle.atm"
 include "../src/game/game_bomb.atm"
@@ -636,8 +637,14 @@ if args@2 == "new" {
     game_new(g, gaux, opt)
     set k = 10
 } else {
-    if game_save_do_load_fname(args@3, nil, g) != 0 {
-        os.exit(1)
+    if args@2 == "moo13" {
+        if game_save_de_moo13(g, args@3) < 0 {
+            os.exit(1)
+        }
+    } else {
+        if game_save_do_load_fname(args@3, nil, g) != 0 {
+            os.exit(1)
+        }
     }
     set k = 4
 }

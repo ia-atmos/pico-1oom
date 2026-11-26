@@ -1,0 +1,567 @@
+;; Port of c/src/game/game_save_moo13.c: loads a save of MOO1 v1.3
+;; (SAVEn.GAM). Generated from the C by tools/game_save_moo13.py: each value
+;; is converted to the C type of its field. The file is read whole
+;; (`util_file_load` of C); `savebuf` is a vector of bytes.
+
+include "../bits.atm"
+include "../boolvec.atm"
+include "../cfile.atm"
+include "../ctypes.atm"
+include "../log.atm"
+include "game.atm"
+include "game_types.atm"
+
+val SAVE_MOO13_LEN = 59036
+
+var savebuf = nil
+var savelen = 0
+
+func m13_owner (t) {
+    if t == 0xffff => PLAYER_NONE => t
+}
+
+func m13_killer (t) {
+    if t == 0 => PLAYER_NONE => (t - 1)
+}
+
+func m13_hated (t) {
+    if t == 0 => PLAYER_NONE => t
+}
+
+func m13_bool (v) {
+    v != 0
+}
+
+func m13_memcpy (dst, offs, n) {
+    loop k in n {
+        set dst@(k) = savebuf@(offs + k)
+    }
+}
+
+;; `util_file_load(fname, &len)`: the bytes, and their number (0 if none).
+func util_file_load (fname) {
+    val bs = cfile_read(fname)
+    if bs == nil => (nil, 0) => (bs, #bs)
+}
+
+;; `memset(g, 0, sizeof(*g))`: the game back to its zeros, but its gaux.
+func m13_clear_game (g) {
+    val ga = g.gaux
+    loop k, v in game_s() {
+        set g@(k) = v
+    }
+    set g.gaux = ga
+}
+
+func savetype_de_moo13_sd (sd, sb) {
+    m13_memcpy(sd.name, sb + 0x00, 11)
+    set sd.cost = u16(GET_LE_16(savebuf, sb + 0x14))
+    set sd.space = u16(GET_LE_16(savebuf, sb + 0x16))
+    set sd.hull = u32(GET_LE_16(savebuf, sb + 0x18))
+    set sd.look = u8(GET_LE_16(savebuf, sb + 0x1a))
+    loop i_ in 4 {
+        set sd.wpnt@(i_) = u32(GET_LE_16(savebuf, (sb + 0x1c) + (i_ * 2)))
+    }
+    loop i_ in 4 {
+        set sd.wpnn@(i_) = u8(GET_LE_16(savebuf, (sb + 0x24) + (i_ * 2)))
+    }
+    set sd.engine = u32(GET_LE_16(savebuf, sb + 0x2c))
+    set sd.engines = u32(GET_LE_32(savebuf, sb + 0x2e))
+    loop i_ in 3 {
+        set sd.special@(i_) = u32(GET_LE_16(savebuf, (sb + 0x32) + (i_ * 2)))
+    }
+    set sd.shield = u32(GET_LE_16(savebuf, sb + 0x38))
+    set sd.jammer = u32(GET_LE_16(savebuf, sb + 0x3a))
+    set sd.comp = u32(GET_LE_16(savebuf, sb + 0x3c))
+    set sd.armor = u32(GET_LE_16(savebuf, sb + 0x3e))
+    set sd.man = u8(GET_LE_16(savebuf, sb + 0x40))
+    set sd.hp = u16(GET_LE_16(savebuf, sb + 0x42))
+    return 0
+}
+
+func game_save_de_moo13 (g, fname) {
+    set savebuf = nil
+    set savelen = 0
+    set savebuf, savelen = util_file_load(fname)
+    if savelen != SAVE_MOO13_LEN {
+        log_error("loading MOO1 v1.3 save '%s' (got %i != %i bytes)\n", fname, savelen, SAVE_MOO13_LEN)
+        if savebuf != nil {
+            set savebuf = nil
+        }
+        return -1
+    }
+    m13_clear_game(g)
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe2d2)
+        if (t_ < 2) || (t_ > 6) {
+            log_error("g->players at 0x%04x is %i and not in range %i..%i\n", 0xe2d2, t_, 2, 6)
+            return -1
+        }
+        set g.players = u8(t_)
+    }
+    set g.is_ai@(0) = u8(((1 << g.players) - 1) & (~1))
+    set g.active_player = PLAYER_0
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe2d4)
+        if (t_ < 0) || (t_ > 4) {
+            log_error("g->difficulty at 0x%04x is %i and not in range %i..%i\n", 0xe2d4, t_, 0, 4)
+            return -1
+        }
+        set g.difficulty = u32(t_)
+    }
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe2d8)
+        if (t_ < 0) || (t_ > 3) {
+            log_error("g->galaxy_size at 0x%04x is %i and not in range %i..%i\n", 0xe2d8, t_, 0, 3)
+            return -1
+        }
+        set g.galaxy_size = u32(t_)
+    }
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe238)
+        if (t_ < 0) || (t_ > 4) {
+            log_error("g->nebula_num at 0x%04x is %i and not in range %i..%i\n", 0xe238, t_, 0, 4)
+            return -1
+        }
+        set g.nebula_num = u8(t_)
+    }
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe2d6)
+        if (t_ < 24) || (t_ > 108) {
+            log_error("g->galaxy_stars at 0x%04x is %i and not in range %i..%i\n", 0xe2d6, t_, 24, 108)
+            return -1
+        }
+        set g.galaxy_stars = u8(t_)
+    }
+    set g.galaxy_w = u8(GET_LE_16(savebuf, 0xe2da))
+    set g.galaxy_h = u8(GET_LE_16(savebuf, 0xe2dc))
+    set g.galaxy_maxx = u16(GET_LE_16(savebuf, 0xe2de))
+    set g.galaxy_maxy = u16(GET_LE_16(savebuf, 0xe2e0))
+    set g.year = u16(GET_LE_16(savebuf, 0xe232))
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe1b6)
+        if (t_ < 0) || (t_ > 259) {
+            log_error("g->enroute_num at 0x%04x is %i and not in range %i..%i\n", 0xe1b6, t_, 0, 259)
+            return -1
+        }
+        set g.enroute_num = u16(t_)
+    }
+    do {
+        val t_ = GET_LE_16(savebuf, 0xe1b8)
+        if (t_ < 0) || (t_ > 99) {
+            log_error("g->transport_num at 0x%04x is %i and not in range %i..%i\n", 0xe1b8, t_, 0, 99)
+            return -1
+        }
+        set g.transport_num = u16(t_)
+    }
+    set g.end = u32(GET_LE_16(savebuf, 0xe686))
+    set g.refuse@(0) = u8(if g.end == 0 => 0 => 1)
+    set g.winner = u32(m13_owner(GET_LE_16(savebuf, 0xe688)))
+    set g.election_held = m13_bool(GET_LE_16(savebuf, 0xe68c))
+    loop i in g.nebula_num {
+        set g.nebula_type@(i) = u8(GET_LE_16(savebuf, 0xe23a + i * 2))
+        set g.nebula_x@(i) = u16(GET_LE_16(savebuf, 0xe242 + i * 2))
+        set g.nebula_y@(i) = u16(GET_LE_16(savebuf, 0xe24a + i * 2))
+        loop j in 4 {
+            set g.nebula_x0@(i)@(j) = u16(GET_LE_16(savebuf, 0xe252 + (i * 4 + j) * 2))
+            set g.nebula_x1@(i)@(j) = u16(GET_LE_16(savebuf, 0xe272 + (i * 4 + j) * 2))
+            set g.nebula_y0@(i)@(j) = u16(GET_LE_16(savebuf, 0xe292 + (i * 4 + j) * 2))
+            set g.nebula_y1@(i)@(j) = u16(GET_LE_16(savebuf, 0xe2b2 + (i * 4 + j) * 2))
+        }
+    }
+    loop i in g.players {
+        m13_memcpy(g.emperor_names@(i), 0xe1ba + i * 15, EMPEROR_NAME_LEN - 1)
+    }
+    set g.planet_focus_i@(0) = u8(GET_LE_16(savebuf, 0xe236))
+    loop i in g.galaxy_stars {
+        var p = g.planet@(i)
+        var pb = 0
+        set pb = i * 0xb8
+        m13_memcpy(p.name, pb, PLANET_NAME_LEN - 1)
+        set p.x = u16(GET_LE_16(savebuf, pb + 0xc))
+        set p.y = u16(GET_LE_16(savebuf, pb + 0xe))
+        set p.star_type = u32(GET_LE_16(savebuf, pb + 0x10))
+        set p.look = u8(GET_LE_16(savebuf, pb + 0x12))
+        set p.frame = u8(GET_LE_16(savebuf, pb + 0x14))
+        set p.rocks = u32(GET_LE_16(savebuf, pb + 0x18))
+        set p.max_pop1 = i16(GET_LE_16(savebuf, pb + 0x1a))
+        set p.max_pop2 = i16(GET_LE_16(savebuf, pb + 0x1c))
+        set p.max_pop3 = i16(GET_LE_16(savebuf, pb + 0x1e))
+        set p.type = u32(GET_LE_16(savebuf, pb + 0x20))
+        set p.battlebg = u8(GET_LE_16(savebuf, pb + 0x22))
+        set p.infogfx = u8(GET_LE_16(savebuf, pb + 0x24))
+        set p.growth = u32(GET_LE_16(savebuf, pb + 0x26))
+        set p.special = u32(GET_LE_16(savebuf, pb + 0x28))
+        set p.bc_to_ecoproj = i16(GET_LE_16(savebuf, pb + 0x2a))
+        set p.bc_to_ship = u16(GET_LE_16(savebuf, pb + 0x2c))
+        set p.bc_to_factory = u8(GET_LE_16(savebuf, pb + 0x2e))
+        set p.reserve = u32(GET_LE_32(savebuf, pb + 0x30))
+        set p.waste = i16(GET_LE_16(savebuf, pb + 0x34))
+        set p.owner = u32(m13_owner(GET_LE_16(savebuf, pb + 0x36)))
+        set p.prev_owner = u32(m13_owner(GET_LE_16(savebuf, pb + 0x38)))
+        set p.claim = u32(m13_owner(GET_LE_16(savebuf, pb + 0xa0)))
+        set p.pop = i16(GET_LE_16(savebuf, pb + 0x3a))
+        set p.pop_prev = i16(GET_LE_16(savebuf, pb + 0x3c))
+        set p.factories = i16(GET_LE_16(savebuf, pb + 0x3e))
+        loop i_ in 5 {
+            set p.slider@(i_) = i16(GET_LE_16(savebuf, (pb + 0x50) + (i_ * 2)))
+        }
+        loop i_ in 5 {
+            set p.slider_lock@(i_) = u16(GET_LE_16(savebuf, (pb + 0x72) + (i_ * 2)))
+        }
+        set p.buildship = u8(GET_LE_16(savebuf, pb + 0x5a))
+        set p.reloc = u8(GET_LE_16(savebuf, pb + 0x5c))
+        set p.missile_bases = u16(GET_LE_16(savebuf, pb + 0x5e))
+        set p.bc_to_base = u16(GET_LE_16(savebuf, pb + 0x60))
+        set p.bc_upgrade_base = u16(GET_LE_16(savebuf, pb + 0x62))
+        set p.have_stargate = m13_bool(GET_LE_16(savebuf, pb + 0x64))
+        set p.shield = u8(GET_LE_16(savebuf, pb + 0x68))
+        set p.bc_to_shield = u16(GET_LE_16(savebuf, pb + 0x6a))
+        set p.trans_num = u16(GET_LE_16(savebuf, pb + 0x6c))
+        set p.trans_dest = u8(GET_LE_16(savebuf, pb + 0x6e))
+        set p.pop_tenths = i8(savebuf@(pb + 0x70))
+        loop i_ in PLAYER_NUM {
+            if GET_LE_16(savebuf, (pb + 0x7c) + (i_ * 2)) != 0 {
+                BOOLVEC_SET1(p.explored, i_)
+            }
+        }
+        set p.pop_oper_fact = u8(GET_LE_16(savebuf, pb + 0xae))
+        set p.bc_to_refit = u16(GET_LE_16(savebuf, pb + 0xb0))
+        set p.rebels = i16(GET_LE_16(savebuf, pb + 0xb2))
+        set p.unrest = u32(GET_LE_16(savebuf, pb + 0xb4))
+        set p.unrest_reported = m13_bool(GET_LE_16(savebuf, pb + 0xb6))
+    }
+    loop i in g.galaxy_stars {
+        var s = g.seen@(PLAYER_0)@(i)
+        set s.owner = u32(m13_owner(GET_LE_16(savebuf, 0xe2e2 + i * 2)))
+        set s.pop = u16(GET_LE_16(savebuf, 0xe3ba + i * 2))
+        set s.bases = u16(GET_LE_16(savebuf, 0xe492 + i * 2))
+        set s.factories = u16(GET_LE_16(savebuf, 0xe56a + i * 2))
+    }
+    loop j in (PLAYER_1, (g.players) - 1) {
+        loop i in g.galaxy_stars {
+            var s = g.seen@(j)@(i)
+            set s.owner = PLAYER_NONE
+        }
+    }
+    loop i in g.enroute_num {
+        var r = g.enroute@(i)
+        var rb = 0
+        set rb = 0x4da0 + i * 0x1c
+        set r.owner = u32(m13_owner(GET_LE_16(savebuf, rb + 0x00)))
+        set r.x = u16(GET_LE_16(savebuf, rb + 0x02))
+        set r.y = u16(GET_LE_16(savebuf, rb + 0x04))
+        set r.dest = u8(GET_LE_16(savebuf, rb + 0x06))
+        set r.speed = u8(savebuf@(rb + 0x08))
+        loop i_ in 6 {
+            set r.ships@(i_) = u16(GET_LE_16(savebuf, (rb + 0x0a) + (i_ * 2)))
+        }
+    }
+    loop i in g.transport_num {
+        var r = g.transport@(i)
+        var rb = 0
+        set rb = 0x6a10 + i * 0x12
+        set r.owner = u32(m13_owner(GET_LE_16(savebuf, rb + 0x00)))
+        set r.x = u16(GET_LE_16(savebuf, rb + 0x02))
+        set r.y = u16(GET_LE_16(savebuf, rb + 0x04))
+        set r.dest = u8(GET_LE_16(savebuf, rb + 0x06))
+        set r.speed = u8(savebuf@(rb + 0x10))
+        set r.pop = u16(GET_LE_16(savebuf, rb + 0x08))
+    }
+    loop i in g.players {
+        var e = g.eto@(i)
+        var eb = 0
+        set eb = 0x7118 + i * 0xdd4
+        set e.race = u32(savebuf@(eb + 0x000))
+        set e.banner = u32(savebuf@(eb + 0x002))
+        set e.trait1 = u32(savebuf@(eb + 0x004))
+        set e.trait2 = u32(savebuf@(eb + 0x006))
+        set e.ai_p3_countdown = i8(GET_LE_16(savebuf, eb + 0x008))
+        set e.ai_p2_countdown = i8(GET_LE_16(savebuf, eb + 0x00a))
+        loop i_ in PLAYER_NUM {
+            if GET_LE_16(savebuf, (eb + 0x00c) + (i_ * 2)) != 0 {
+                BOOLVEC_SET1(e.contact, i_)
+            }
+        }
+        loop i_ in 6 {
+            set e.relation1@(i_) = i16(GET_LE_16(savebuf, (eb + 0x018) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.relation2@(i_) = i16(GET_LE_16(savebuf, (eb + 0x024) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.diplo_type@(i_) = u8(GET_LE_16(savebuf, (eb + 0x030) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.diplo_val@(i_) = i16(GET_LE_16(savebuf, (eb + 0x03c) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.diplo_p1@(i_) = u16(GET_LE_16(savebuf, (eb + 0x048) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.diplo_p2@(i_) = i16(GET_LE_16(savebuf, (eb + 0x054) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.trust@(i_) = i16(GET_LE_16(savebuf, (eb + 0x06c) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.broken_treaty@(i_) = u32(GET_LE_16(savebuf, (eb + 0x078) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.blunder@(i_) = i16(GET_LE_16(savebuf, (eb + 0x084) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.tribute_field@(i_) = u32(GET_LE_16(savebuf, (eb + 0x090) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.tribute_tech@(i_) = u8(GET_LE_16(savebuf, (eb + 0x09c) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.mood_treaty@(i_) = i16(GET_LE_16(savebuf, (eb + 0x0a8) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.mood_trade@(i_) = i16(GET_LE_16(savebuf, (eb + 0x0b4) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.mood_tech@(i_) = i16(GET_LE_16(savebuf, (eb + 0x0c0) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.mood_peace@(i_) = i16(GET_LE_16(savebuf, (eb + 0x0cc) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.treaty@(i_) = u32(GET_LE_16(savebuf, (eb + 0x0d8) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.trade_bc@(i_) = u16(GET_LE_16(savebuf, (eb + 0x0e4) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.trade_percent@(i_) = i16(GET_LE_16(savebuf, (eb + 0x0f0) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.spymode_next@(i_) = u32(GET_LE_16(savebuf, (eb + 0x0fc) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.offer_field@(i_) = u32(GET_LE_16(savebuf, (eb + 0x1d4) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.offer_tech@(i_) = u8(GET_LE_16(savebuf, (eb + 0x1e0) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.offer_bc@(i_) = u16(GET_LE_16(savebuf, (eb + 0x1ec) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.attack_bounty@(i_) = u32(m13_hated(GET_LE_16(savebuf, (eb + 0x21c) + (i_ * 2))))
+        }
+        loop i_ in 6 {
+            set e.bounty_collect@(i_) = u32(m13_hated(GET_LE_16(savebuf, (eb + 0x228) + (i_ * 2))))
+        }
+        loop i_ in 6 {
+            set e.attack_gift_field@(i_) = u32(GET_LE_16(savebuf, (eb + 0x234) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.attack_gift_tech@(i_) = u8(GET_LE_16(savebuf, (eb + 0x240) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.attack_gift_bc@(i_) = i16(GET_LE_16(savebuf, (eb + 0x24c) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.hatred@(i_) = i16(GET_LE_16(savebuf, (eb + 0x270) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.have_met@(i_) = u16(GET_LE_16(savebuf, (eb + 0x27c) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.trade_established_bc@(i_) = u16(GET_LE_16(savebuf, (eb + 0x288) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.spying@(i_) = i16(GET_LE_16(savebuf, (eb + 0x2a4) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.spyfund@(i_) = u16(GET_LE_16(savebuf, (eb + 0x2b0) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.spymode@(i_) = u32(GET_LE_16(savebuf, (eb + 0x2c8) + (i_ * 2)))
+        }
+        set e.security = i16(GET_LE_16(savebuf, eb + 0x2d4))
+        loop i_ in 6 {
+            set e.spies@(i_) = u16(GET_LE_16(savebuf, (eb + 0x2d6) + (i_ * 2)))
+        }
+        set e.reserve_bc = u32(GET_LE_32(savebuf, eb + 0x2fc))
+        set e.tax = i16(GET_LE_16(savebuf, eb + 0x300))
+        set e.base_shield = u8(GET_LE_16(savebuf, eb + 0x302))
+        set e.base_comp = u8(GET_LE_16(savebuf, eb + 0x304))
+        set e.base_weapon = u8(GET_LE_16(savebuf, eb + 0x306))
+        set e.colonist_oper_factories = u8(GET_LE_16(savebuf, eb + 0x326))
+        loop i_ in 6 {
+            set e.tech.percent@(i_) = u8(GET_LE_16(savebuf, (eb + 0x332 + 0x00) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.tech.slider@(i_) = i16(GET_LE_16(savebuf, (eb + 0x332 + 0x0c) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.tech.slider_lock@(i_) = u16(GET_LE_16(savebuf, (eb + 0x332 + 0x60) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.tech.investment@(i_) = u32(GET_LE_32(savebuf, (eb + 0x332 + 0x18) + (i_ * 4)))
+        }
+        loop i_ in 6 {
+            set e.tech.project@(i_) = u8(GET_LE_16(savebuf, (eb + 0x332 + 0x30) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set e.tech.cost@(i_) = u32(GET_LE_32(savebuf, (eb + 0x332 + 0x3c) + (i_ * 4)))
+        }
+        loop i_ in 6 {
+            set e.tech.completed@(i_) = u16(GET_LE_16(savebuf, (eb + 0x332 + 0x54) + (i_ * 2)))
+        }
+        do {
+            val t_ = GET_LE_16(savebuf, eb + 0x3a0)
+            if (t_ < 0) || (t_ > 6) {
+                log_error("e->shipdesigns_num at 0x%04x is %i and not in range %i..%i\n", eb + 0x3a0, t_, 0, 6)
+                return -1
+            }
+            set e.shipdesigns_num = u8(t_)
+        }
+        loop j in g.galaxy_stars {
+            var r = e.orbit@(j)
+            var ob = 0
+            set ob = eb + 0x3a2 + j * 0x18
+            loop i_ in 6 {
+                set r.ships@(i_) = u16(GET_LE_16(savebuf, (ob + 0x0c) + (i_ * 2)))
+            }
+        }
+        loop i_ in 6 {
+            set g.eto@(PLAYER_0).spyreportfield@(i)@(i_) = u8(GET_LE_16(savebuf, (eb + 0xdc2) + (i_ * 2)))
+        }
+        set g.eto@(PLAYER_0).spyreportyear@(i) = u16(GET_LE_16(savebuf, eb + 0xdce))
+        set e.shipi_colony = i8(GET_LE_16(savebuf, eb + 0xdd0))
+        set e.shipi_bomber = i8(GET_LE_16(savebuf, eb + 0xdd2))
+    }
+    loop i in g.players {
+        var srd = g.srd@(i)
+        var srdb = 0
+        var pos = 0
+        set srdb = 0xc410 + i * 0x468
+        loop j in g.eto@(i).shipdesigns_num {
+            if savetype_de_moo13_sd(srd.design@(j), srdb + j * 0x44) != 0 {
+                if savebuf != nil {
+                    set savebuf = nil
+                }
+                return -1
+            }
+        }
+        set pos = srdb + 0x228
+        loop f in TECH_FIELD_NUM {
+            loop t in TECH_TIER_NUM {
+                loop j in 3 {
+                    set srd.researchlist@(f)@(t)@(j) = u8(savebuf@(pos))
+                    set pos = pos + 1
+                }
+            }
+        }
+        set pos = srdb + 0x2dc
+        loop f in TECH_FIELD_NUM {
+            loop j in TECH_PER_FIELD {
+                set srd.researchcompleted@(f)@(j) = u8(savebuf@(pos))
+                set pos = pos + 1
+            }
+        }
+        loop i_ in 6 {
+            set srd.year@(i_) = u16(GET_LE_16(savebuf, (srdb + 0x450) + (i_ * 2)))
+        }
+    }
+    if savetype_de_moo13_sd(g.current_design@(PLAYER_0), 0xe642) != 0 {
+        if savebuf != nil {
+            set savebuf = nil
+        }
+        return -1
+    }
+    do {
+        var ev = g.evn
+        val evb = 0xde80
+        set ev.year = u16(GET_LE_16(savebuf, evb + 0x000))
+        loop i_ in 20 {
+            if GET_LE_16(savebuf, (evb + 0x004) + (i_ * 2)) != 0 {
+                BOOLVEC_SET1(ev.done, i_)
+            }
+        }
+        set ev.have_plague = u8(GET_LE_16(savebuf, evb + 0x02c))
+        set ev.plague_player = u32(GET_LE_16(savebuf, evb + 0x02e))
+        set ev.plague_planet_i = u8(GET_LE_16(savebuf, evb + 0x030))
+        set ev.plague_val = i32(GET_LE_16(savebuf, evb + 0x032))
+        set ev.have_nova = u8(GET_LE_16(savebuf, evb + 0x03a))
+        set ev.nova_player = u32(GET_LE_16(savebuf, evb + 0x03c))
+        set ev.nova_planet_i = u8(GET_LE_16(savebuf, evb + 0x03e))
+        set ev.nova_years = i8(GET_LE_16(savebuf, evb + 0x040))
+        set ev.nova_val = i32(GET_LE_16(savebuf, evb + 0x042))
+        set ev.have_accident = u8(GET_LE_16(savebuf, evb + 0x044))
+        set ev.accident_planet_i = u8(GET_LE_16(savebuf, evb + 0x048))
+        set ev.have_comet = u8(GET_LE_16(savebuf, evb + 0x056))
+        set ev.comet_player = u32(GET_LE_16(savebuf, evb + 0x058))
+        set ev.comet_planet_i = u8(GET_LE_16(savebuf, evb + 0x05a))
+        set ev.comet_years = u8(GET_LE_16(savebuf, evb + 0x05c))
+        set ev.comet_hp = u16(GET_LE_16(savebuf, evb + 0x05e))
+        set ev.comet_dmg = u16(GET_LE_16(savebuf, evb + 0x060))
+        set ev.have_pirates = u8(GET_LE_16(savebuf, evb + 0x062))
+        set ev.pirates_planet_i = u8(GET_LE_16(savebuf, evb + 0x066))
+        set ev.pirates_hp = u16(GET_LE_16(savebuf, evb + 0x068))
+        set ev.crystal.exists = u8(GET_LE_16(savebuf, evb + 0x06e))
+        set ev.crystal.x = i16(GET_LE_16(savebuf, evb + 0x070))
+        set ev.crystal.y = i16(GET_LE_16(savebuf, evb + 0x072))
+        set ev.crystal.killer = u32(m13_killer(GET_LE_16(savebuf, evb + 0x076)))
+        set ev.crystal.dest = u8(GET_LE_16(savebuf, evb + 0x078))
+        set ev.crystal.counter = i8(GET_LE_16(savebuf, evb + 0x074))
+        set ev.crystal.nuked = i8(GET_LE_16(savebuf, evb + 0x07a))
+        set ev.amoeba.exists = u8(GET_LE_16(savebuf, evb + 0x07c))
+        set ev.amoeba.x = i16(GET_LE_16(savebuf, evb + 0x07e))
+        set ev.amoeba.y = i16(GET_LE_16(savebuf, evb + 0x080))
+        set ev.amoeba.killer = u32(m13_killer(GET_LE_16(savebuf, evb + 0x084)))
+        set ev.amoeba.dest = u8(GET_LE_16(savebuf, evb + 0x086))
+        set ev.amoeba.counter = i8(GET_LE_16(savebuf, evb + 0x082))
+        set ev.amoeba.nuked = i8(GET_LE_16(savebuf, evb + 0x088))
+        set ev.planet_orion_i = u8(savebuf@(evb + 0x09c))
+        set ev.have_guardian = m13_bool(savebuf@(evb + 0x09e))
+        loop i_ in 6 {
+            set ev.home@(i_) = u8(GET_LE_16(savebuf, (evb + 0x0a0) + (i_ * 2)))
+        }
+        set ev.report_stars = u8(savebuf@(evb + 0x0ac))
+        loop i in (1, (g.players) - 1) {
+            set ev.spies_caught@(i)@(PLAYER_0) = u16(GET_LE_16(savebuf, evb + 0x1f2 + i * 2))
+        }
+        loop i_ in 6 {
+            set ev.spies_caught@(PLAYER_0)@(i_) = u16(GET_LE_16(savebuf, (evb + 0x1fe) + (i_ * 2)))
+        }
+        loop i_ in 6 {
+            set ev.ceasefire@(PLAYER_0)@(i_) = i16(GET_LE_16(savebuf, (evb + 0x28e) + (i_ * 2)))
+        }
+        loop i_ in 16 {
+            if savebuf@((evb + 0x2e2) + i_) != 0 {
+                BOOLVEC_SET1(ev.help_shown@(PLAYER_0), i_)
+            }
+        }
+        loop i_ in 6 {
+            set ev.voted@(i_) = u32(m13_owner(GET_LE_16(savebuf, (evb + 0x320) + (i_ * 2))))
+        }
+        set ev.best_ecorestore@(PLAYER_0) = u8(GET_LE_16(savebuf, evb + 0x32c))
+        set ev.best_wastereduce@(PLAYER_0) = u8(GET_LE_16(savebuf, evb + 0x32e))
+        set ev.best_roboctrl@(PLAYER_0) = u8(GET_LE_16(savebuf, evb + 0x332))
+        set ev.best_terraform@(PLAYER_0) = u8(GET_LE_16(savebuf, evb + 0x334))
+    }
+    do {
+        var v = 0
+        var a = 0xe68e
+        loop i in g.galaxy_stars {
+            if (i & 7) == 0 {
+                set v = u8(savebuf@(a))
+                set a = a + 1
+            }
+            if (v & (1 << (i & 7))) != 0 {
+                BOOLVEC_SET1(g.planet@(i).finished, FINISHED_SHIP)
+            }
+        }
+    }
+    set g.guardian_killer = PLAYER_NONE
+    if savebuf != nil {
+        set savebuf = nil
+    }
+    return 0
+}

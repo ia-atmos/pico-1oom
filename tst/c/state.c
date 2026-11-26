@@ -16,6 +16,7 @@
 #include "game_planet.h"
 #include "game_new.h"
 #include "game_save.h"
+#include "game_save_moo13.h"
 #include "game_tech.h"
 #include "game_cheat.h"
 #include "game_turn_start.h"
@@ -487,6 +488,9 @@ int main(int argc, char **argv)
         }
         game_new(&g, &gaux, &opt);
         k = 11;
+    } else if (strcmp(argv[3], "moo13") == 0) {
+        if (game_save_de_moo13(&g, argv[4]) < 0) { return 1; }
+        k = 5;
     } else {
         if (game_save_do_load_fname(argv[4], NULL, &g) != 0) { return 1; }
         k = 5;
