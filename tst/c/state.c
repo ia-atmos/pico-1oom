@@ -17,6 +17,8 @@
 #include "game_new.h"
 #include "game_save.h"
 #include "game_tech.h"
+#include "game_cheat.h"
+#include "game_turn_start.h"
 #include "lbx.h"
 #include "os.h"
 #include "game_ai.h"
@@ -53,6 +55,7 @@ void ui_landing(struct game_s *g_, int pi, uint8_t planet_i) { printf("landing %
 void ui_turn_msg(struct game_s *g_, int pi, const char *str) { printf("msg %d %s\n", pi, str); }
 
 void ui_newtech(struct game_s *g_, int pi) { printf("newtech %d\n", pi); }
+void ui_newships(struct game_s *g_, int pi) { printf("newships %d", pi); for (int i = 0; i < NUM_SHIPDESIGNS; ++i) { printf(" %d", g_->evn.new_ships[pi][i]); } printf("\n"); }
 void ui_turn_pre(const struct game_s *g_) { printf("turn_pre %d\n", g_->year); }
 void ui_copyprotection_check(struct game_s *g_) { printf("copyprotection_check\n"); }
 void ui_copyprotection_lose(struct game_s *g_, struct game_end_s *ge) { printf("copyprotection_lose\n"); }
@@ -393,6 +396,12 @@ static void do_op(const char *op)
     OP(audience) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); game_audience(&g, arg(op, 0), arg(op, 1)); }
     OP(set_diplo_type) { g.eto[arg(op, 0)].diplo_type[arg(op, 1)] = arg(op, 2); }
     OP(audiences) { game_turn_audiences(&g); }
+    OP(start_messages) { game_turn_start_messages(&g, arg(op, 0)); }
+    OP(cheat_galaxy) { game_cheat_galaxy(&g, arg(op, 0)); }
+    OP(cheat_elections) { game_cheat_elections(&g, arg(op, 0)); }
+    OP(cheat_events) { game_cheat_events(&g, arg(op, 0)); }
+    OP(cheat_moola) { game_cheat_moola(&g, arg(op, 0)); }
+    OP(cheat_traits) { game_cheat_traits(&g, arg(op, 0)); }
     OP(save) { char fn[1024]; snprintf(fn, sizeof(fn), "%s.bin", dump_path); game_save_do_save_fname(fn, "state", &g, 0); }
     OP(turn) { struct game_end_s ge = game_turn_process(&g); printf("turn_end %d\n", ge.type); }
     OP(ai_diplo_p1) { game_ai->turn_diplo_p1(&g); }

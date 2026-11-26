@@ -20,6 +20,8 @@ include "../src/game/game_fleet.atm"
 include "../src/game/game_spy.atm"
 include "../src/game/game_stat.atm"
 include "../src/game/game_turn.atm"
+include "../src/game/game_cheat.atm"
+include "../src/game/game_turn_start.atm"
 include "../src/game/game_ai_classic.atm"
 include "gamedump.atm"
 
@@ -119,6 +121,13 @@ set ui_turn_msg = func (g_, pi, str) {
 set ui_turn_pre = func (g_) { out("turn_pre %d\n", g_.year) }
 set ui_copyprotection_check = func (g_) { out("copyprotection_check\n") }
 set ui_copyprotection_lose = func (g_, ge) { out("copyprotection_lose\n") }
+set ui_newships = func (g_, pi) {
+    out("newships %d", pi)
+    loop i in NUM_SHIPDESIGNS {
+        out(" %d", g_.evn.new_ships@(pi)@(i))
+    }
+    out("\n")
+}
 set ui_newtech = func (g_, pi) {
     out("newtech %d\n", pi)
 }
@@ -479,6 +488,12 @@ func do_op (op) {
         }
         "set_diplo_type" => { set g.eto@(arg(op, 0)).diplo_type@(arg(op, 1)) = arg(op, 2) }
         "audiences" => game_turn_audiences(g)
+        "start_messages" => game_turn_start_messages(g, arg(op, 0))
+        "cheat_galaxy" => game_cheat_galaxy(g, arg(op, 0))
+        "cheat_elections" => game_cheat_elections(g, arg(op, 0))
+        "cheat_events" => game_cheat_events(g, arg(op, 0))
+        "cheat_moola" => game_cheat_moola(g, arg(op, 0))
+        "cheat_traits" => game_cheat_traits(g, arg(op, 0))
         "save" => game_save_do_save_fname(args@1 ++ ".bin", "state", g, 0)
         "turn" => {
             val ge = game_turn_process(g)
