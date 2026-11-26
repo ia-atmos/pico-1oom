@@ -10,6 +10,7 @@ include "uiempire.atm"
 include "uiempirestats.atm"
 include "uiempirereport.atm"
 include "uidefs.atm"
+include "uidesign.atm"
 include "uifinished.atm"
 include "uifleet.atm"
 include "uihelp.atm"
@@ -20,13 +21,6 @@ include "uispecs.atm"
 include "uiswitch.atm"
 include "uitech.atm"
 include "uiview.atm"
-
-;; The commands of the screens that are not ported yet (#14): they throw.
-func ui_cmd_not_ported (name) {
-    func (g, api, param, num_param, var_) {
-        throw "ui/cmdline: the command '" ++ name ++ "' is not ported yet"
-    }
-}
 
 func cmd_next (g, api, param, num_param, var_) {
     0
@@ -46,7 +40,7 @@ pin cmds_turn = [
     input_cmd_s("trans", "[PLANET NUM]", "Transport troops to", 0, 2, 0, ui_cmd_planet_trans, 0),
     input_cmd_s("res", "[BC]", "Transfer reserves", 0, 1, 0, ui_cmd_planet_reserve, 0),
     input_cmd_s("fs", "PLANET [NUM]*", "Send fleet to\nAll ships are sent if no NUM given", 1, 7, 0, ui_cmd_fleet_send, 0),
-    input_cmd_s("des", nil, "Ship design", 0, 0, 0, ui_cmd_not_ported("des"), 0),
+    input_cmd_s("des", nil, "Ship design", 0, 0, 0, ui_cmd_design, 0),
     input_cmd_s("fleet", nil, "Display fleets", 0, 0, 0, ui_cmd_fleet_list, 0),
     input_cmd_s("scrap", "[SHIP]", "Scrap ship", 0, 1, 0, ui_cmd_fleet_scrap, 0),
     input_cmd_s("specs", "[SHIP]", "Show fleet specs", 0, 1, 0, ui_cmd_fleet_specs, 0),

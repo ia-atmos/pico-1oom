@@ -1,0 +1,617 @@
+;; Port of c/src/ui/cmdline/uidesign.c. The functions that give the text of
+;; an option (`get_display`) change the design, as in C: they are called in
+;; the same order and number of times by ui_input_list_dynamic.
+
+include "../../comp.atm"
+include "../../lib.atm"
+include "../../util.atm"
+include "../../game/game.atm"
+include "../../game/game_design.atm"
+include "../../game/game_shipdesign.atm"
+include "../../game/game_shiptech.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+include "uifleet.atm"
+include "uihelp.atm"
+include "uiinput.atm"
+include "uispecs.atm"
+
+func cmd_design_exit (g, api, param, num_param, var_) {
+    var_
+}
+
+func flag_c (b) {
+    if (b == true) || ((b != false) && (b != 0) && (b != nil)) => 45 => 32   ;; '-' ' '
+}
+
+func cmd_design_look (g, api, param, num_param, var_) {
+    val d = var_
+    val gd = d.gd
+    val sd = gd.sd
+    var extraman = 0
+    loop i in SPECIAL_SLOT_NUM {
+        set extraman = SETMAX(extraman, tbl_shiptech_special@(sd.special@(i)).extraman)
+    }
+    do {
+        var v = 0
+        loop i in SPECIAL_SLOT_NUM {
+            set v = v | tbl_shiptech_special@(sd.special@(i)).boolmask
+        }
+        set v = u16(tbl_shiptech_comp@(sd.comp).level + (if (v & (1 << SHIP_SPECIAL_BOOL_SCANNER)) != 0 => 1 => 0))
+        io.write(string.format("%c%s: %s, %s %d\n", flag_c(d.flag_disable_comp), game_str_sd_comp, tbl_shiptech_comp@(sd.comp).nameptr(), game_str_sd_att, v))
+    }
+    io.write(string.format("%c%s: %s", flag_c(d.flag_disable_shield), game_str_sd_shield, tbl_shiptech_shield@(sd.shield).nameptr()))
+    if sd.shield != 0 {
+        val v = tbl_shiptech_shield@(sd.shield).absorb
+        io.write(string.format(", %s %i %s", game_str_sd_absorbs, v, if v == 1 => game_str_sd_hit => game_str_sd_hits))
+    }
+    io.write("\n")
+    do {
+        val v = u8(extraman + sd.man + tbl_shiptech_jammer@(sd.jammer).level + tbl_shiptech_hull@(sd.hull).defense + 1)
+        io.write(string.format("%c%s: %s, %s %d\n", flag_c(d.flag_disable_jammer), game_str_sd_ecm, tbl_shiptech_jammer@(sd.jammer).nameptr(), game_str_sd_misdef, v))
+    }
+    io.write(string.format("%c%s: %s, %s %i\n", flag_c(d.flag_disable_armor), game_str_sd_armor, tbl_shiptech_armor@(sd.armor).nameptr(), game_str_sd_hp, sd.hp))
+    do {
+        val warp = tbl_shiptech_engine@(sd.engine).warp
+        val def = u8(extraman + sd.man + tbl_shiptech_hull@(sd.hull).defense + 1)
+        io.write(string.format("%c%s: %s, %s %d, %s %d\n", flag_c(d.flag_disable_engine), game_str_sd_engine, tbl_shiptech_engine@(sd.engine).nameptr(), game_str_sd_warp, warp, game_str_sd_def, def))
+    }
+    do {
+        val man = u8(extraman + sd.man + 1)
+        val cspeed = u8((extraman // 2) + ((sd.man + 3) // 2))
+        io.write(string.format("%c%s: %d, %s %d\n", flag_c(d.flag_disable_cspeed), game_str_sd_man, man, game_str_sd_cspeed, cspeed))
+    }
+    loop i in WEAPON_SLOT_NUM {
+        val wi = sd.wpnt@(i)
+        io.write(string.format("%c%s:", flag_c(d.flag_tbl_weapon@(i)), game_str_tbl_sd_weap@(i)))
+        if wi != WEAPON_NONE {
+            val w = tbl_shiptech_weap@(wi)
+            val dmin = w.damagemin
+            val dmax = w.damagemax
+            io.write(string.format(" %c%c %2i x %s, %s ", if d.flag_tbl_weap_dn@(i) != 0 => 32 => 45, if d.flag_tbl_weap_up@(i) != 0 => 32 => 43, sd.wpnn@(i), w.nameptr(), game_str_sd_damage))
+            if dmin != dmax {
+                io.write(string.format("%i-", dmin))
+            }
+            io.write(string.format("%i, %s %i", dmax, game_str_sd_rng, w.range))
+            val str = w.extratextptr()
+            if (str != nil) && (#str > 0) {
+                io.write(string.format(", %s", str))
+            }
+        }
+        io.write("\n")
+    }
+    loop i in SPECIAL_SLOT_NUM {
+        val si = sd.special@(i)
+        io.write(string.format("%c%s:", flag_c(d.flag_tbl_special@(i)), game_str_tbl_sd_spec@(i)))
+        if si != SHIP_SPECIAL_NONE {
+            io.write(string.format(" %s", tbl_shiptech_special@(si).nameptr()))
+        }
+        io.write("\n")
+    }
+    io.write(string.format(" '%s', %s, %s %i %s, %s %i/%i\n", cstr(sd.name), tbl_shiptech_hull@(sd.hull).nameptr(), game_str_sd_cost, sd.cost, game_str_bc, game_str_sd_space, sd.space, game_design_get_hull_space(gd)))
+    0
+}
+
+func cmd_design_clear (g, api, param, num_param, var_) {
+    game_design_clear(var_.gd)
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
+val SEL_LIST_MAX = 33
+
+pin selstrs = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+    "K", "L", "M", "N", "O", "P", "R", "S", "T", "U",    ;; leave Q for Quit
+    "V", "W", "X",  ;; Y/Z for prev/next
+]
+
+;; Fills the list `il` (a vector, its entries replaced) and `flag_enable`.
+func sel_build_il (il, flag_enable, havebuf, havelast, offs) {
+    var n = 0
+    loop i in (0, havelast) {
+        set flag_enable@(i) = havebuf@(i) > 0
+    }
+    var i = offs
+    loop {
+        while (i <= havelast) && (n < SEL_LIST_MAX)
+        if havebuf@(i) >= 0 {
+            set il@(n) = [ value = i, key = selstrs@(n), str = nil, display = nil ]
+            set n = n + 1
+        }
+        set i = i + 1
+    }
+    if offs > 0 {
+        set il@(n) = [ value = -2, key = "Y", str = nil, display = "(prev)" ]
+        set n = n + 1
+    }
+    if i <= havelast {
+        set il@(n) = [ value = -3, key = "Z", str = nil, display = "(next)" ]
+        set n = n + 1
+    }
+    set il@(n) = [ value = -1, key = "Q", str = nil, display = "(quit)" ]
+    set n = n + 1
+    set il@(n) = [ value = -4, key = nil, str = nil, display = nil ]
+}
+
+func sel_is_ok (ctx, l) {
+    val v = l.value
+    (v < 0) || ctx.flag_enable@(v)
+}
+
+;; The common part of the selections of one item (comp, shield, jammer):
+;; `key` is the field of the design, `tbl` the table of the items.
+func sel_item_get_display (sel, l, key, tbl, slot) {
+    val d = sel.d
+    val gd = d.gd
+    val sd = gd.sd
+    val i = l.value
+    set sd@(key) = 0
+    game_design_update_engines(sd)
+    val space = game_design_calc_space(gd)
+    val cost = game_design_calc_cost(gd)
+    set sd@(key) = i
+    game_design_update_engines(sd)
+    val space2 = space - game_design_calc_space(gd)
+    val power = tbl@(i).power@(sd.hull)
+    val cost2 = game_design_calc_cost(gd) - cost
+    val sizei = game_design_calc_space_item(gd, slot, i)
+    lib_sprintf(ui_data.strbuf, UI_STRBUF_SIZE, "%s%s, %s %i, %s %i, %s %i, %s %i", if i == sel.oldv => "*" => "", tbl@(i).nameptr(), game_str_sd_cost, cost2, game_str_sd_size, sizei, game_str_sd_power, power, game_str_sd_space, space2)
+    cstr(ui_data.strbuf)
+}
+
+func sel_comp_get_display (sel, l) {
+    if l.value < 0 => l.display => sel_item_get_display(sel, l, "comp", tbl_shiptech_comp, DESIGN_SLOT_COMP)
+}
+
+func sel_shield_get_display (sel, l) {
+    if l.value < 0 => l.display => sel_item_get_display(sel, l, "shield", tbl_shiptech_shield, DESIGN_SLOT_SHIELD)
+}
+
+func sel_jammer_get_display (sel, l) {
+    if l.value < 0 {
+        return if l.value == -1 => "(quit)" => nil
+    }
+    sel_item_get_display(sel, l, "jammer", tbl_shiptech_jammer, DESIGN_SLOT_JAMMER)
+}
+
+;; `cmd_sel_comp`, `cmd_sel_shield`, `cmd_sel_jammer` (and armor, engine):
+;; `build` fills havebuf and gives havelast.
+func cmd_sel_one (d, key, num, title, get_display, build) {
+    val gd = d.gd
+    val sd = gd.sd
+    pin il = []
+    pin flag_enable = carray(num, false)
+    val oldv = sd@(key)
+    pin havebuf = carray(num)   ;; int8_t[]
+    val havelast = build(havebuf)
+    sel_build_il(il, flag_enable, havebuf, havelast, 0)
+    pin sel = [ d = d, flag_enable = flag_enable, havebuf = nil, oldv = oldv, slot = 0 ]
+    pin ld = [ list = il, ctx = sel, is_ok = sel_is_ok, get_display = get_display ]
+    val v = ui_input_list_dynamic(title, "> ", ld)
+    set sd@(key) = if v < 0 => oldv => v
+    0
+}
+
+func cmd_sel_comp (g, api, param, num_param, var_) {
+    val d = var_
+    cmd_sel_one(d, "comp", SHIP_COMP_NUM, game_str_sd_comp, sel_comp_get_display, func (havebuf) {
+        set d.gd.sd.comp = 0
+        game_design_update_engines(d.gd.sd)
+        game_design_build_tbl_fit_comp(d.g, d.gd, havebuf)
+    })
+}
+
+func cmd_sel_shield (g, api, param, num_param, var_) {
+    val d = var_
+    cmd_sel_one(d, "shield", SHIP_SHIELD_NUM, game_str_sd_shield, sel_shield_get_display, func (havebuf) {
+        set d.gd.sd.shield = 0
+        game_design_update_engines(d.gd.sd)
+        game_design_build_tbl_fit_shield(d.g, d.gd, havebuf)
+    })
+}
+
+func cmd_sel_jammer (g, api, param, num_param, var_) {
+    val d = var_
+    cmd_sel_one(d, "jammer", SHIP_JAMMER_NUM, game_str_sd_ecm, sel_jammer_get_display, func (havebuf) {
+        set d.gd.sd.jammer = 0
+        game_design_update_engines(d.gd.sd)
+        game_design_build_tbl_fit_jammer(d.g, d.gd, havebuf)
+    })
+}
+
+func sel_armor_get_display (sel, l) {
+    val d = sel.d
+    val sd = d.gd.sd
+    val i = l.value
+    if i < 0 {
+        return l.display
+    }
+    set sd.armor = i
+    game_design_update_engines(sd)
+    val cost2 = game_design_calc_cost_item(d.gd, DESIGN_SLOT_ARMOR, i)
+    val sizei = game_design_calc_space_item(d.gd, DESIGN_SLOT_ARMOR, i)
+    lib_sprintf(ui_data.strbuf, UI_STRBUF_SIZE, "%s%s, %s %i, %s %i", if i == sel.oldv => "*" => "", tbl_shiptech_armor@(i).nameptr(), game_str_sd_cost, cost2, game_str_sd_size, sizei)
+    cstr(ui_data.strbuf)
+}
+
+func cmd_sel_armor (g, api, param, num_param, var_) {
+    val d = var_
+    cmd_sel_one(d, "armor", SHIP_ARMOR_NUM, game_str_sd_armor, sel_armor_get_display, func (havebuf) {
+        game_design_build_tbl_fit_armor(d.g, d.gd, havebuf)
+    })
+}
+
+func sel_engine_get_display (sel, l) {
+    val d = sel.d
+    val gd = d.gd
+    val sd = gd.sd
+    val i = l.value
+    if i < 0 {
+        return l.display
+    }
+    set sd.engine = i
+    game_design_update_engines(sd)
+    val ne = sd.engines
+    var sizei = game_design_calc_space_item(d.gd, DESIGN_SLOT_ENGINE, i)
+    val sizet = (sizei * ne) // 10
+    val cost2 = game_design_calc_cost_item(d.gd, DESIGN_SLOT_ENGINE, i)
+    set sizei = game_design_calc_space_item(gd, DESIGN_SLOT_JAMMER, i)
+    lib_sprintf(ui_data.strbuf, UI_STRBUF_SIZE, "%s%s, %s %i, %s %i, %s %i.%i, %s %i", if i == sel.oldv => "*" => "", tbl_shiptech_engine@(i).nameptr(), game_str_sd_cost, cost2, game_str_sd_size, sizei, game_str_sd_numengs, ne // 10, ne % 10, game_str_sd_space, sizet)
+    cstr(ui_data.strbuf)
+}
+
+func cmd_sel_engine (g, api, param, num_param, var_) {
+    val d = var_
+    cmd_sel_one(d, "engine", SHIP_ENGINE_NUM, game_str_sd_engine, sel_engine_get_display, func (havebuf) {
+        set d.gd.sd.engine = 0
+        game_design_update_engines(d.gd.sd)
+        game_design_build_tbl_fit_engine(d.g, d.gd, havebuf)
+    })
+}
+
+func sel_man_get_display (sel, l) {
+    val d = sel.d
+    val gd = d.gd
+    val sd = gd.sd
+    val i = l.value
+    if i < 0 {
+        return l.display
+    }
+    set sd.man = 0
+    game_design_update_engines(sd)
+    var powperwarp = tbl_shiptech_hull@(sd.hull).power // tbl_shiptech_engine@(sd.engine).warp
+    set sd.engines = u32(sd.engines - ((powperwarp * 10) // tbl_shiptech_engine@(sd.engine).power))
+    val space = game_design_calc_space(gd)
+    val cost = game_design_calc_cost(gd)
+    set sd.man = i
+    game_design_update_engines(sd)
+    val spacet = game_design_calc_space(gd)
+    var space2 = space - spacet
+    set space2 = SETMAX(space2, 1)
+    set powperwarp = (tbl_shiptech_hull@(sd.hull).power * (i + 1)) // tbl_shiptech_engine@(sd.engine).warp
+    set powperwarp = SETMAX(powperwarp, 1)
+    var cost2 = game_design_calc_cost(d.gd) - cost
+    set cost2 = SETMAX(cost2, 1)
+    lib_sprintf(ui_data.strbuf, UI_STRBUF_SIZE, "%s%s %s, %s %i, %s %i, %s %i, %s %i", if i == sel.oldv => "*" => "", game_str_sd_class, game_str_tbl_roman@(i + 1), game_str_sd_speed, (i + 3) // 2, game_str_sd_cost, cost2, game_str_sd_power, powperwarp, game_str_sd_space, space2)
+    cstr(ui_data.strbuf)
+}
+
+func cmd_sel_man (g, api, param, num_param, var_) {
+    val d = var_
+    cmd_sel_one(d, "man", SHIP_ENGINE_NUM, game_str_sd_man, sel_man_get_display, func (havebuf) {
+        val sd = d.gd.sd
+        val havelast = sd.engine
+        loop i in (0, havelast) {
+            set sd.man = i
+            game_design_update_engines(sd)
+            val spacet = game_design_calc_space(d.gd)
+            set havebuf@(i) = if spacet >= 0 => 1 => 0
+        }
+        havelast
+    })
+}
+
+func sel_wpnt_get_display (sel, l) {
+    val d = sel.d
+    val gd = d.gd
+    val sd = gd.sd
+    val i = l.value
+    val wslot = sel.slot
+    if i < 0 {
+        return l.display
+    }
+    if i == 0 {
+        return tbl_shiptech_weap@(0).nameptr()
+    }
+    set sd.wpnt@(wslot) = 0
+    set sd.wpnn@(wslot) = 0
+    game_design_update_engines(sd)
+    val space = game_design_calc_space(gd)
+    val cost = game_design_calc_cost(gd)
+    set sd.wpnt@(wslot) = i
+    set sd.wpnn@(wslot) = 1
+    game_design_update_engines(sd)
+    val space2 = space - game_design_calc_space(gd)
+    val w = tbl_shiptech_weap@(i)
+    val power = w.power
+    val cost2 = game_design_calc_cost(gd) - cost
+    val sizei = game_design_calc_space_item(gd, DESIGN_SLOT_WEAPON1, i)
+    val dmin = w.damagemin
+    val dmax = w.damagemax
+    val str = strbuild_init(ui_data.strbuf, UI_STRBUF_SIZE)
+    strbuild_catf(str, "%s%i x %s", if i == sel.oldv => "*" => "", sel.havebuf@(i), w.nameptr())
+    if string.byte(w.extratextptr(), 0) != 32 {
+        strbuild_catf(str, ": %s", w.extratextptr())
+    }
+    strbuild_catf(str, ", %s %i", game_str_sd_dmg, dmin)
+    if dmin != dmax {
+        strbuild_catf(str, "-%i", dmax)
+    }
+    strbuild_catf(str, ", %s %i, %s %i, %s %i, %s %i", game_str_sd_cost, cost2, game_str_sd_size, sizei, game_str_sd_power, power, game_str_sd_space, space2)
+    cstr(ui_data.strbuf)
+}
+
+func cmd_sel_wpnt (d, wslot) {
+    val gd = d.gd
+    val sd = gd.sd
+    pin il = []
+    pin havebuf = carray(WEAPON_NUM)    ;; int8_t[]
+    pin flag_enable = carray(WEAPON_NUM, false)
+    var offs = 0
+    val oldv = sd.wpnt@(wslot)
+    val oldn = sd.wpnn@(wslot)
+    pin sel = [ d = d, havebuf = havebuf, flag_enable = flag_enable, oldv = oldv, slot = wslot ]
+    pin ld = [ list = il, ctx = sel, is_ok = sel_is_ok, get_display = sel_wpnt_get_display ]
+    set sd.wpnt@(wslot) = 0
+    game_design_update_engines(sd)
+    val havelast = game_design_build_tbl_fit_weapon(d.g, gd, havebuf, wslot, WEAPON_GROUP_ALL)
+    loop {
+        sel_build_il(il, flag_enable, havebuf, havelast, offs)
+        val v = ui_input_list_dynamic(game_str_tbl_sd_weap@(wslot), "> ", ld)
+        ifs {
+            v >= 0 => {
+                set sd.wpnt@(wslot) = v
+                var wn = u8(havebuf@(v))
+                set wn = SETMIN(wn, oldn)
+                set wn = SETMAX(wn, 1)
+                set sd.wpnn@(wslot) = wn
+                return 0
+            }
+            v == -1 => {   ;; quit
+                set sd.wpnt@(wslot) = oldv
+                set sd.wpnn@(wslot) = oldn
+                return 0
+            }
+            v == -2 => {   ;; prev
+                set offs = SETMAX(offs - SEL_LIST_MAX, 0)
+            }
+            else => {
+                set offs = SETMIN(offs + SEL_LIST_MAX, havelast)
+            }
+        }
+    }
+}
+
+func cmd_sel_wpnt1 (g, api, param, num_param, var_) { cmd_sel_wpnt(var_, 0) }
+func cmd_sel_wpnt2 (g, api, param, num_param, var_) { cmd_sel_wpnt(var_, 1) }
+func cmd_sel_wpnt3 (g, api, param, num_param, var_) { cmd_sel_wpnt(var_, 2) }
+func cmd_sel_wpnt4 (g, api, param, num_param, var_) { cmd_sel_wpnt(var_, 3) }
+
+func cmd_set_wpnn (d, wslot, param) {
+    val gd = d.gd
+    val sd = gd.sd
+    var v
+    if sd.wpnt@(wslot) == 0 {
+        io.write(string.format("No weapon in slot %i\n", wslot))
+        return -1
+    }
+    ifs {
+        param@(0).type == INPUT_TOKEN_NUMBER => { set v = param@(0).data }
+        param@(0).type == INPUT_TOKEN_RELNUMBER => { set v = sd.wpnn@(wslot) + param@(0).data }
+        else => { return -1 }
+    }
+    set v = SETRANGE(v, 0, 99)
+    loop {
+        set sd.wpnn@(wslot) = v
+        game_design_update_engines(sd)
+        set v = v - 1
+        while (v >= 0) && (game_design_calc_space(gd) < 0)
+    }
+    0
+}
+
+func cmd_set_wpnn1 (g, api, param, num_param, var_) { cmd_set_wpnn(var_, 0, param) }
+func cmd_set_wpnn2 (g, api, param, num_param, var_) { cmd_set_wpnn(var_, 1, param) }
+func cmd_set_wpnn3 (g, api, param, num_param, var_) { cmd_set_wpnn(var_, 2, param) }
+func cmd_set_wpnn4 (g, api, param, num_param, var_) { cmd_set_wpnn(var_, 3, param) }
+
+func sel_spec_get_display (sel, l) {
+    val d = sel.d
+    val gd = d.gd
+    val sd = gd.sd
+    val i = l.value
+    val sslot = sel.slot
+    if i < 0 {
+        return l.display
+    }
+    set sd.special@(sslot) = 0
+    game_design_update_engines(sd)
+    val space = game_design_calc_space(gd)
+    val cost = game_design_calc_cost(gd)
+    set sd.special@(sslot) = i
+    game_design_update_engines(sd)
+    val space2 = space - game_design_calc_space(gd)
+    val s = tbl_shiptech_special@(i)
+    val power = s.power@(sd.hull)
+    val cost2 = game_design_calc_cost(gd) - cost
+    val sizei = game_design_calc_space_item(gd, DESIGN_SLOT_SPECIAL1, i)
+    lib_sprintf(ui_data.strbuf, UI_STRBUF_SIZE, "%s%s: %s, %s %i, %s %i, %s %i, %s %i", if i == sel.oldv => "*" => "", s.nameptr(), s.extratextptr(), game_str_sd_cost, cost2, game_str_sd_size, sizei, game_str_sd_power, power, game_str_sd_space, space2)
+    cstr(ui_data.strbuf)
+}
+
+func cmd_sel_spec (d, sslot) {
+    val gd = d.gd
+    val sd = gd.sd
+    pin il = []
+    pin flag_enable = carray(SHIP_SPECIAL_NUM, false)
+    val oldv = sd.special@(sslot)
+    pin havebuf = carray(SHIP_SPECIAL_NUM)  ;; int8_t[]
+    set sd.special@(sslot) = 0
+    game_design_update_engines(sd)
+    val havelast = game_design_build_tbl_fit_special(d.g, gd, havebuf, sslot)
+    sel_build_il(il, flag_enable, havebuf, havelast, 0)
+    pin sel = [ d = d, flag_enable = flag_enable, havebuf = nil, oldv = oldv, slot = sslot ]
+    pin ld = [ list = il, ctx = sel, is_ok = sel_is_ok, get_display = sel_spec_get_display ]
+    val v = ui_input_list_dynamic(game_str_tbl_sd_spec@(sslot), "> ", ld)
+    set sd.special@(sslot) = if v < 0 => oldv => v
+    0
+}
+
+func cmd_sel_spec1 (g, api, param, num_param, var_) { cmd_sel_spec(var_, 0) }
+func cmd_sel_spec2 (g, api, param, num_param, var_) { cmd_sel_spec(var_, 1) }
+func cmd_sel_spec3 (g, api, param, num_param, var_) { cmd_sel_spec(var_, 2) }
+
+func sel_hull_get_display (sel, l) {
+    val i = l.value
+    if i < 0 {
+        return l.display
+    }
+    lib_sprintf(ui_data.strbuf, UI_STRBUF_SIZE, "%s%s", if i == sel.oldv => "*" => "", tbl_shiptech_hull@(i).nameptr())
+    cstr(ui_data.strbuf)
+}
+
+func cmd_sel_hull (g, api, param, num_param, var_) {
+    val d = var_
+    val sd = d.gd.sd
+    pin il = []
+    pin flag_enable = carray(SHIP_HULL_NUM, false)
+    val oldv = sd.hull
+    pin havebuf = carray(SHIP_HULL_NUM)
+    loop i in SHIP_HULL_NUM {
+        val flag_no = d.flag_tbl_hull@(i)
+        set havebuf@(i) = if flag_no => 0 => 1
+        set flag_enable@(i) = !flag_no
+    }
+    sel_build_il(il, flag_enable, havebuf, SHIP_HULL_NUM - 1, 0)
+    pin sel = [ d = d, flag_enable = flag_enable, havebuf = nil, oldv = oldv, slot = 0 ]
+    pin ld = [ list = il, ctx = sel, is_ok = sel_is_ok, get_display = sel_hull_get_display ]
+    val v = ui_input_list_dynamic("Ship size", "> ", ld)
+    set sd.hull = if v < 0 => oldv => v
+    0
+}
+
+func cmd_set_name (g, api, param, num_param, var_) {
+    val d = var_
+    val gd = d.gd
+    val sd = gd.sd
+    if num_param == 0 {
+        set sd.name@(0) = 0
+    } else {
+        pin name = carray(64)   ;; BUFLEN
+        val s = param@(0).str
+        loop i in SETMIN(#s, 63) {
+            set name@(i) = string.byte(s, i)
+        }
+        util_trim_whitespace(name, #name)
+        val len = #cstr(name)
+        if len >= SHIP_NAME_LEN {
+            io.write("Name too long!\n")
+            return -1
+        }
+        loop i in SHIP_NAME_LEN {
+            set sd.name@(i) = if i < len => name@(i) => 0
+        }
+    }
+    if sd.name@(0) == 0 {
+        lib_strcpy(sd.name, gd.names@(sd.hull), SHIP_NAME_LEN)
+    }
+    0
+}
+
+;; ---------------------------------------------------------------------------
+
+pin cmds_design = [
+    input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),
+    input_cmd_s("q", nil, "Cancel", 0, 0, 0, cmd_design_exit, 1),     ;; cancel
+    input_cmd_s("b", nil, "Build", 0, 0, 0, cmd_design_exit, 2),      ;; ok
+    input_cmd_s("l", nil, "Look", 0, 0, 0, cmd_design_look, 0),
+    input_cmd_s("clear", nil, "Clear", 0, 0, 0, cmd_design_clear, 0),
+    input_cmd_s("c", nil, "Computer", 0, 0, 0, cmd_sel_comp, 0),
+    input_cmd_s("s", nil, "Shield", 0, 0, 0, cmd_sel_shield, 0),
+    input_cmd_s("j", nil, "Ecm", 0, 0, 0, cmd_sel_jammer, 0),
+    input_cmd_s("a", nil, "Armor", 0, 0, 0, cmd_sel_armor, 0),
+    input_cmd_s("e", nil, "Engine", 0, 0, 0, cmd_sel_engine, 0),
+    input_cmd_s("m", nil, "Maneuver", 0, 0, 0, cmd_sel_man, 0),
+    input_cmd_s("w1", nil, "Weapon 1 type", 0, 0, 0, cmd_sel_wpnt1, 0),
+    input_cmd_s("w2", nil, "Weapon 2 type", 0, 0, 0, cmd_sel_wpnt2, 0),
+    input_cmd_s("w3", nil, "Weapon 3 type", 0, 0, 0, cmd_sel_wpnt3, 0),
+    input_cmd_s("w4", nil, "Weapon 4 type", 0, 0, 0, cmd_sel_wpnt4, 0),
+    input_cmd_s("a1", "NUM", "Weapon 1 amount", 1, 1, 0, cmd_set_wpnn1, 0),
+    input_cmd_s("a2", "NUM", "Weapon 2 amount", 1, 1, 0, cmd_set_wpnn2, 0),
+    input_cmd_s("a3", "NUM", "Weapon 3 amount", 1, 1, 0, cmd_set_wpnn3, 0),
+    input_cmd_s("a4", "NUM", "Weapon 4 amount\nNUM can be +N or -N for relative adjustment", 1, 1, 0, cmd_set_wpnn4, 0),
+    input_cmd_s("s1", nil, "Special 1", 0, 0, 0, cmd_sel_spec1, 0),
+    input_cmd_s("s2", nil, "Special 2", 0, 0, 0, cmd_sel_spec2, 0),
+    input_cmd_s("s3", nil, "Special 3", 0, 0, 0, cmd_sel_spec3, 0),
+    input_cmd_s("h", nil, "Ship size", 0, 0, 0, cmd_sel_hull, 0),
+    input_cmd_s("n", "[NAME]", "Name", 0, 1, 0, cmd_set_name, 0),
+    input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+]
+pin cmdsptr_design = [ cmds_design, nil ]
+set cmds_design@(0).var_ = cmdsptr_design
+
+func ui_design (g, gd, pi) {
+    pin d = design_data_s()
+    val sd = gd.sd
+    set d.g = g
+    set d.gd = gd
+    set d.api = pi
+    game_design_init_maxtech_haveflags(d)
+    lib_strcpy(sd.name, gd.names@(sd.hull), SHIP_NAME_LEN)
+    cmd_design_look(g, pi, nil, 0, d)
+    loop {
+        val input = ui_input_line("Ship design > ")
+        if (ui_input_tokenize(input, cmdsptr_design) == 0) && (ui_data.input.num > 0) {
+            if ui_data.input.tok@(0).type == INPUT_TOKEN_COMMAND {
+                val cmd = ui_data.input.tok@(0).data
+                val var_ = if (cmd.var_ != 0) && (cmd.var_ != nil) => cmd.var_ => d
+                val v = cmd.handle(g, pi, ui_input_params(), ui_data.input.num - 1, var_)
+                if cmd.handle == cmd_design_exit {
+                    return v == 2   ;; ok
+                } else {
+                    if cmd.handle != ui_cmd_help {
+                        game_design_update_engines(sd)
+                        game_design_update_haveflags(d)
+                        cmd_design_look(g, pi, nil, 0, d)
+                    }
+                }
+            }
+        }
+    }
+}
+
+;; ---------------------------------------------------------------------------
+
+func ui_cmd_design (g, api, param, num_param, var_) {
+    pin gd = game_design_s()
+    var sd_num = g.eto@(api).shipdesigns_num
+    game_design_prepare(g, gd, api, g.current_design@(api))
+    var ok = ui_design(g, gd, api)
+    if ok && (sd_num == NUM_SHIPDESIGNS) {
+        ui_cmd_fleet_specs(g, api, nil, 0, nil)
+        ui_cmd_fleet_scrap(g, api, nil, 0, 0)
+        set sd_num = g.eto@(api).shipdesigns_num
+        set ok = sd_num < NUM_SHIPDESIGNS
+        if ok {
+            game_design_look_fix(g, api, gd.sd)
+        }
+    }
+    if ok {
+        game_design_add(g, api, gd.sd, true)
+    }
+    cstruct_copy(g.current_design@(api), gd.sd)
+    0
+}

@@ -1,0 +1,53 @@
+-new 330:0:0:2024
+des
+?
+l
+c
+0
+s
+0
+j
+q
+a
+1
+e
+0
+m
+1
+w1
+1
+w1
+z
+y
+q
+a1 3
+a1 +2
+a1 -10
+a2 1
+s1
+0
+h
+2
+n Foo Bar
+n "Foo Bar"
+n
+clear
+h
+1
+w1
+2
+a1 2
+n Zap
+b
+specs
+des
+q
+des
+b
+des
+b
+des
+b
+specs
+fleet
+quit !
