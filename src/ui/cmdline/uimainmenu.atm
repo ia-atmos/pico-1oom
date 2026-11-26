@@ -1,0 +1,331 @@
+;; Port of c/src/ui/cmdline/uimainmenu.c. The names of the new game options
+;; (`playername`, `homename`) are strings here.
+
+include "../../lib.atm"
+include "../../ui.atm"
+include "../../game/game_ai.atm"
+include "../../game/game_new.atm"
+include "../../game/game_str.atm"
+include "uidefs.atm"
+include "uihelp.atm"
+include "uiinput.atm"
+include "uiload.atm"
+
+func ui_new_game_choose_race (newopts, pi) {
+    pin ng_race_in = [
+        [ value = RACE_HUMAN, key = "1", str = nil, display = game_str_tbl_race@(RACE_HUMAN) ],
+        [ value = RACE_MRRSHAN, key = "2", str = nil, display = game_str_tbl_race@(RACE_MRRSHAN) ],
+        [ value = RACE_SILICOID, key = "3", str = nil, display = game_str_tbl_race@(RACE_SILICOID) ],
+        [ value = RACE_SAKKRA, key = "4", str = nil, display = game_str_tbl_race@(RACE_SAKKRA) ],
+        [ value = RACE_PSILON, key = "5", str = nil, display = game_str_tbl_race@(RACE_PSILON) ],
+        [ value = RACE_ALKARI, key = "6", str = nil, display = game_str_tbl_race@(RACE_ALKARI) ],
+        [ value = RACE_KLACKON, key = "7", str = nil, display = game_str_tbl_race@(RACE_KLACKON) ],
+        [ value = RACE_BULRATHI, key = "8", str = nil, display = game_str_tbl_race@(RACE_BULRATHI) ],
+        [ value = RACE_MEKLAR, key = "9", str = nil, display = game_str_tbl_race@(RACE_MEKLAR) ],
+        [ value = RACE_DARLOK, key = "0", str = nil, display = game_str_tbl_race@(RACE_DARLOK) ],
+        [ value = RACE_RANDOM, key = "R", str = nil, display = game_str_tbl_race@(RACE_RANDOM) ],
+        [ value = -1, key = "Q", str = nil, display = "(quit)" ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    val v = ui_input_list("Race", "> ", ng_race_in)
+    if v < 0 {
+        return -1
+    }
+    set newopts.pdata@(pi).race = v
+    v
+}
+
+func ui_new_game_choose_banner (newopts, pi) {
+    pin ng_banner_in = [
+        [ value = BANNER_BLUE, key = "1", str = nil, display = game_str_tbl_banner@(BANNER_BLUE) ],
+        [ value = BANNER_GREEN, key = "2", str = nil, display = game_str_tbl_banner@(BANNER_GREEN) ],
+        [ value = BANNER_PURPLE, key = "3", str = nil, display = game_str_tbl_banner@(BANNER_PURPLE) ],
+        [ value = BANNER_RED, key = "4", str = nil, display = game_str_tbl_banner@(BANNER_RED) ],
+        [ value = BANNER_WHITE, key = "5", str = nil, display = game_str_tbl_banner@(BANNER_WHITE) ],
+        [ value = BANNER_YELLOW, key = "6", str = nil, display = game_str_tbl_banner@(BANNER_YELLOW) ],
+        [ value = BANNER_RANDOM, key = "7", str = nil, display = game_str_tbl_banner@(BANNER_RANDOM) ],
+        [ value = -1, key = "Q", str = nil, display = "(quit)" ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    val v = ui_input_list("Banner", "> ", ng_banner_in)
+    if v < 0 {
+        return -1
+    }
+    set newopts.pdata@(pi).banner = v
+    v
+}
+
+func ui_new_game_pname (newopts, pi) {
+    io.write("Your name\n")
+    val p = ui_input_line_len_trim("> ", EMPEROR_NAME_LEN)
+    if #p == 0 {
+        val race = newopts.pdata@(pi).race
+        if race < RACE_NUM {
+            set newopts.pdata@(pi).playername = game_new_generate_emperor_name(race, EMPEROR_NAME_LEN)
+        } else {
+            set newopts.pdata@(pi).playername = ""
+        }
+    } else {
+        set newopts.pdata@(pi).playername = p
+    }
+    0
+}
+
+func ui_new_game_hname (newopts, pi) {
+    io.write("Home world\n")
+    val p = ui_input_line_len_trim("> ", PLANET_NAME_LEN)
+    if #p == 0 {
+        val race = newopts.pdata@(pi).race
+        if race < RACE_NUM {
+            set newopts.pdata@(pi).homename = game_str_tbl_home_names@(race)
+        } else {
+            set newopts.pdata@(pi).homename = ""
+        }
+    } else {
+        set newopts.pdata@(pi).homename = p
+    }
+    0
+}
+
+func have_human (newopts) {
+    loop j in newopts.players {
+        if !newopts.pdata@(j).is_ai {
+            return true
+        }
+    }
+    false
+}
+
+func ui_new_game_display (newopts) {
+    loop i in newopts.players {
+        val d = newopts.pdata@(i)
+        io.write(string.format("%s %i: %s, %s", if d.is_ai => game_str_ng_computer => game_str_ng_player, i + 1, game_str_tbl_race@(d.race), game_str_tbl_banner@(d.banner)))
+        if #d.playername > 0 {
+            io.write(string.format(", Emperor %s", d.playername))
+        }
+        if #d.homename > 0 {
+            io.write(string.format(", Home world %s", d.homename))
+        }
+        io.write("\n")
+    }
+    io.write(string.format("%s: %s\n", game_str_ng_ai, game_ais@(newopts.ai_id).name))
+    if !have_human(newopts) {
+        io.write(game_str_ng_allai ++ "\n")
+    }
+}
+
+;; The handlers get the options in place of `g` (as C casts them).
+func cmd_exit (newopts, api, param, num_param, var_) {
+    var v = var_
+    if (v == 2) && (!have_human(newopts)) {     ;; start
+        set v = 0
+    }
+    v
+}
+
+func cmd_toggle_computer (newopts, api, param, num_param, var_) {
+    if param@(0).type != INPUT_TOKEN_NUMBER {
+        return -1
+    }
+    var n = param@(0).data
+    if (n < 1) || (n > newopts.players) {
+        return -1
+    }
+    set n = n - 1
+    set newopts.pdata@(n).is_ai = !newopts.pdata@(n).is_ai
+    0
+}
+
+func cmd_race (newopts, api, param, num_param, var_) {
+    if param@(0).type != INPUT_TOKEN_NUMBER {
+        return -1
+    }
+    var n = param@(0).data
+    if (n < 1) || (n > newopts.players) {
+        return -1
+    }
+    set n = n - 1
+    val old_race = newopts.pdata@(n).race
+    if ui_new_game_choose_race(newopts, n) < 0 {
+        return -1
+    }
+    val new_race = newopts.pdata@(n).race
+    if new_race != old_race {
+        if new_race < RACE_NUM {
+            set newopts.pdata@(n).playername = game_new_generate_emperor_name(new_race, EMPEROR_NAME_LEN)
+            set newopts.pdata@(n).homename = game_str_tbl_home_names@(new_race)
+        } else {
+            set newopts.pdata@(n).playername = ""
+            set newopts.pdata@(n).homename = ""
+        }
+    }
+    0
+}
+
+func cmd_choose (newopts, api, param, num_param, var_) {
+    val f = var_
+    if param@(0).type != INPUT_TOKEN_NUMBER {
+        return -1
+    }
+    var n = param@(0).data
+    if (n < 1) || (n > newopts.players) {
+        return -1
+    }
+    set n = n - 1
+    if f(newopts, n) < 0 {
+        return -1
+    }
+    0
+}
+
+func cmd_ai (newopts, api, param, num_param, var_) {
+    pin rl_in = [
+        [ value = 0, key = "1", str = nil, display = nil ],
+        [ value = 1, key = "2", str = nil, display = nil ],
+        [ value = 2, key = "3", str = nil, display = nil ],
+        [ value = 3, key = "4", str = nil, display = nil ],
+        [ value = 4, key = "5", str = nil, display = nil ],
+        [ value = 5, key = "6", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var num = 0
+    loop {
+        while num < GAME_AI_NUM
+        set rl_in@(num).value = num
+        set rl_in@(num).display = game_ais@(num).name
+        set num = num + 1
+    }
+    set rl_in@(num).value = 0
+    set rl_in@(num).key = nil
+    set rl_in@(num).str = nil
+    set rl_in@(num).display = nil
+    set newopts.ai_id = ui_input_list(game_str_ng_ai, "> ", rl_in)
+    0
+}
+
+func ui_new_game_extra (newopts) {
+    pin cmds_newgame = [
+        input_cmd_s("?", nil, "Help", 0, 0, 0, ui_cmd_help, nil),
+        input_cmd_s("q", nil, game_str_ng_cancel, 0, 0, 0, cmd_exit, 1),     ;; cancel
+        input_cmd_s("s", nil, game_str_ng_ok, 0, 0, 0, cmd_exit, 2),         ;; start
+        input_cmd_s("a", nil, game_str_ng_ai, 0, 0, 0, cmd_ai, 0),
+        input_cmd_s("c", "[PLAYER]", game_str_ng_computer, 1, 1, 0, cmd_toggle_computer, 0),
+        input_cmd_s("r", "[PLAYER]", "Race", 1, 1, 0, cmd_race, 0),
+        input_cmd_s("b", "[PLAYER]", "Banner", 1, 1, 0, cmd_choose, ui_new_game_choose_banner),
+        input_cmd_s("n", "[PLAYER]", "Emperor name", 1, 1, 0, cmd_choose, ui_new_game_pname),
+        input_cmd_s("h", "[PLAYER]", "Home word name", 1, 1, 0, cmd_choose, ui_new_game_hname),
+        input_cmd_s(nil, nil, nil, 0, 0, 0, nil, 0),
+    ]
+    pin cmdsptr_newgame = [ cmds_newgame, nil ]
+    set cmds_newgame@(0).var_ = cmdsptr_newgame
+    ui_new_game_display(newopts)
+    loop {
+        val input = ui_input_line("> ")
+        if (ui_input_tokenize(input, cmdsptr_newgame) == 0) && (ui_data.input.num > 0) {
+            if ui_data.input.tok@(0).type == INPUT_TOKEN_COMMAND {
+                val cmd = ui_data.input.tok@(0).data
+                val v = cmd.handle(newopts, 0, ui_input_params(), ui_data.input.num - 1, cmd.var_)
+                if cmd.handle == cmd_exit {
+                    if v == 1 {     ;; cancel
+                        return false
+                    } else {
+                        if v == 2 {     ;; start
+                            return true
+                        }
+                    }
+                } else {
+                    ui_new_game_display(newopts)
+                }
+            }
+        }
+    }
+}
+
+func ui_new_game (newopts) {
+    pin ng_galaxy_in = [
+        [ value = 0, key = "1", str = nil, display = game_str_tbl_gsize@(0) ],
+        [ value = 1, key = "2", str = nil, display = game_str_tbl_gsize@(1) ],
+        [ value = 2, key = "3", str = nil, display = game_str_tbl_gsize@(2) ],
+        [ value = 3, key = "4", str = nil, display = game_str_tbl_gsize@(3) ],
+        [ value = -1, key = "Q", str = nil, display = "(quit)" ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    pin ng_diffic_in = [
+        [ value = 0, key = "1", str = nil, display = game_str_tbl_diffic@(0) ],
+        [ value = 1, key = "2", str = nil, display = game_str_tbl_diffic@(1) ],
+        [ value = 2, key = "3", str = nil, display = game_str_tbl_diffic@(2) ],
+        [ value = 3, key = "4", str = nil, display = game_str_tbl_diffic@(3) ],
+        [ value = 4, key = "5", str = nil, display = game_str_tbl_diffic@(4) ],
+        [ value = -1, key = "Q", str = nil, display = "(quit)" ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    pin ng_oppon_in = [
+        [ value = 2, key = "1", str = nil, display = game_str_tbl_oppon@(0) ],
+        [ value = 3, key = "2", str = nil, display = game_str_tbl_oppon@(1) ],
+        [ value = 4, key = "3", str = nil, display = game_str_tbl_oppon@(2) ],
+        [ value = 5, key = "4", str = nil, display = game_str_tbl_oppon@(3) ],
+        [ value = 6, key = "5", str = nil, display = game_str_tbl_oppon@(4) ],
+        [ value = -1, key = "Q", str = nil, display = "(quit)" ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var v = ui_input_list("Galaxy size", "> ", ng_galaxy_in)
+    if v < 0 {
+        return false
+    }
+    set newopts.galaxy_size = v
+    set v = ui_input_list("Difficulty", "> ", ng_diffic_in)
+    if v < 0 {
+        return false
+    }
+    set newopts.difficulty = v
+    set v = ui_input_list("Opponents", "> ", ng_oppon_in)
+    if v < 0 {
+        return false
+    }
+    set newopts.players = v
+    if ui_new_game_choose_race(newopts, PLAYER_0) < 0 {
+        return false
+    }
+    if ui_new_game_choose_banner(newopts, PLAYER_0) < 0 {
+        return false
+    }
+    ui_new_game_pname(newopts, PLAYER_0)
+    ui_new_game_hname(newopts, PLAYER_0)
+    ui_new_game_extra(newopts)
+}
+
+;; ---------------------------------------------------------------------------
+
+;; Gives (action, load_game_i): the `*load_game_i_ptr` of C.
+func ui_main_menu (newopts, customopts, challengeopts, load_game_i0) {
+    pin main_menu_in = [
+        [ value = MAIN_MENU_ACT_CONTINUE_GAME, key = "C", str = nil, display = game_str_mm_continue ],
+        [ value = MAIN_MENU_ACT_LOAD_GAME, key = "L", str = nil, display = game_str_mm_load ],
+        [ value = MAIN_MENU_ACT_NEW_GAME, key = "N", str = nil, display = game_str_mm_new ],
+        [ value = MAIN_MENU_ACT_QUIT_GAME, key = "Q", str = nil, display = game_str_mm_quit ],
+        [ value = MAIN_MENU_ACT_TUTOR, key = nil, str = "tutor", display = nil ],
+        [ value = MAIN_MENU_ACT_CUSTOM_GAME, key = "U", str = nil, display = nil ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    var load_game_i = load_game_i0
+    var ret = MAIN_MENU_ACT_QUIT_GAME
+    var flag_done = false
+    loop {
+        while !flag_done
+        set ret = ui_input_list("Main menu", "> ", main_menu_in)
+        match ret {
+            MAIN_MENU_ACT_NEW_GAME => { set flag_done = ui_new_game(newopts) }
+            MAIN_MENU_ACT_CUSTOM_GAME => { set flag_done = ui_new_game(customopts) }
+            MAIN_MENU_ACT_LOAD_GAME => {
+                val i = ui_load_game()
+                if i >= 0 {
+                    set load_game_i = i
+                    set flag_done = true
+                }
+            }
+            else => { set flag_done = true }
+        }
+    }
+    (ret, load_game_i)
+}

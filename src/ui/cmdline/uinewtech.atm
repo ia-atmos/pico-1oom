@@ -1,0 +1,247 @@
+;; Port of c/src/ui/cmdline/uinewtech.c.
+
+include "../../lib.atm"
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_diplo.atm"
+include "../../game/game_misc.atm"
+include "../../game/game_num.atm"
+include "../../game/game_planet_c.atm"
+include "../../game/game_str.atm"
+include "../../game/game_tech.atm"
+include "../../game/game_techtypes.atm"
+include "uidefs.atm"
+include "uiinput.atm"
+include "uiswitch.atm"
+
+func newtech_data_s () {
+    [
+        g                = nil,
+        api              = 0,
+        nt               = newtech_t(),
+        dialog_type      = 0,       ;; uint8_t
+        flag_is_current  = false,   ;; (C: not set before the second loop of ui_newtech; unused there)
+        flag_choose_next = false,
+        tech_next        = carray(TECH_NEXT_MAX),   ;; uint8_t[]
+        num_next         = 0,
+    ]
+}
+
+func ui_newtech_print1 (d) {
+    val g = d.g
+    io.write(cstr(game_tech_get_newtech_msg(g, d.api, d.nt, ui_data.strbuf, UI_STRBUF_SIZE)) ++ "\n")
+    if d.nt.source != TECHSOURCE_CHOOSE {
+        io.write(cstr(game_tech_get_name(g.gaux, d.nt.field, d.nt.tech, ui_data.strbuf, UI_STRBUF_SIZE)) ++ "\n")
+        io.write(cstr(game_tech_get_descr(g.gaux, d.nt.field, d.nt.tech, ui_data.strbuf, UI_STRBUF_SIZE)) ++ "\n")
+    }
+}
+
+func ui_newtech_choose_next (d) {
+    pin rl_in = []
+    val keys = "123456789ABC"
+    loop k in #keys {
+        set rl_in@(k) = [ value = -1, key = string.sub(keys, k, k), str = nil, display = nil ]
+    }
+    set rl_in@(#keys) = [ value = 0, key = nil, str = nil, display = nil ]
+    pin tname = carray2(TECH_NEXT_MAX, 35)
+    var i = 0
+    loop {
+        while i < d.num_next
+        val tech = d.tech_next@(i)
+        game_tech_get_name(d.g.gaux, d.nt.field, tech, tname@(i), 35)
+        set rl_in@(i).value = tech
+        set rl_in@(i).display = cstr(tname@(i))
+        set i = i + 1
+    }
+    set rl_in@(i).value = 0
+    set rl_in@(i).key = nil
+    set rl_in@(i).str = nil
+    set rl_in@(i).display = nil
+    set i = ui_input_list(game_str_nt_choose, "> ", rl_in)
+    game_tech_start_next(d.g, d.api, d.nt.field, i)
+}
+
+func newtech_adjust_draw_typestr (buf, bufsize, str1, str2) {
+    lib_strcat(buf, game_str_nt_inc, bufsize)
+    lib_strcat(buf, str1, bufsize)
+    if str2 != nil {
+        lib_strcat(buf, str2, bufsize)
+    }
+}
+
+pin tbl_a0 = [ 0, 0, 0, 1, 2 ]
+pin tbl_a2 = [ 0, 3, 2, 3, 3 ]
+
+func ui_newtech_adjust (d) {
+    val buf = ui_data.strbuf
+    lib_strcpy(buf, game_str_nt_doyou, UI_STRBUF_SIZE)
+    match d.dialog_type {
+        0 => { lib_strcat(buf, game_str_nt_redueco, UI_STRBUF_SIZE) }
+        1 => { newtech_adjust_draw_typestr(buf, UI_STRBUF_SIZE, game_str_nt_ind, nil) }
+        2 => { newtech_adjust_draw_typestr(buf, UI_STRBUF_SIZE, game_str_nt_ecoall, game_str_nt_terra) }
+        3 => { newtech_adjust_draw_typestr(buf, UI_STRBUF_SIZE, game_str_nt_def, nil) }
+        4 => { newtech_adjust_draw_typestr(buf, UI_STRBUF_SIZE, game_str_nt_ecostd, game_str_nt_terra) }
+        5 => { newtech_adjust_draw_typestr(buf, UI_STRBUF_SIZE, game_str_nt_ecohost, game_str_nt_terra) }
+        else => nil
+    }
+    if d.dialog_type == 0 {
+        val v = ui_input_list(buf, "> ", il_yes_no)
+        if v != 0 {
+            game_update_tech_util(d.g)
+            game_update_eco_on_waste(d.g, d.api, true)
+        }
+    } else {
+        pin rl_in = [
+            [ value = 0, key = "1", str = nil, display = nil ],
+            [ value = 1, key = "2", str = nil, display = nil ],
+            [ value = 2, key = "3", str = nil, display = nil ],
+            [ value = 3, key = "4", str = nil, display = nil ],
+            [ value = 0, key = nil, str = nil, display = nil ],
+        ]
+        loop i in 4 {
+            set rl_in@(i).display = game_str_tbl_nt_adj@(i)
+        }
+        val v = ui_input_list(buf, "> ", rl_in)
+        game_update_tech_util(d.g)
+        if !game_num_newtech_adjust_fix {
+            game_update_eco_on_waste(d.g, d.api, true)
+        }
+        game_planet_adjust_percent(d.g, d.api, tbl_a0@(d.dialog_type - 1), game_num_tbl_tech_autoadj@(v), tbl_a2@(d.dialog_type - 1))
+    }
+}
+
+func ui_newtech_do (d) {
+    val g = d.g
+    val e = g.eto@(d.api)
+    val tech = d.nt.tech
+    var flag_dialog = false
+    if tech < 51 {
+        if (d.nt.field == TECH_FIELD_CONSTRUCTION) && (((tech - 5) % 10) == 0) && (g.evn.best_wastereduce@(d.api) < tech) {
+            set flag_dialog = true
+            set d.dialog_type = 0
+            set g.evn.best_wastereduce@(d.api) = tech
+        }
+        if (d.nt.field == TECH_FIELD_PLANETOLOGY) && (g.evn.best_ecorestore@(d.api) < tech) {
+            if false
+              || (tech == TECH_PLAN_IMPROVED_ECO_RESTORATION)
+              || (tech == TECH_PLAN_ENHANCED_ECO_RESTORATION)
+              || (tech == TECH_PLAN_ADVANCED_ECO_RESTORATION)
+              || (tech == TECH_PLAN_COMPLETE_ECO_RESTORATION) {
+                set flag_dialog = true
+                set d.dialog_type = 0
+                set g.evn.best_ecorestore@(d.api) = tech
+            }
+        }
+        if e.race == RACE_SILICOID {
+            set flag_dialog = false
+        }
+        if (d.nt.field == TECH_FIELD_COMPUTER) && (((tech - 8) % 10) == 0) && (g.evn.best_roboctrl@(d.api) < tech) {
+            set flag_dialog = true
+            set d.dialog_type = 1
+            set g.evn.best_roboctrl@(d.api) = tech
+        }
+        if d.nt.field == TECH_FIELD_PLANETOLOGY {
+            if (((tech - 2) % 6) == 0) && (g.evn.best_terraform@(d.api) < tech) {
+                set flag_dialog = true
+                set d.dialog_type = 2
+                set g.evn.best_terraform@(d.api) = tech
+            }
+            if (tech == TECH_PLAN_SOIL_ENRICHMENT) || (tech == TECH_PLAN_ADVANCED_SOIL_ENRICHMENT) {
+                set flag_dialog = true
+                set d.dialog_type = 4
+            }
+            if tech == TECH_PLAN_ATMOSPHERIC_TERRAFORMING {
+                set flag_dialog = true
+                set d.dialog_type = 5
+            }
+        }
+        if (d.nt.field == TECH_FIELD_FORCE_FIELD) && (((tech - 12) % 10) == 0) {
+            set flag_dialog = true
+            set d.dialog_type = 3
+        }
+    }
+    ui_newtech_print1(d)
+    loop {  ;; again:
+        if d.flag_choose_next {
+            val xt = g.evn.newtech@(d.api).next@(d.nt.field)
+            set d.num_next = xt.num
+            if d.num_next == 0 {
+                return nil
+            }
+            loop k in d.num_next {
+                set d.tech_next@(k) = xt.tech@(k)
+            }
+            set d.nt.frame = false
+            set d.nt.source = TECHSOURCE_CHOOSE
+            ui_newtech_choose_next(d)
+            return nil
+        } else {
+            if d.nt.frame {
+                pin rl_in = [
+                    [ value = -1, key = "1", str = nil, display = nil ],
+                    [ value = -1, key = "2", str = nil, display = nil ],
+                    [ value = -1, key = "0", str = nil, display = "(none)" ],
+                    [ value = 0, key = nil, str = nil, display = nil ],
+                ]
+                set rl_in@(0).value = d.nt.other1
+                set rl_in@(0).display = game_str_tbl_races@(g.eto@(d.nt.other1).race)
+                set rl_in@(1).value = d.nt.other2
+                set rl_in@(1).display = game_str_tbl_races@(g.eto@(d.nt.other2).race)
+                io.write(game_str_nt_frame ++ "\n")
+                val frame = ui_input_list(game_str_nt_victim, "> ", rl_in)
+                if frame >= 0 {
+                    set g.evn.stolen_spy@(d.nt.stolen_from)@(d.api) = frame
+                    game_diplo_esp_frame(g, frame, d.nt.stolen_from)
+                }
+            }
+            if flag_dialog {
+                ui_newtech_adjust(d)
+            }
+            if d.flag_is_current {
+                set d.flag_is_current = false
+                set d.flag_choose_next = true
+                set d.nt.frame = false
+                skip    ;; goto again
+            }
+            return nil
+        }
+    }
+}
+
+set ui_newtech = func (g, pi) {
+    pin d = newtech_data_s()
+    var flag_switch = false
+    set d.g = g
+    set d.api = pi
+    loop i in g.evn.newtech@(pi).num {
+        cstruct_copy(d.nt, g.evn.newtech@(pi).d@(i))
+        if !flag_switch {
+            set flag_switch = true
+            ui_switch_1(g, pi)
+        }
+        set d.flag_is_current = false
+        set d.flag_choose_next = false
+        if g.eto@(pi).tech.project@(d.nt.field) == d.nt.tech {
+            set d.flag_is_current = true
+        }
+        ui_newtech_do(d)
+    }
+    loop field in TECH_FIELD_NUM {
+        if game_tech_can_choose(g, pi, field) {
+            if !flag_switch {
+                set flag_switch = true
+                ui_switch_1(g, pi)
+            }
+            set d.nt.field = field
+            set d.nt.tech = 0
+            set d.nt.source = TECHSOURCE_CHOOSE
+            set d.flag_choose_next = true
+            set d.nt.frame = false
+            ui_newtech_do(d)
+        }
+    }
+    if flag_switch {
+        ui_switch_wait(g)
+    }
+    set g.evn.newtech@(pi).num = 0
+}

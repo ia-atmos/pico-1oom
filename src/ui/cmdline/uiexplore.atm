@@ -1,0 +1,37 @@
+;; Port of c/src/ui/cmdline/uiexplore.c.
+
+include "../../lib.atm"
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "uiinput.atm"
+include "uiplanet.atm"
+include "uiswitch.atm"
+
+set ui_explore = func (g, pi, planet_i, by_scanner, flag_colony_ship0) {
+    var flag_colony_ship = flag_colony_ship0
+    ui_switch_1(g, pi)
+    if !flag_colony_ship {
+        if by_scanner {
+            io.write(string.format("%s %s %s %s\n", game_str_ex_planeta, game_str_ex_scanner, game_str_ex_explore, game_str_ex_starsys))
+        } else {
+            io.write(string.format("%s %s %s\n", game_str_ex_scout, game_str_ex_explore, game_str_ex_starsys))
+        }
+    }
+    ui_planet_look(g, pi, planet_i, true)
+    if flag_colony_ship {
+        val buf = string.format("%s %s", game_str_ex_build, game_str_ex_colony)
+        val v = ui_input_list(buf, "> ", il_yes_no)
+        set flag_colony_ship = v == 1
+        if flag_colony_ship {
+            io.write(string.format("%s %i %s %s%s: (%s) ", game_str_la_inyear, g.year + YEAR_BASE, game_str_la_the, game_str_tbl_race@(g.eto@(pi).race), game_str_la_formnew, cstr(g.planet@(planet_i).name)))
+            val name = ui_input_line_len_trim("> ", PLANET_NAME_LEN)
+            if #name > 0 {
+                lib_strcpy(g.planet@(planet_i).name, name, PLANET_NAME_LEN)
+            }
+        }
+    } else {
+        ui_switch_wait(g)
+    }
+    flag_colony_ship
+}

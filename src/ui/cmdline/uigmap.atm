@@ -1,0 +1,10 @@
+;; Port of c/src/ui/cmdline/uigmap.c.
+
+include "../../ui.atm"
+
+set ui_gmap_basic_init = func (g, show_player_switch) { 0 }
+set ui_gmap_basic_shutdown = func (ctx) { nil }
+set ui_gmap_basic_start_player = func (ctx, pi) { nil }
+set ui_gmap_basic_start_frame = func (ctx, pi) { nil }
+set ui_gmap_basic_draw_frame = func (ctx, pi) { nil }
+set ui_gmap_basic_finish_frame = func (ctx, pi) { nil }

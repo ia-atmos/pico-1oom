@@ -143,7 +143,7 @@ func ui_input_list_dynamic (title, prompt, ld) {
     loop {
         io.write("\n")
         if title != nil {
-            io.write(title ++ "\n")
+            io.write(cstr(title) ++ "\n")
         }
         var k = 0
         loop {

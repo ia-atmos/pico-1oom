@@ -9,6 +9,13 @@ include "uidefs.atm"
 include "uiending.atm"
 include "uigame.atm"
 include "uiintro.atm"
+include "uimainmenu.atm"
+include "uibomb.atm"
+include "uielection.atm"
+include "uiexplore.atm"
+include "uigmap.atm"
+include "uinews.atm"
+include "uinewtech.atm"
 
 val idstr_ui = "cmdline"
 var ui_use_audio = false
@@ -71,9 +78,4 @@ set ui_newships = func (g, pi) {
         }
     }
     io.write("\n")
-}
-
-;; uimainmenu.c is not ported yet (#14).
-func ui_main_menu (newopts, customopts, challengeopts, load_game_i) {
-    throw "ui/cmdline: the main menu is not ported yet"
 }

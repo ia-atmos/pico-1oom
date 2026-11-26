@@ -1,0 +1,43 @@
+;; Port of c/src/ui/cmdline/uibomb.c.
+
+include "../../ui.atm"
+include "../../game/game.atm"
+include "../../game/game_str.atm"
+include "uiinput.atm"
+include "uiswitch.atm"
+
+set ui_bomb_ask = func (g, pi, planet_i, pop_inbound) {
+    val p = g.planet@(planet_i)
+    val e = g.eto@(p.owner)
+    ui_switch_1(g, pi)
+    io.write(string.format("%s : %s %s, %s %i, %s %i", cstr(p.name), game_str_tbl_race@(e.race), game_str_sm_colony, game_str_sb_pop, p.pop, game_str_sb_fact, p.factories))
+    if pop_inbound != 0 {
+        io.write(string.format(", %i %s", pop_inbound, if pop_inbound == 1 => game_str_sm_trinb1 => game_str_sm_trinb1s))
+    }
+    io.write("\n")
+    val buf = string.format("%s %s", game_str_sm_bomb1, game_str_sm_bomb2)
+    val v = ui_input_list(buf, "> ", il_yes_no)
+    v == 1
+}
+
+set ui_bomb_show = func (g, pi, attacker_i, owner_i, planet_i, popdmg, factdmg, play_music, hide_other) {
+    val p = g.planet@(planet_i)
+    ui_switch_2(g, attacker_i, owner_i)
+    io.write(string.format("%s : %s %s. ", cstr(p.name), game_str_sm_obomb1, game_str_sm_obomb2))
+    val s = if (g.gaux.local_players == 1) && IS_HUMAN(g, owner_i) => game_str_sb_your => game_str_tbl_race@(g.eto@(owner_i).race)
+    io.write(string.format("%s %s", s, game_str_sm_colony))
+    ifs {
+        p.owner == PLAYER_NONE => { io.write(string.format(". %s %s", game_str_sm_cdest1, game_str_sm_cdest2)) }
+        (popdmg == 0) && (factdmg == 0) => { io.write(string.format(". %s %s", game_str_sm_ineff1, game_str_sm_ineff2)) }
+        else => {
+            if popdmg != 0 {
+                io.write(string.format(", %i %s %s", popdmg, game_str_sm_bkill1, game_str_sm_bkill2))
+            }
+            if factdmg != 0 {
+                io.write(string.format(", %i %s %s", factdmg, if factdmg == 1 => game_str_sm_bfact1 => game_str_sm_bfact1s, game_str_sm_bfact2))
+            }
+        }
+    }
+    io.write("\n")
+    ui_switch_wait(g)
+}

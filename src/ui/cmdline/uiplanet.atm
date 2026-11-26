@@ -1,9 +1,81 @@
-;; Port of c/src/ui/cmdline/uiplanet.c, in part (#14).
+;; Port of c/src/ui/cmdline/uiplanet.c.
 
 include "../../boolvec.atm"
+include "../../comp.atm"
+include "../../lib.atm"
+include "../../util.atm"
 include "../../game/game.atm"
+include "../../game/game_misc.atm"
+include "../../game/game_planet_c.atm"
 include "../../game/game_str.atm"
+include "../../game/game_tech.atm"
 include "uidefs.atm"
+include "uiinput.atm"
+
+func ui_planet_print_orbit_if_visible (g, api, planet_i, owner) {
+    val e = g.eto@(owner)
+    val o = e.orbit@(planet_i)
+    if BOOLVEC_IS1(o.visible, api) {
+        var any_ships = false
+        loop i in NUM_SHIPDESIGNS {
+            if o.ships@(i) != 0 {
+                set any_ships = true
+                break
+            }
+        }
+        if any_ships {
+            io.write(string.format("  - %s fleet at orbit:", game_str_tbl_race@(e.race)))
+            loop i in NUM_SHIPDESIGNS {
+                io.write(string.format(" %5i", o.ships@(i)))
+            }
+            io.write("\n")
+        }
+    }
+}
+
+func ui_planet_print_visible_fleets (g, api, planet_i) {
+    val e = g.eto@(api)
+    val p = g.planet@(planet_i)
+    loop i in g.enroute_num {
+        val r = g.enroute@(i)
+        if BOOLVEC_IS1(r.visible, api) && (r.dest == planet_i) && ((r.owner == api) || e.have_ia_scanner) {
+            ;; (C prints the race of the viewer, not of the owner)
+            io.write(string.format("  - %s fleet ETA %i turns:", game_str_tbl_race@(e.race), game_calc_eta_ship(g, r.speed, p.x, p.y, r.x, r.y)))
+            loop k in NUM_SHIPDESIGNS {
+                io.write(string.format(" %5i", r.ships@(k)))
+            }
+            io.write("\n")
+        }
+    }
+}
+
+func ui_planet_print_visible_transports (g, api, planet_i) {
+    val e = g.eto@(api)
+    val p = g.planet@(planet_i)
+    loop i in g.transport_num {
+        val r = g.transport@(i)
+        if BOOLVEC_IS1(r.visible, api) && (r.dest == planet_i) && ((r.owner == api) || e.have_ia_scanner) {
+            io.write(string.format("  - %s transport %i ETA %i turns\n", game_str_tbl_race@(e.race), r.pop, game_calc_eta_trans(g, r.speed, p.x, p.y, r.x, r.y)))
+        }
+    }
+}
+
+func ui_planet_slider_from_param (param) {
+    val slchars = "sdiet"
+    val c = string.byte(param.str, 0)
+    loop i in #slchars {
+        if string.byte(slchars, i) == c {
+            return i
+        }
+    }
+    ;; (C: strchr also finds the '\0' at the end, for an empty string)
+    if (c == nil) || (c == 0) {
+        return #slchars
+    }
+    PLANET_SLIDER_NUM
+}
+
+;; ---------------------------------------------------------------------------
 
 ;; Gives a string: the name, or "#" and the star type and index.
 func ui_planet_str (g, api, planet_i) {
@@ -16,4 +88,427 @@ func ui_planet_str (g, api, planet_i) {
           || (planet_i == g.evn.planet_orion_i)) => cstr(p.name)
         else => string.format("#%c%i", string.byte(game_str_tbl_sm_stinfo@(p.star_type), 0), planet_i)   ;; HACK
     }
+}
+
+func str_casecmp_eq (a, b) {
+    if #a != #b {
+        return false
+    }
+    loop i in #a {
+        if c_tolower(string.byte(a, i)) != c_tolower(string.byte(b, i)) {
+            return false
+        }
+    }
+    true
+}
+
+func ui_planet_from_param (g, api, param) {
+    var n = PLANET_NONE
+    if param.type == INPUT_TOKEN_NUMBER {
+        set n = param.data
+        if (n < 0) || (n >= g.galaxy_stars) {
+            set n = PLANET_NONE
+        }
+    }
+    ;; (C: no `else` before this `if`)
+    if param.type == INPUT_TOKEN_RELNUMBER {
+        var dir
+        var num = param.data
+        set n = g.planet_focus_i@(api)
+        if num < 0 {
+            set dir = -1
+            set num = -num
+        } else {
+            set dir = 1
+        }
+        loop {
+            while num != 0
+            loop {
+                set n = n + dir
+                if n < 0 {
+                    set n = g.galaxy_stars - 1
+                } else {
+                    if n >= g.galaxy_stars {
+                        set n = 0
+                    }
+                }
+                while g.planet@(n).owner != api
+            }
+            set num = num - 1
+        }
+    } else {
+        val s = param.str
+        if (#s >= 3) && (string.byte(s, 0) == 35) {   ;; '#'
+            val ok, x = util_parse_signed_number(string.sub(s, 2, #s - 1))
+            set n = x
+            if false
+              || (!ok)
+              || (n < 0) || (n >= g.galaxy_stars)
+              || (string.byte(s, 1) != string.byte(game_str_tbl_sm_stinfo@(g.planet@(n).star_type), 0)) {  ;; HACK
+                set n = PLANET_NONE
+            }
+        }
+    }
+    if n == PLANET_NONE {
+        set n = 0
+        loop {
+            while n < g.galaxy_stars
+            val p = g.planet@(n)
+            if BOOLVEC_IS1(p.explored, api) && str_casecmp_eq(cstr(p.name), param.str) {
+                break
+            }
+            set n = n + 1
+        }
+    }
+    if (n >= 0) && (n < g.galaxy_stars) {
+        return n
+    }
+    PLANET_NONE
+}
+
+func ui_planet_look (g, api, planet_i, show_full) {
+    val p = g.planet@(planet_i)
+    val e = g.eto@(api)
+    val dist = game_get_min_dist(g, api, planet_i)
+    io.write(string.format("[%i] (%i,%i) %s: ", planet_i, p.x, p.y, ui_planet_str(g, api, planet_i)))
+    if game_xy_is_in_nebula(g, p.x, p.y) {
+        io.write("(In nebula)\n")
+    }
+    val parsecs = if dist == 1 => game_str_sm_parsec => game_str_sm_parsecs
+    if BOOLVEC_IS1(p.explored, api) {
+        if p.type == PLANET_TYPE_NOT_HABITABLE {
+            io.write(string.format("%s %s\n", game_str_sm_nohabit, game_str_sm__planets))
+        } else {
+            var owner = p.owner
+            var str = nil
+            io.write(string.format("%s, %s %i %s", game_str_tbl_sm_pltype@(p.type), game_str_sm_pop, p.max_pop3, game_str_sm_max))
+            if p.special != PLANET_SPECIAL_NORMAL {
+                io.write(string.format(", %s", game_str_tbl_sm_pspecial@(p.special)))
+            }
+            if p.growth != PLANET_GROWTH_NORMAL {
+                io.write(string.format(", %s", game_str_tbl_sm_pgrowth@(p.growth)))
+            }
+            ifs {
+                g.evn.have_plague && (g.evn.plague_planet_i == planet_i) => { set str = game_str_sm_plague }
+                g.evn.have_nova && (g.evn.nova_planet_i == planet_i) => { set str = game_str_sm_nova }
+                g.evn.have_comet && (g.evn.comet_planet_i == planet_i) => { set str = game_str_sm_comet }
+                g.evn.have_pirates && (g.evn.pirates_planet_i == planet_i) => { set str = game_str_sm_pirates }
+                p.unrest == PLANET_UNREST_REBELLION => { set str = game_str_sm_rebellion }
+                p.unrest == PLANET_UNREST_UNREST => { set str = game_str_sm_unrest }
+                g.evn.have_accident && (g.evn.accident_planet_i == planet_i) => { set str = game_str_sm_accident }
+                else => nil
+            }
+            if str != nil {
+                io.write(string.format(", %s", str))
+            }
+            if BOOLVEC_IS0(p.within_srange, api) && ((owner == PLAYER_NONE) || BOOLVEC_IS0(e.contact, owner)) {
+                set owner = g.seen@(api)@(planet_i).owner
+            }
+            ifs {
+                owner == PLAYER_NONE => {
+                    io.write(string.format(". No colony. %s %i %s\n", game_str_sm_range, dist, parsecs))
+                }
+                (owner != api) || (p.unrest == PLANET_UNREST_REBELLION) => {
+                    var pop
+                    var bases
+                    if BOOLVEC_IS0(p.within_srange, api) {
+                        io.write(string.format("%s ", game_str_sm_lastrep))
+                        set pop = g.seen@(api)@(planet_i).pop
+                        set bases = g.seen@(api)@(planet_i).bases
+                    } else {
+                        set pop = p.pop
+                        set bases = p.missile_bases
+                    }
+                    io.write(string.format(". %s %s. Pop %i, bases %i. %s %i %s\n", game_str_tbl_race@(g.eto@(owner).race), game_str_sm_colony, pop, bases, game_str_sm_range, dist, parsecs))
+                }
+                else => {
+                    io.write(string.format(", pop %i, bases %i, factories %i, prod %i (%i), waste %i\n", p.pop, p.missile_bases, p.factories, p.prod_after_maint, p.total_prod, p.waste))
+                    if show_full {
+                        pin buf = carray(10)
+                        func lock (si) {
+                            if p.slider_lock@(si) != 0 => 42 => 32     ;; '*' ' '
+                        }
+                        var v = game_planet_get_slider_text(g, p, PLANET_SLIDER_SHIP, buf, #buf)
+                        io.write("  - Build ")
+                        if p.buildship == BUILDSHIP_STARGATE {
+                            io.write(string.format("%s\n", game_str_sm_stargate))
+                        } else {
+                            io.write(string.format("%i %s\n", v, cstr(g.srd@(api).design@(p.buildship).name)))
+                        }
+                        io.write(string.format("  - Slider %cSHIP %3i  %s\n", lock(PLANET_SLIDER_SHIP), p.slider@(PLANET_SLIDER_SHIP), cstr(buf)))
+                        game_planet_get_slider_text(g, p, PLANET_SLIDER_DEF, buf, #buf)
+                        io.write(string.format("  - Slider %c DEF %3i  %s\n", lock(PLANET_SLIDER_DEF), p.slider@(PLANET_SLIDER_DEF), cstr(buf)))
+                        game_planet_get_slider_text(g, p, PLANET_SLIDER_IND, buf, #buf)
+                        io.write(string.format("  - Slider %c IND %3i  %s\n", lock(PLANET_SLIDER_IND), p.slider@(PLANET_SLIDER_IND), cstr(buf)))
+                        set v = game_planet_get_slider_text_eco(g, p, true, buf, #buf)
+                        io.write(string.format("  - Slider %c ECO %3i  ", lock(PLANET_SLIDER_ECO), p.slider@(PLANET_SLIDER_ECO)))
+                        if v >= 0 {
+                            if v < 100 {
+                                io.write(string.format("+%i.%i ", v // 10, v % 10))
+                            } else {
+                                io.write(string.format("+%i ", v // 10))
+                            }
+                        }
+                        io.write(string.format("%s\n", cstr(buf)))
+                        game_planet_get_slider_text(g, p, PLANET_SLIDER_TECH, buf, #buf)
+                        io.write(string.format("  - Slider %cTECH %3i  %s RP\n", lock(PLANET_SLIDER_TECH), p.slider@(PLANET_SLIDER_TECH), cstr(buf)))
+                        if p.reloc != planet_i {
+                            io.write(string.format("  - Reloc to %s\n", cstr(g.planet@(p.reloc).name)))
+                        }
+                        if (p.trans_num != 0) && (p.trans_dest != PLANET_NONE) {
+                            val pt = g.planet@(p.trans_dest)
+                            io.write(string.format("  - Transport %i to %s", p.trans_num, cstr(pt.name)))
+                            if p.have_stargate && pt.have_stargate && (p.owner == pt.owner) {
+                                io.write(string.format(" via %s.\n", game_str_sm_stargate))
+                            } else {
+                                val engine = e.have_engine
+                                val eta = game_calc_eta_trans(g, engine, p.x, p.y, pt.x, pt.y)
+                                io.write(string.format(". %s %i %s.\n", game_str_sm_eta, eta, if eta == 1 => game_str_sm_turn => game_str_sm_turns))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        io.write(string.format("%s. %s %i %s.", game_str_sm_unexplored, game_str_sm_range, dist, parsecs))
+        if (p.owner != PLAYER_NONE) && (false
+          || BOOLVEC_IS1(p.within_srange, api)
+          || (p.within_frange@(api) == 1)
+          || (planet_i == g.evn.planet_orion_i)) {
+            io.write(string.format(" %s %s", game_str_tbl_race@(g.eto@(p.owner).race), game_str_sm_colony))
+        }
+        io.write("\n")
+    }
+    ui_planet_print_orbit_if_visible(g, api, planet_i, api)
+    loop pi in g.players {
+        if pi != api {
+            ui_planet_print_orbit_if_visible(g, api, planet_i, pi)
+        }
+    }
+    ui_planet_print_visible_fleets(g, api, planet_i)
+    ui_planet_print_visible_transports(g, api, planet_i)
+}
+
+func ui_cmd_planet_look (g, api, param, num_param, var_) {
+    var pi
+    if num_param == 0 {
+        set pi = g.planet_focus_i@(api)
+    } else {
+        set pi = ui_planet_from_param(g, api, param@(0))
+        if pi == PLANET_NONE {
+            if param@(0).str == "*" {
+                loop k in g.galaxy_stars {
+                    ui_planet_look(g, api, k, true)
+                }
+                return 0
+            }
+        }
+    }
+    if pi != PLANET_NONE {
+        ui_planet_look(g, api, pi, true)
+        return 0
+    }
+    -1
+}
+
+func ui_cmd_planet_go (g, api, param, num_param, var_) {
+    val planet_i = ui_planet_from_param(g, api, param@(0))
+    if planet_i != PLANET_NONE {
+        set g.planet_focus_i@(api) = planet_i
+        return 0
+    }
+    -1
+}
+
+func ui_cmd_planet_slider (g, api, param, num_param, var_) {
+    val p = g.planet@(g.planet_focus_i@(api))
+    val si = ui_planet_slider_from_param(param@(0))
+    var v
+    if si == PLANET_SLIDER_NUM {
+        return -1
+    }
+    if p.owner != api {
+        return -1
+    }
+    ifs {
+        param@(1).type == INPUT_TOKEN_NUMBER => { set v = param@(1).data }
+        param@(1).type == INPUT_TOKEN_RELNUMBER => { set v = p.slider@(si) + param@(1).data }
+        else => { return -1 }
+    }
+    set v = SETRANGE(v, 0, 100)
+    if p.slider_lock@(si) == 0 {
+        set p.slider@(si) = v
+        game_adjust_slider_group(p.slider, si, p.slider@(si), PLANET_SLIDER_NUM, p.slider_lock)
+    }
+    0
+}
+
+func ui_cmd_planet_slider_lock (g, api, param, num_param, var_) {
+    val p = g.planet@(g.planet_focus_i@(api))
+    val si = ui_planet_slider_from_param(param@(0))
+    if p.owner != api {
+        return -1
+    }
+    set p.slider_lock@(si) = if p.slider_lock@(si) != 0 => 0 => 1
+    0
+}
+
+func ui_cmd_planet_build (g, api, param, num_param, var_) {
+    val p = g.planet@(g.planet_focus_i@(api))
+    val e = g.eto@(api)
+    if p.owner != api {
+        return -1
+    }
+    if num_param == 0 {
+        var n = p.buildship + 1
+        if n >= e.shipdesigns_num {
+            ifs {
+                n >= (NUM_SHIPDESIGNS + 1) => { set n = 0 }
+                e.have_stargates && (!p.have_stargate) => { set n = BUILDSHIP_STARGATE }
+                else => { set n = 0 }
+            }
+        }
+        set p.buildship = n
+    } else {
+        ;; TODO handle param
+        return -1
+    }
+    if p.buildship == BUILDSHIP_STARGATE {
+        io.write(string.format("Building %s\n", game_str_sm_stargate))
+    } else {
+        io.write(string.format("Building %s\n", cstr(g.srd@(api).design@(p.buildship).name)))
+    }
+    0
+}
+
+func ui_cmd_planet_reloc (g, api, param, num_param, var_) {
+    val pfi = g.planet_focus_i@(api)
+    val pf = g.planet@(pfi)
+    var pti
+    if pf.owner != api {
+        return -1
+    }
+    if num_param == 0 {
+        set pti = pfi
+    } else {
+        set pti = ui_planet_from_param(g, api, param@(0))
+        if (pti == PLANET_NONE) || (!game_reloc_dest_ok(g, pti, api)) {
+            return -1
+        }
+    }
+    set pf.reloc = pti
+    0
+}
+
+func ui_cmd_planet_trans (g, api, param, num_param, var_) {
+    val pfi = g.planet_focus_i@(api)
+    val pf = g.planet@(pfi)
+    var pti
+    var v = 0
+    if pf.owner != api {
+        return -1
+    }
+    ifs {
+        num_param == 0 => { set pti = pfi }
+        num_param == 1 => { return -1 }
+        else => {
+            val e = g.eto@(api)
+            val trans_max = pf.pop // 2
+            set pti = ui_planet_from_param(g, api, param@(0))
+            if pti == PLANET_NONE {
+                return -1
+            }
+            val pt = g.planet@(pti)
+            if param@(1).type != INPUT_TOKEN_NUMBER {
+                return -1
+            }
+            set v = param@(1).data
+            if v > trans_max {
+                io.write(string.format("Can transport at most %i from %s.\n", trans_max, cstr(pf.name)))
+                return -1
+            }
+            ifs {
+                pt.within_frange@(api) != 1 => {
+                    val mindist = game_get_min_dist(g, api, pti)
+                    io.write(string.format("%s %i %s %i %s\n", game_str_sm_notrange1, mindist, game_str_sm_notrange2, e.fuel_range, game_str_sm_notrange3))
+                    return -1
+                }
+                BOOLVEC_IS0(pt.explored, api) => {
+                    io.write(game_str_sm_trfirste ++ "\n")
+                    return -1
+                }
+                pt.type < e.have_colony_for => {
+                    val buf = string.format("%s ", game_str_sm_trcontr1) ++ str_tolower(string.format("%s ", game_str_tbl_sm_pltype@(pt.type)))
+                    io.write(string.format("%s %s\n", buf, game_str_sm_trcontr2))
+                    return -1
+                }
+                pt.owner == PLAYER_NONE => {
+                    io.write(game_str_sm_trfirstc ++ "\n")
+                    return -1
+                }
+                else => {
+                    var buf
+                    if pf.have_stargate && pt.have_stargate && (pf.owner == pt.owner) {
+                        set buf = game_str_sm_stargate
+                    } else {
+                        val engine = e.have_engine
+                        val eta = game_calc_eta_trans(g, engine, pf.x, pf.y, pt.x, pt.y)
+                        set buf = string.format("%s %i %s", game_str_sm_eta, eta, if eta == 1 => game_str_sm_turn => game_str_sm_turns)
+                    }
+                    io.write(buf ++ "\n")
+                }
+            }
+        }
+    }
+    set pf.trans_dest = pti
+    set pf.trans_num = v
+    0
+}
+
+func ui_cmd_planet_reserve (g, api, param, num_param, var_) {
+    val p = g.planet@(g.planet_focus_i@(api))
+    val e = g.eto@(api)
+    var v
+    if p.owner != api {
+        return -1
+    }
+    ifs {
+        num_param == 0 => {
+            var prod = p.prod_after_maint - p.reserve
+            set prod = SETMAX(prod, 0)
+            set v = e.reserve_bc
+            set v = SETMIN(v, prod)
+        }
+        param@(0).type == INPUT_TOKEN_NUMBER => {
+            set v = param@(0).data
+            if v > e.reserve_bc {
+                return -1
+            }
+        }
+        else => { return -1 }
+    }
+    set p.reserve = u32(p.reserve + v)
+    set e.reserve_bc = u32(e.reserve_bc - v)
+    game_update_production(g)
+    0
+}
+
+func ui_cmd_planet_scrap_bases (g, api, param, num_param, var_) {
+    val p = g.planet@(g.planet_focus_i@(api))
+    var v
+    if p.owner != api {
+        return -1
+    }
+    if param@(0).type == INPUT_TOKEN_NUMBER {
+        set v = param@(0).data
+        if v > p.missile_bases {
+            return -1
+        }
+    } else {
+        return -1
+    }
+    set p.missile_bases = u16(p.missile_bases - v)
+    set g.eto@(api).reserve_bc = u32(g.eto@(api).reserve_bc + ((v * game_get_base_cost(g, api)) // 4))
+    0
 }

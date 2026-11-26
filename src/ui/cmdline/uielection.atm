@@ -1,0 +1,56 @@
+;; Port of c/src/ui/cmdline/uielection.c.
+
+include "../../ui.atm"
+include "../../game/game_election.atm"
+include "../../game/game_str.atm"
+include "uiinput.atm"
+include "uiswitch.atm"
+
+set ui_election_start = func (el) {
+    ui_switch_all(el.g)
+}
+
+set ui_election_show = func (el) {
+    val g = el.g
+    io.write("Election | ")
+    if el.flag_show_votes {
+        pin vbuf = carray(0x20)
+        var n = el.got_votes@(0)
+        io.write(string.format("%s %s, ", game_election_print_votes(n, vbuf, #vbuf), cstr(g.emperor_names@(el.candidate@(0)))))
+        set n = el.got_votes@(1)
+        io.write(string.format("%s %s, ", game_election_print_votes(n, vbuf, #vbuf), cstr(g.emperor_names@(el.candidate@(1)))))
+        set n = el.total_votes
+        io.write(string.format("%s %s | ", game_election_print_votes(n, vbuf, #vbuf), game_str_el_total))
+    }
+    if el.cur_i != PLAYER_NONE {
+        io.write(string.format("(%s) | ", game_str_tbl_race@(g.eto@(el.tbl_ei@(el.cur_i)).race)))
+    }
+    if el.str != nil {
+        io.write(cstr(el.str) ++ "\n")
+    }
+}
+
+set ui_election_delay = func (el, delay) { nil }
+
+set ui_election_vote = func (el, player_i) {
+    pin il_vote = [
+        [ value = 1, key = "1", str = nil, display = nil ],
+        [ value = 2, key = "2", str = nil, display = nil ],
+        [ value = 0, key = "0", str = nil, display = game_str_el_abs ],
+        [ value = 0, key = nil, str = nil, display = nil ],
+    ]
+    loop i in 2 {
+        val pi = el.candidate@(i)
+        set il_vote@(i).display = if pi == player_i => game_str_el_self => cstr(el.g.emperor_names@(pi))
+    }
+    ui_input_list(cstr(el.str), "> ", il_vote)
+}
+
+set ui_election_accept = func (el, player_i) {
+    val v = ui_input_list(cstr(el.str), "> ", il_yes_no)
+    v == 1
+}
+
+set ui_election_end = func (el) {
+    ui_switch_wait(el.g)
+}

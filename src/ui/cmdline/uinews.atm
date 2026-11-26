@@ -1,0 +1,26 @@
+;; Port of c/src/ui/cmdline/uinews.c.
+
+include "../../ui.atm"
+include "../../game/game_news.atm"
+include "uidefs.atm"
+include "uiswitch.atm"
+
+set ui_news_start = func () { nil }
+
+set ui_news = func (g, ns) {
+    ui_switch_all(g)
+    game_news_get_msg(g, ns, ui_data.strbuf, UI_STRBUF_SIZE)
+    io.write("GNN | " ++ cstr(ui_data.strbuf))
+    if ns.type == GAME_NEWS_STATS {
+        loop i in ns.statsnum {
+            if i > 0 {
+                io.write(",")
+            }
+            io.write(string.format(" %i. %s", i + 1, cstr(ns.stats@(i))))
+        }
+    }
+    io.write("\n")
+    ui_switch_wait(g)
+}
+
+set ui_news_end = func () { nil }
