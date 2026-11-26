@@ -1,15 +1,15 @@
-;; Port of c/src/game/game_planet.c: the functions of the logic. The texts
-;; for the interface (game_planet_get_finished_text, ..._slider_text) come
-;; with the interface. (The structure and the enums of game_planet.h are in
-;; game_planet.atm.)
+;; Port of c/src/game/game_planet.c. (The structure and the enums of
+;; game_planet.h are in game_planet.atm.)
 
 include "../boolvec.atm"
 include "../comp.atm"
 include "../ctypes.atm"
+include "../lib.atm"
 include "../rnd.atm"
 include "game.atm"
 include "game_num.atm"
 include "game_planet.atm"
+include "game_str.atm"
 
 func game_planet_get_random (g, owner) {
     pin tbl = carray(PLANETS_MAX)
@@ -198,3 +198,277 @@ func game_planet_update_home (g) {
     }
 }
 
+
+;; ---------------------------------------------------------------------------
+;; The texts for the interface. `buf` is a vector of bytes.
+
+func tenths_2str (str, num) {
+    strbuild_catf(str, "%i", num // 10)
+    if (num < 100) && ((num % 10) != 0) {
+        strbuild_catf(str, ".%i", num % 10)
+    }
+}
+
+func game_planet_get_finished_text (g, p, type, buf, bufsize) {
+    val name = cstr(p.name)
+    match type {
+        FINISHED_FACT => {
+            val num = p.max_pop3 * g.eto@(p.owner).colonist_oper_factories
+            lib_sprintf(buf, bufsize, "%s %s %s %i %s. %s", name, game_str_sm_hasreached, game_str_sm_indmaxof, num, game_str_sm_factories, game_str_sm_extrares)
+        }
+        FINISHED_POPMAX => {
+            val num = p.max_pop3
+            lib_sprintf(buf, bufsize, "%s %s %s %i %s. %s", name, game_str_sm_hasreached, game_str_sm_popmaxof, num, game_str_sm_colonists, game_str_sm_extrares)
+        }
+        FINISHED_SOILATMOS => {
+            lib_sprintf(buf, bufsize, "%s %s %s %s %s%s.", name, game_str_sm_hasterraf, game_str_tbl_sm_terraf@(p.growth - 1), game_str_sm_envwith, game_str_tbl_sm_envmore@(p.growth - 1), game_str_sm_stdgrow)
+        }
+        FINISHED_STARGATE => {
+            lib_sprintf(buf, bufsize, "%s %s.", name, game_str_sm_hasfsgate)
+        }
+        FINISHED_SHIELD => {
+            lib_sprintf(buf, bufsize, "%s %s %s %s.", name, game_str_sm_hasfshield, game_str_tbl_roman@(p.shield), game_str_sm_planshield)
+        }
+        else => {
+            lib_sprintf(buf, bufsize, "BUG: invalid finished tyoe %i at '%s'", type, name)
+        }
+    }
+    buf
+}
+
+func game_planet_get_slider_text (g, p, si, buf, bufsize) {
+    val player = p.owner
+    val e = g.eto@(player)
+    var retval = -1
+    match si {
+        PLANET_SLIDER_SHIP => {
+            val vthis = game_adjust_prod_by_special((p.prod_after_maint * p.slider@(PLANET_SLIDER_SHIP)) // 100, p.special)
+            val vtotal = vthis + p.bc_to_ship
+            var cost = if p.buildship == BUILDSHIP_STARGATE => game_num_stargate_cost => g.srd@(player).design@(p.buildship).cost
+            if (vtotal < cost) || (p.buildship == BUILDSHIP_STARGATE) {
+                if vthis < 1 {
+                    lib_strcpy(buf, game_str_sm_prodnone, bufsize)
+                    set retval = 0
+                } else {
+                    var num = 0
+                    var over = cost - p.bc_to_ship
+                    loop {
+                        while over > 0
+                        set over = over - vthis
+                        set num = num + 1
+                    }
+                    set num = SETMAX(num, 1)
+                    lib_sprintf(buf, bufsize, "%i %s", num, game_str_sm_prod_y)
+                    if p.buildship != BUILDSHIP_STARGATE {
+                        set retval = 1
+                    }
+                }
+            } else {
+                ;; TODO this adjusted sd->cost directly!
+                set cost = SETMAX(cost, 1)
+                val num = vtotal // cost
+                lib_sprintf(buf, bufsize, "1 %s", game_str_sm_prod_y)
+                set retval = num
+            }
+        }
+        PLANET_SLIDER_DEF => {
+            val cost = game_get_base_cost(g, player)
+            val vthis = game_adjust_prod_by_special((p.prod_after_maint * p.slider@(PLANET_SLIDER_DEF)) // 100, p.special)
+            var vtotal = vthis + p.bc_to_base
+            val v8 = p.bc_upgrade_base
+            ifs {
+                vthis == 0 => { lib_strcpy(buf, game_str_sm_prodnone, bufsize) }
+                vtotal <= v8 => { lib_strcpy(buf, game_str_sm_defupg, bufsize) }
+                else => {
+                    set vtotal = vtotal - v8
+                    set vtotal = SETMAX(vtotal, 0)
+                    var va = e.planet_shield_cost - p.bc_to_shield
+                    if p.battlebg == 0 {
+                        set va = 0
+                    }
+                    set va = SETMAX(va, 0)
+                    if vtotal <= va {
+                        lib_strcpy(buf, game_str_sm_defshld, bufsize)
+                    } else {
+                        set vtotal = vtotal - va
+                        set vtotal = SETMAX(vtotal, 0)
+                        if (cost * 2) > vtotal {
+                            var num = 1
+                            var over = cost - vtotal
+                            loop {
+                                while over > 0
+                                set over = over - vthis
+                                set num = num + 1
+                            }
+                            lib_sprintf(buf, bufsize, "%i %s", num, game_str_sm_prod_y)
+                        } else {
+                            val num = vtotal // cost
+                            lib_sprintf(buf, bufsize, "%i/%s", num, game_str_sm_prod_y)
+                        }
+                    }
+                }
+            }
+        }
+        PLANET_SLIDER_IND => {
+            var str = nil
+            val cost = game_planet_get_fact_adj_cost(g, p)
+            val vthis = game_adjust_prod_by_special((p.prod_after_maint * p.slider@(PLANET_SLIDER_IND)) // 100, p.special)
+            if vthis != 0 {
+                val v20 = (vthis * 10) // cost
+                if ((v20 // 10) + p.factories) >= ((p.pop - p.trans_num) * p.pop_oper_fact) {
+                    if p.pop_oper_fact < e.colonist_oper_factories {
+                        if e.race != RACE_MEKLAR {
+                            set str = game_str_sm_refit
+                            if game_num_factory_cost_fix {
+                                ;; FIXME: Doesn't always match the result
+                                set str = game_str_sm_irc@(p.pop_oper_fact - 1)
+                            }
+                        } else {
+                            val strbuild = strbuild_init(buf, bufsize)
+                            tenths_2str(strbuild, v20)
+                            strbuild_catf(strbuild, "/%s", game_str_sm_prod_y)
+                        }
+                    } else {
+                        set str = game_str_sm_indres
+                        if p.factories < (p.max_pop3 * e.colonist_oper_factories) {
+                            set str = game_str_sm_indmax
+                        }
+                    }
+                } else {
+                    val strbuild = strbuild_init(buf, bufsize)
+                    tenths_2str(strbuild, v20)
+                    strbuild_catf(strbuild, "/%s", game_str_sm_prod_y)
+                }
+            } else {
+                set str = game_str_sm_prodnone
+            }
+            if str != nil {
+                lib_strcpy(buf, str, bufsize)
+            }
+        }
+        PLANET_SLIDER_ECO => {
+            set retval = game_planet_get_slider_text_eco(g, p, false, buf, bufsize)
+        }
+        PLANET_SLIDER_TECH => {
+            val v = game_get_tech_prod(p.prod_after_maint, p.slider@(PLANET_SLIDER_TECH), e.race, p.special)
+            lib_sprintf(buf, bufsize, "%i", v)
+            set retval = v
+        }
+        else => {
+            set buf@(0) = 0
+        }
+    }
+    retval
+}
+
+func game_planet_get_slider_text_eco (g, p, flag_tenths, buf, bufsize) {
+    val player = p.owner
+    val e = g.eto@(player)
+    var retval = -1
+    var str = nil
+    var flag_ecoproj = false
+    var vthis = (p.prod_after_maint * p.slider@(PLANET_SLIDER_ECO)) // 100
+    pin rw = [ waste = 0 ]
+    game_planet_get_waste_percent(rw, g, p, true)
+    val adjwaste = rw.waste
+    if (vthis < adjwaste) || (vthis == 0) {
+        set str = if vthis < adjwaste => game_str_sm_ecowaste => game_str_sm_prodnone
+    } else {
+        set vthis = SUBSAT0(vthis, adjwaste)
+        if (vthis > 0) && e.have_atmos_terra && (p.growth == PLANET_GROWTH_HOSTILE) {
+            set vthis = vthis - (game_num_atmos_cost - p.bc_to_ecoproj)
+            if vthis < 0 {
+                set flag_ecoproj = true
+                set str = game_str_sm_ecoatmos
+            }
+        }
+        if (vthis > 0) && e.have_soil_enrich && (p.growth == PLANET_GROWTH_NORMAL) {
+            set vthis = vthis - (game_num_soil_cost - p.bc_to_ecoproj)
+            if vthis < 0 {
+                set flag_ecoproj = true
+                set str = game_str_sm_ecosoil
+            }
+        }
+        if (vthis > 0) && e.have_adv_soil_enrich && ((p.growth == PLANET_GROWTH_NORMAL) || (p.growth == PLANET_GROWTH_FERTILE)) {
+            set vthis = vthis - (game_num_adv_soil_cost - p.bc_to_ecoproj)
+            if vthis < 0 {
+                set flag_ecoproj = true
+                set str = game_str_sm_ecogaia
+            }
+        }
+        if vthis > 0 {
+            var tform_cost
+            if p.max_pop3 < game_num_max_pop {
+                ;; WASBUG In MOO 1.3, if you conquered a planet from a race
+                ;; with more advanced terraforming than you, a negative
+                ;; terraforming cost would be calculated here. This affected
+                ;; the displayed pop growth estimate but not actual growth.
+                set tform_cost = (p.max_pop2 + (e.have_terraform_n - p.max_pop3)) * e.terraform_cost_per_inc
+                set tform_cost = SETMAX(tform_cost, 0)
+            } else {
+                set tform_cost = 0
+            }
+            if vthis < tform_cost {
+                set str = game_str_sm_ecotform
+            } else {
+                var max = false
+                var flag_tform = false
+                var max_pop = p.max_pop3
+                if tform_cost > 0 {
+                    if vthis < tform_cost {
+                        set flag_tform = true
+                    } else {
+                        if flag_tenths {    ;; keep same +N as MOO1 for developing planets on -nouiextra
+                            set max_pop = p.max_pop2 + e.have_terraform_n
+                        }
+                    }
+                }
+                set vthis = vthis - tform_cost
+                var growth = game_get_pop_growth_max(g, p, max_pop) + p.pop_tenths
+                var growth2
+                if !flag_tenths {
+                    if ((p.pop - p.trans_num) + (growth // 10)) > max_pop {
+                        set growth = (max_pop - (p.pop - p.trans_num)) * 10
+                    }
+                    set growth2 = game_get_pop_growth_for_eco(g, p, vthis) + growth
+                    if ((p.pop - p.trans_num) + (growth2 // 10)) > max_pop {
+                        set growth2 = (max_pop - (p.pop - p.trans_num)) * 10
+                    }
+                    set growth = (growth2 // 10) - (growth // 10)
+                } else {
+                    if (((p.pop - p.trans_num) * 10) + growth) > (max_pop * 10) {
+                        set growth = (max_pop - (p.pop - p.trans_num)) * 10
+                        if !game_num_pop_tenths_fix {
+                            set growth = growth + p.pop_tenths
+                        }
+                    }
+                    set growth2 = game_get_pop_growth_for_eco(g, p, vthis) + growth
+                    if (((p.pop - p.trans_num) * 10) + growth2) >= (max_pop * 10) {
+                        set growth2 = (max_pop - (p.pop - p.trans_num)) * 10
+                        if !game_num_pop_tenths_fix {
+                            set growth2 = growth2 + p.pop_tenths
+                        }
+                        set max = growth != growth2
+                    }
+                    set growth = growth2 - growth
+                }
+                ifs {
+                    growth <= 0 => { set str = if flag_tform => game_str_sm_ecotform => game_str_sm_ecoclean }
+                    max => { set str = game_str_sm_max }
+                    else => {
+                        set retval = growth
+                        set str = game_str_sm_ecopop
+                    }
+                }
+            }
+        } else {
+            if (flag_ecoproj == false) && (e.race != RACE_SILICOID) {
+                set str = game_str_sm_ecoclean
+            }
+        }
+    }
+    if str != nil {
+        lib_strcpy(buf, str, bufsize)
+    }
+    retval
+}
