@@ -53,6 +53,12 @@ Last update: 2026-11-26
 | #32 | Excerpt, good: `src/game/game_main.atm:523`, a config item names the field of a table | excerpt | reported 2026-11-26 |
 | #33 | Excerpt, bad: `src/optionsdefs.atm`, `set var_.tbl@(var_.key) = true` in each handler of options | excerpt | reported 2026-11-26 |
 
+## Pause
+
+Implementation paused from 2026-11-26 to Saturday 2026-11-28 (his
+request); a scheduled wake on 2026-11-28 09:00 (America/Sao_Paulo).
+Next: #30. Excerpts not yet seen: #17, #18, #19, #20, #32, #33.
+
 ## A. Decisions waiting for an answer
 
 Each has the option recommended by this session. Asked one at a time.
