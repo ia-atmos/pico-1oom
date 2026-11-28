@@ -57,11 +57,12 @@ Last update: 2026-11-26
 
 ## Pause
 
-Implementation paused from 2026-11-26 to Saturday 2026-11-28 (his
-request); a scheduled wake on 2026-11-28 09:00 (America/Sao_Paulo).
-Next: #34 (`@(name)` to `@name`, his request to every project, arrived
-during the pause), then #30. Excerpts not yet seen: #17, #18, #19, #20,
-#32, #33.
+Implementation paused from 2026-11-26; on Saturday 2026-11-28 he asked
+for a wake on Wednesday 2026-12-02 10:00 (America/Sao_Paulo), scheduled.
+Open then: the question of #18 (apply `find_option` with `||` that gives
+a value; the rule to IDIOMS.md); #34 (`@(name)` to `@name`, recommended
+first); #30. Excerpts not yet seen: #19, #20, #32, #33 (#17 skipped by
+him, #18 seen).
 
 ## A. Decisions waiting for an answer
 
